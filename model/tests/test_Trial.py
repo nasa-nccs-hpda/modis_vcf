@@ -27,27 +27,11 @@ class TrialTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testInit(self):
 
-        t = Trial('test', TrialTestCase._sampleLocs)
-        self.assertEqual(len(t._sampleLocs), 5)
-        self.assertEqual(len(t._sampleLocs[0]), 2)
-
-    # -------------------------------------------------------------------------
-    # testMinMaxRowCol
-    # -------------------------------------------------------------------------
-    def testMinMaxRowCol(self):
+        NAME = 'test'
+        PRED_NAMES = ['pred1', 'pred2']
+        PREM_IMPORT =  {'a': 1, 'b': 2}
+        t = Trial(NAME, PRED_NAMES, PREM_IMPORT)
+        self.assertEqual(t.name, NAME)
+        self.assertEqual(t.predictorNames, PRED_NAMES)
+        self.assertEqual(t.permImportance, PREM_IMPORT)
         
-        sampleLocs = [(6, 2), (0, 3), (9, 2), (14, 2), (14, 4)]
-        t = Trial('test', sampleLocs)
-        self.assertEqual(t.minRow(), 0)
-        self.assertEqual(t.minCol(), 2)
-        self.assertEqual(t.maxRow(), 14)
-        self.assertEqual(t.maxCol(), 4)
-        
-    # -------------------------------------------------------------------------
-    # testSampleLocs
-    # -------------------------------------------------------------------------
-    def testSampleLocs(self):
-
-        t = Trial('test', TrialTestCase._sampleLocs)
-        self.assertEqual(len(t.sampleLocs), 5)
-        self.assertEqual(len(t.sampleLocs[0]), 2)

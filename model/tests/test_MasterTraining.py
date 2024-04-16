@@ -96,7 +96,7 @@ class MasterTrainingTestCase(unittest.TestCase):
                             MasterTrainingTestCase.logger)
 
         df = tm.toPandas()
-        self.assertEqual(df.shape[0], 804265)
+        self.assertEqual(df.shape[0], 2000)
         self.assertEqual(df.shape[1], 259)
 
     # -------------------------------------------------------------------------

@@ -240,7 +240,9 @@ class MetricsTestCase(unittest.TestCase):
         if b5FileName.exists():
 
             os.remove(b5FileName)
-            del self.mm._combinedCubes[Pair.BAND5]
+            
+            if Pair.BAND5 in self.mm._combinedCubes:
+                del self.mm._combinedCubes[Pair.BAND5]
 
         self.assertFalse(b5FileName.exists())
         b5ComputeAndWrite = self.mm.getBandCube(Pair.BAND5)

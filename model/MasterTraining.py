@@ -22,9 +22,10 @@ from pyarrow.parquet import ParquetSchema
 class MasterTraining(object):
     
     # ---
-    # The fist four columns, tid-year, x, y, training value should be excluded
+    # The fist four columns, tid-year, x, y, sample value should be excluded
     # from the random search.
     # ---
+    SAMPLE_COL = 3
     START_COL = 4
     
     # ------------------------------------------------------------------------

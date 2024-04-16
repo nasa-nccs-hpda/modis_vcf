@@ -54,39 +54,39 @@ class BuildTraining(object):
     # ------------------------------------------------------------------------
     # addMetricsToDf
     # ------------------------------------------------------------------------
-    def _addMetricsToDf(self, df: pd.DataFrame) -> pd.DataFrame:
-        
-        tidMets: dict = self._getAllMetrics()
-        
-        metricsToRun: list = self._metricNames or \
-                             list(tidMets.values())[0].availableMetrics
-
-        for metName in metricsToRun:
-
-            # ---
-            # Get the metric for the first tid, so we can know the names
-            # of all the bands it includes.
-            # ---
-            bandNames = list(tidMets.values())[0].getMetric(metName).dayXref
-            
-            for bandName in bandNames:
-                
-                self._logger.info('Adding column for ' + bandName)
-             
-                metCol = []
-            
-                for tid in self._tids:
-                
-                    metric: Band = tidMets[tid].getMetric(metName)
-                    index = metric.dayXref[bandName]
-                    
-                    # The default behavior uses float64, so force int16.
-                    vals = metric.cube[index].flatten()
-                    metCol = np.append(metCol, vals).astype(np.int16)
-                    
-                df[bandName] = metCol
-        
-        return df
+    # def _addMetricsToDf(self, df: pd.DataFrame) -> pd.DataFrame:
+    #
+    #     tidMets: dict = self._getAllMetrics()
+    #
+    #     metricsToRun: list = self._metricNames or \
+    #                          list(tidMets.values())[0].availableMetrics
+    #
+    #     for metName in metricsToRun:
+    #
+    #         # ---
+    #         # Get the metric for the first tid, so we can know the names
+    #         # of all the bands it includes.
+    #         # ---
+    #         bandNames = list(tidMets.values())[0].getMetric(metName).dayXref
+    #
+    #         for bandName in bandNames:
+    #
+    #             self._logger.info('Adding column for ' + bandName)
+    #
+    #             metCol = []
+    #
+    #             for tid in self._tids:
+    #
+    #                 metric: Band = tidMets[tid].getMetric(metName)
+    #                 index = metric.dayXref[bandName]
+    #
+    #                 # The default behavior uses float64, so force int16.
+    #                 vals = metric.cube[index].flatten()
+    #                 metCol = np.append(metCol, vals).astype(np.int16)
+    #
+    #             df[bandName] = metCol
+    #
+    #     return df
         
     # ------------------------------------------------------------------------
     # addOneMetricToDf
@@ -288,7 +288,7 @@ class BuildTraining(object):
                               ' of ' + 
                               str(len(self._tids)))
                               
-        self._logger.warn('Failed tids: ' + str(failedTids))
+        self._logger.warning('Failed tids: ' + str(failedTids))
 
     # ------------------------------------------------------------------------
     # statistics

@@ -4,7 +4,13 @@ import logging
 from pathlib import Path
 import random
 
+import pyarrow as pa
 from pyarrow.parquet import ParquetDataset
+
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.inspection import permutation_importance
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
 
 from modis_vcf.model.MasterTraining import MasterTraining
 from modis_vcf.model.Trial import Trial
@@ -29,10 +35,14 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
-    def __init__(self, trainingDir: Path, logger: logging.RootLogger):
+    def __init__(self, 
+                 trainingDir: Path, 
+                 numTrials: int = 10, 
+                 predictorsPerTrial: int = 10, 
+                 logger: logging.RootLogger = None):
         
-        self._numTrials: int = 10
-        self._predictorsPerTrial: int = 10
+        self._numTrials: int = numTrials
+        self._predictorsPerTrial: int = predictorsPerTrial
         self._masterTraining = MasterTraining(trainingDir, logger)
         
     # ------------------------------------------------------------------------
@@ -57,41 +67,16 @@ class MonteCarloSim(object):
         return self._predictorsPerTrial
         
     # ------------------------------------------------------------------------
-    # randomizedSelection
-    #
-    # If I use and one-dimensional array, I can use random.choices().
-    # ------------------------------------------------------------------------
-    # def _randomizedSelection(self) -> list:
-    #
-    #     trials = []
-    #
-    #     # ---
-    #     # Make a flat array of length rows x cols.  Select in 1D, then
-    #     # translate to 2D later.
-    #     # ---
-    #     flat = range(self._masterTraining.numRows * self._masterTraining.numCols)
-    #
-    #     for trial in range(1, self._numTrials + 1):
-    #
-    #         name = 'Trial-' + str(trial)
-    #         pts1D = random.choices(flat, k = self._predictorsPerTrial)
-    #
-    #         sampleLocs = \
-    #             [(int(p / self._masterTraining.numCols), \
-    #              p % self._masterTraining.numCols) for p in pts1D]
-    #
-    #         trials.append(Trial(name, sampleLocs))
-    #
-    #     return trials
-
-    # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
     def run(self):
         
-        for trial in range(1, self._numTrials + 1):
+        trials = []
+        
+        for trialNum in range(1, self._numTrials + 1):
 
-            trial: Trial = self._runOneTrial(trial)
+            trial: Trial = self._runOneTrial(trialNum)
+            trials.append(trial)
             
     # ------------------------------------------------------------------------
     # runOneTrial
@@ -99,12 +84,40 @@ class MonteCarloSim(object):
     # Need all rows for each of predictorsPerTrial columns, plus one more 
     # column, the training column.
     # https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html
+    #
+    # predictions = rf.predict(xTest)
+    # acc = accuracy_score(yTest, predictions)
     # ------------------------------------------------------------------------
     def _runOneTrial(self, trialNum: int) -> Trial:
         
-        name = 'Trial-' + str(trial)
+        name = 'Trial-' + str(trialNum)
         
-        # Randomly choose among the columns.
-        cols = random.choices(range(self.masterTraining.numCols))
+        # Randomly choose among the columns, omitting the index-related ones.
+        allCols = self.masterTraining.dataset.schema.names \
+                  [MasterTraining.START_COL:]
+
+        colNames = random.sample(allCols, self.predictorsPerTrial)
         
+        # Read the columns.  Sklearn cannot use Pyarrow.Table.
+        X: pd.DataFrame = \
+            self.masterTraining.dataset.read(colNames).to_pandas()
+        
+        sampName = self.masterTraining.dataset.schema.names \
+                        [MasterTraining.SAMPLE_COL]
+                        
+        y: pd.DataFrame = \
+             self.masterTraining.dataset.read([sampName]). \
+             to_pandas().to_numpy().ravel()
+        
+        # Split the columns into test and training subsets.
+        xTrain, xTest, yTrain, yTest = train_test_split(X, y)
+        
+        # Fit the model.
+        rf = RandomForestClassifier()
+        rf = rf.fit(xTrain, yTrain)
+
+        permImportance = dict(permutation_importance(rf, X, y))
+        trial = Trial(name, colNames, permImportance)
+        
+        return trial
         
