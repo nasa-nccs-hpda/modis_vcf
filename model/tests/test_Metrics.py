@@ -11,7 +11,6 @@ import numpy as np
 from modis_vcf.model.Band import Band
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.Pair import Pair
-from modis_vcf.model.Utils import Utils
 
 
 # -----------------------------------------------------------------------------
@@ -395,7 +394,7 @@ class MetricsTestCase(unittest.TestCase):
     #     b1 = mm.getBand(Pair.BAND1)
     #     sortedBand = mm._sort(b1)
     #
-    #     self.assertIsInstance(sortedBand, Utils.Band)
+    #     self.assertIsInstance(sortedBand, Band)
     #     self.assertTrue((sortedBand.cube == b1.cube).all())
     #
     #     # Test NDVI sort.

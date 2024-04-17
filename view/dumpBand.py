@@ -11,6 +11,7 @@ import numpy as np
 from osgeo import gdal
 from osgeo import gdal_array
 
+from modis_vcf.model.Band import Band
 from modis_vcf.model.CollateBandsByDate import CollateBandsByDate
 from modis_vcf.model.MakeMetrics import MakeMetrics
 from modis_vcf.model.Mate import Mate
@@ -110,18 +111,18 @@ def dumpDay(pair: Pair,
     
     # Header
     print('----------------------')
-    mate, subDsIndex = pair._getMate(bandName)
+    mate: Mate, subDsIndex: int = pair._getMate(bandName)
     print('HDF:', mate.fileName)
 
     # Mate
-    mateBand, dataType = mate.read(subDsIndex)
-    print('Num no-data:', np.count_nonzero(mateBand == Utils.NO_DATA))
+    mateBand: np.ndarray, dataType: int = mate.read(subDsIndex)
+    print('Num no-data:', np.count_nonzero(mateBand == Band.NO_DATA))
     mateName = outDir / (prefix + '-' + bandName + '-' + day + '-mate.tif')
     write(mateName, mateBand, dataType)
 
     # Pair without QA
-    pairBandNoQa, dataType = pair.read(bandName)
-    print('Num no-data:', np.count_nonzero(pairBandNoQa == Utils.NO_DATA))
+    pairBandNoQa: np.ndarray, dataType: int = pair.read(bandName)
+    print('Num no-data:', np.count_nonzero(pairBandNoQa == Band.NO_DATA))
     print('Number of clamps found:', np.count_nonzero(pairBandNoQa == 16000))
     
     outName = outDir / \
@@ -130,8 +131,8 @@ def dumpDay(pair: Pair,
     write(outName, pairBandNoQa, dataType)
 
     # Solar zenith
-    solz = pair.solarZenith
-    print('Num no-data values:', np.count_nonzero(solz == Utils.NO_DATA))
+    solz: np.ndarray = pair.solarZenith
+    print('Num no-data values:', np.count_nonzero(solz == Band.NO_DATA))
     print('Zenith cut off:', Pair.ZENITH_CUTOFF)
     numClampsExp = np.count_nonzero(solz >= Pair.ZENITH_CUTOFF)
     print('Number of clamps expected:', numClampsExp)
@@ -144,7 +145,7 @@ def dumpDay(pair: Pair,
     state = gdal.Open(pair._cqMate.dataset.GetSubDatasets() \
         [Pair.STATE_INDEX][0]).ReadAsArray().astype(np.int16)
 
-    print('Num no-data values:', np.count_nonzero(state == Utils.NO_DATA))
+    print('Num no-data values:', np.count_nonzero(state == Band.NO_DATA))
     outName = outDir / (prefix + '-' + bandName + '-' + day + '-state.tif')
     write(outName, state, state.dtype)
 
@@ -156,7 +157,7 @@ def dumpDay(pair: Pair,
     
     # Pair with QA
     pairBandQa, dataType = pair.read(bandName, applyQa=True)
-    print('Num no-data values:', np.count_nonzero(pairBandQa == Utils.NO_DATA))
+    print('Num no-data values:', np.count_nonzero(pairBandQa == Band.NO_DATA))
 
     pairBandQaName = outDir / \
         (prefix + '-' + bandName + '-' + day + '-pairBandQa.tif')
@@ -172,15 +173,45 @@ def dumpDay(pair: Pair,
 def write(outName: Path, band: np.ndarray, dataType: int) -> None:
     
     print('Writing', outName)
-    ds = Utils.createDsFromParams(outName, band.shape, 1, dataType)
+    ds = createDsFromParams(outName, band.shape, 1, dataType)
     gdBand = ds.GetRasterBand(1)
     gdBand.WriteArray(band)
-    gdBand.SetNoDataValue(Utils.NO_DATA)
+    gdBand.SetNoDataValue(Band.NO_DATA)
     gdBand.FlushCache()
     gdBand = None
     ds = None
-    
 
+# ------------------------------------------------------------------------
+# createDsFromParams
+# ------------------------------------------------------------------------
+def createDsFromParams(outName: Path, 
+                       shape: tuple, 
+                       numBands: int,
+                       inDataType: int) -> gdal.Dataset:
+    
+    # Translate Numpy data types to GDAL types.  
+    dataType = inDataType
+    
+    try:
+        
+        dataType = gdal_array.NumericTypeCodeToGDALTypeCode(inDataType)
+    
+    except TypeError:
+        pass
+    
+    ds = gdal.GetDriverByName('GTiff').Create(
+        str(outName),
+        shape[1],
+        shape[0],
+        numBands,
+        dataType,
+        options=['COMPRESS=LZW'])
+
+    ds.SetSpatialRef(Band.modisSinusoidal)
+    
+    return ds
+   
+    
 # -----------------------------------------------------------------------------
 # Invoke the main
 # -----------------------------------------------------------------------------

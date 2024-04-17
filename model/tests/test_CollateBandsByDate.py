@@ -10,7 +10,6 @@ from osgeo import gdal
 from modis_vcf.model.CollateBandsByDate import CollateBandsByDate
 from modis_vcf.model.Mate import Mate
 from modis_vcf.model.Pair import Pair
-from modis_vcf.model.Utils import Utils
 
 
 # -----------------------------------------------------------------------------

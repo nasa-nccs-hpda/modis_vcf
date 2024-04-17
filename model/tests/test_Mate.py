@@ -122,25 +122,4 @@ class MateTestCase(unittest.TestCase):
         
         self.assertEqual(band.shape, (4800, 4800))
         self.assertEqual(dataType, gdal.GDT_Int16)
-
-    # -------------------------------------------------------------------------
-    # testValidity
-    # -------------------------------------------------------------------------
-    # def testValidity(self):
-    #
-    #     ch = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C/'
-    #               'MOD44CH.A2019065.h09v05.061.2020290183523.hdf')
-    #
-    #     mate = Mate(ch)
-    #     band, dataType = mate.read(1)
-    #     outName = Path(tempfile.mkdtemp()) / '2020290183523.tif'
-    #     print('Writing', outName)
-    #     ds = Utils.createDsFromParams(outName, band.shape, 1, dataType)
-    #     gdBand = ds.GetRasterBand(1)
-    #     gdBand.WriteArray(band)
-    #     gdBand.FlushCache()
-    #     gdBand = None
-    #     ds = None
-        
-        
         
