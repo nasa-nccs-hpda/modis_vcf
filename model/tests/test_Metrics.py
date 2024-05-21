@@ -19,6 +19,9 @@ from modis_vcf.model.Pair import Pair
 # python -m unittest discover modis_vcf/model/tests/
 # python -m unittest modis_vcf.model.tests.test_Metrics
 # python -m unittest modis_vcf.model.tests.test_Metrics.MetricsTestCase.testGetSortKeys
+#
+# TODO:  metricAmpGreenestBandRefl, metricAmpWarmestBandRefl,
+#        metricTempMeanWarmest3
 # -----------------------------------------------------------------------------
 class MetricsTestCase(unittest.TestCase):
 
@@ -388,51 +391,198 @@ class MetricsTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     # testSort
     # -------------------------------------------------------------------------
-    # def testSort(self):
-    #
-    #     mm = self.mm
-    #     b1 = mm.getBand(Pair.BAND1)
-    #     sortedBand = mm._sort(b1)
-    #
-    #     self.assertIsInstance(sortedBand, Band)
-    #     self.assertTrue((sortedBand.cube == b1.cube).all())
-    #
-    #     # Test NDVI sort.
-    #     ndviSortedBand = mm._sort(b1, Metrics.SortMethod.NDVI)
-    #     self.assertFalse((ndviSortedBand.cube == b1.cube).all())
-    #
-    #     # Find the largest NDVI value at the location.
-    #     x = 21
-    #     y = 12
-    #     maxIndex = mm.ndvi.cube[:, x, y].argmax()
-    #     self.assertEqual(ndviSortedBand.cube[0, x, y], b1.cube[maxIndex, x, y])
-    #
-    #     # Test thermal sort.
-    #     thermSortedBand = mm._sort(b1, Metrics.SortMethod.THERMAL)
-    #     self.assertFalse((thermSortedBand.cube == b1.cube).all())
-    #
-    #     # Find the largest thermal value at the location.
-    #     x = 2100
-    #     y = 1200
-    #     raw31 = mm._cbbd.getBand(Pair.BAND31)
-    #     combined31 = mm._combine(raw31)
-    #     maxIndex = combined31.cube[:, x, y].argmax()
-    #
-    #     self.assertEqual(thermSortedBand.cube[0, x, y],
-    #                      b1.cube[maxIndex, x, y])
+    def testSort(self):
 
-    # -------------------------------------------------------------------------
-    # testWriteMetrics
-    # -------------------------------------------------------------------------
-    # def testWriteMetrics(self):
-    #
-    #     b1 = self.mm.getBand(Pair.BAND1)
-    #     b2 = self.mm.getBand(Pair.BAND2)
-    #     self.mm.metric1(b1)
-    #     self.mm.metric1(b2)
-    #     self.mm.metric4(b1)
-    #     self.mm.metric4(b2)
-    #     outDir = Path(tempfile.mkdtemp())
-    #     self.mm.writeMetrics(outDir)
+        mm = self.mm
+        b1: np.ndarray = mm.getBandCube(Pair.BAND1)
+        sortedBand: np.ndarray = np.sort(b1, axis=0)
+        self.assertFalse((sortedBand == b1).all())
 
+        # Test NDVI sort.
+        ndviSortedBand: np.ndarray = mm._sortByNDVI(b1)
+        self.assertFalse((ndviSortedBand == b1).all())
+
+        # Find the largest NDVI value at the location.
+        x = 21
+        y = 12
+        maxIndex = mm.getNdvi()[:, x, y].argmax()
+        self.assertEqual(maxIndex, 1)
+        self.assertAlmostEqual(mm.getNdvi()[maxIndex, x, y], 364.26116838)
+        self.assertEqual(ndviSortedBand[-1, x, y], b1[maxIndex, x, y])
+
+        # Test thermal sort.
+        thermSortedBand: np.ndarray = mm._sortByThermal(b1)
+        self.assertFalse((thermSortedBand == b1).all())
+
+        # Find the largest thermal value at the location.
+        x = 2100
+        y = 1200
+        raw31 = mm._cbbd.getBand(Pair.BAND31)
+        combined31: np.ndarray = mm._combine(raw31)[0]
+        maxIndex = combined31[:, x, y].argmax()
+        self.assertEqual(thermSortedBand[-1, x, y], b1[maxIndex, x, y])
         
+        # A NaN case was found.
+        x = 100
+        y = 1001
+
+    # -------------------------------------------------------------------------
+    # testMetricAmpGreenestBandRefl
+    # -------------------------------------------------------------------------
+    def testMetricAmpGreenestBandRefl(self):
+
+        x = 100
+        y = 1001
+        mm = self.mm
+        b1: np.ndarray = mm.getBandCube(Pair.BAND1)
+        ndvi = mm.getNdvi()
+        
+        maxBand = np.nanargmax(ndvi[:, x, y])
+        minBand = np.nanargmin(ndvi[:, x, y])
+        self.assertEqual(maxBand, 2)
+        self.assertEqual(minBand, 0)
+        
+        b1MaxB = b1[maxBand, x, y]
+        b1MinB = b1[minBand, x, y]
+        self.assertEqual(b1MaxB, 1550.0)
+        self.assertEqual(b1MinB, 1256.0)
+        
+        ndviSortedBand: np.ndarray = mm._sortByNDVI(b1)
+        sortedBandXy = ndviSortedBand[:, x, y]
+        amp = b1MaxB - b1MinB
+        self.assertTrue(np.isnan(sortedBandXy[-1]))
+        self.assertEqual(b1MaxB, sortedBandXy[-2])
+        self.assertEqual(b1MinB, sortedBandXy[0])
+        self.assertEqual(amp, b1MaxB - b1MinB)
+        
+        metric = mm.metricAmpGreenestBandRefl()
+        b1Metric = metric[0]
+        self.assertTrue(b1Metric.name, 'AmpGreenestBandRefl-Band_1')
+        self.assertEqual(b1Metric.value[x, y], b1MaxB - b1MinB)
+
+    # -------------------------------------------------------------------------
+    # testMetricAmpWarmestBandRefl
+    # -------------------------------------------------------------------------
+    def testMetricAmpWarmestBandRefl(self):
+
+        x = 100
+        y = 1001
+        mm = self.mm
+        b1: np.ndarray = mm.getBandCube(Pair.BAND1)
+        thermal = mm.getBandCube(Pair.BAND31)
+
+        maxBand = np.nanargmax(thermal[:, x, y])
+        minBand = np.nanargmin(thermal[:, x, y])
+        self.assertEqual(maxBand, 4)
+        self.assertEqual(minBand, 8)
+
+        b1MaxB = b1[maxBand, x, y]
+        b1MinB = b1[minBand, x, y]
+        self.assertEqual(b1MaxB, 1575.0)
+        self.assertEqual(b1MinB, 1412.0)
+
+        sortedBand: np.ndarray = mm._sortByThermal(b1)
+        sortedBandXy = sortedBand[:, x, y]
+        amp = b1MaxB - b1MinB
+        self.assertTrue(np.isnan(sortedBandXy[-1]))
+        self.assertEqual(b1MaxB, sortedBandXy[-2])
+        self.assertEqual(b1MinB, sortedBandXy[0])
+        self.assertEqual(amp, b1MaxB - b1MinB)
+
+        metric = mm.metricAmpWarmestBandRefl()
+        b1Metric = metric[0]
+        self.assertTrue(b1Metric.name, 'AmpWarmestBandRefl-Band_1')
+        self.assertEqual(b1Metric.value[x, y], b1MaxB - b1MinB)
+
+    # -------------------------------------------------------------------------
+    # testMetricTempMeanWarmest3
+    # -------------------------------------------------------------------------
+    def testMetricTempMeanWarmest3(self):
+
+        mm = self.mm
+        metric = mm.metricTempMeanWarmest3()[0]
+        self.assertTrue(metric.name, 'TempMeanWarmest3')
+        thermal = mm.getBandCube(Pair.BAND31)
+        tSorted = np.sort(thermal, axis=0)
+        
+        # Start with a location with no NaNs.
+        x, y = np.argwhere(~np.isnan(tSorted[10, :, :]))[0]
+        
+        mean = ((tSorted[8, x, y] + \
+                 tSorted[9, x, y] + \
+                 tSorted[10, x, y]) / 3.0).astype(int)
+        
+        self.assertEqual(metric.value[x, y], mean)
+
+        # Test the last (greatest) thermal value being NaN.
+        x, y = np.argwhere(np.isnan(tSorted[10, :, :]))[0]
+        self.assertTrue(np.isnan(tSorted[-1, x, y]))
+        mean = ((tSorted[8, x, y] + tSorted[9, x, y]) / 2.0).astype(int)
+        self.assertEqual(metric.value[x, y], mean)
+
+        # Test the last two (greatest) thermal values being NaN.
+        x, y = np.argwhere(np.isnan(tSorted[9, :, :]))[0]
+        self.assertTrue(np.isnan(tSorted[-1, x, y]))
+        mean = tSorted[8, x, y].astype(int)
+        self.assertEqual(metric.value[x, y], mean)
+
+        # Test the last three (greatest) thermal values being NaN.
+        x, y = np.argwhere(np.isnan(tSorted[8, :, :]))[0]
+        self.assertTrue(np.isnan(tSorted[-1, x, y]))
+        mean = Band.NO_DATA
+        self.assertEqual(metric.value[x, y], mean)
+        
+    # -------------------------------------------------------------------------
+    # testMetricTempMeanGreenest3
+    #
+    # (Pdb) cube[:,0,0]
+    # array([29648.5, 30692. , 31089. , 31559.5, 32294.5, 32236.5, 30773. ,
+    #        29787. , 28776. , 27932. , 29066.5])
+    #
+    # (Pdb) self.getNdvi()[:,0,0]
+    # array([273.75565611, 332.27445997, 284.29944655, 246.61166765,
+    #        205.24691358, 177.7997458 , 179.27608233, 177.40011926,
+    #        203.43839542, 212.49127704, 192.83658459])
+    #
+    # (Pdb) sortedCube[:,0,0]
+    # array([29787. , 32236.5, 30773. , 29066.5, 28776. , 32294.5, 27932. ,
+    #        31559.5, 29648.5, 31089. , 30692. ])
+    # -------------------------------------------------------------------------
+    def testMetricTempMeanGreenest3(self):
+
+        mm = self.mm
+        metric = mm.metricTempMeanGreenest3()[0]
+        self.assertTrue(metric.name, 'TempMeanGreenest3')
+        thermal = mm.getBandCube(Pair.BAND31)
+        ndvi = mm.getNdvi()
+        nSorted = np.sort(ndvi, axis=0)
+
+        # Start with a location with no NaNs.
+        x, y = np.argwhere(~np.isnan(nSorted[10, :, :]))[0]
+        targetStack = ndvi[:, x, y]  # Isolate the non-nan stack
+        maxVal = nSorted[-1, x, y]   # Get the three maximum ndvi values
+        maxVal2 = nSorted[-2, x, y]
+        maxVal3 = nSorted[-3, x, y]
+        maxNPos = np.where(targetStack == maxVal)  # Get pos of max ndvis
+        maxNPos2 = np.where(targetStack == maxVal2)
+        maxNPos3 = np.where(targetStack == maxVal3)
+        maxThermal = thermal[maxNPos, x, y].item()  # Thermal at those pos'ns
+        maxThermal2 = thermal[maxNPos2, x, y].item()
+        maxThermal3 = thermal[maxNPos3, x, y].item()
+        mean = int((maxThermal + maxThermal2 + maxThermal3) / 3.0)
+        self.assertEqual(metric.value[x, y], mean)
+        
+        # Test the last (greatest) NDVI value being NaN.
+        x, y = np.argwhere(np.isnan(nSorted[10, :, :]))[0]
+        targetStack = ndvi[:, x, y]  # Isolate the non-nan stack
+        maxVal = nSorted[9, x, y]   # Get the three maximum ndvi values
+        maxVal2 = nSorted[8, x, y]
+        maxVal3 = nSorted[7, x, y]
+        maxNPos = np.where(targetStack == maxVal)  # Get pos of max ndvis
+        maxNPos2 = np.where(targetStack == maxVal2)
+        maxNPos3 = np.where(targetStack == maxVal3)
+        maxThermal = thermal[maxNPos, x, y].item()  # Thermal at those pos'ns
+        maxThermal2 = thermal[maxNPos2, x, y].item()
+        maxThermal3 = thermal[maxNPos3, x, y].item()
+        mean = int((maxThermal + maxThermal2 + maxThermal3) / 3.0)
+        self.assertEqual(metric.value[x, y], mean)

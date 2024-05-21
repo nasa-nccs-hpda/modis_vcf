@@ -35,7 +35,14 @@ from modis_vcf.model.Pair import Pair
 #
 # TODO:  A metric should be its own class.  They can inherit from a base, and 
 # it will eliminate much of this copy and paste. Metrics can have different
-# data types.  This matters because of memory limits.
+# data types.  This matters because of memory limits.  Another reason for 
+# separate classes is that the rigorous unit tests for each metric has a lot
+# of repeated code that should be in its own methods.  While this could be
+# done in MetricsTestCase, it would confuse the structure with so many 
+# ancillary methods that relate only to specific test methods.
+#
+# TODO:  The sort methods, sortByNDVI and sortByThermal, do not consider NaN.
+# Numpy sorts NaNs as the greatest value.  Is this ok?
 # ----------------------------------------------------------------------------
 class Metrics(object):
 
@@ -124,6 +131,8 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # applyThreshold
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def _applyThreshold(self, cube: np.ndarray) -> np.ndarray:
         
@@ -150,6 +159,8 @@ class Metrics(object):
         
     # ------------------------------------------------------------------------
     # combine
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def _combine(self, band: Band) -> (np.ndarray, dict):
         
@@ -211,6 +222,8 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # getBandCube
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def getBandCube(self, 
                     bandName: str, 
@@ -268,6 +281,8 @@ class Metrics(object):
         
     # ------------------------------------------------------------------------
     # getDayXref
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def getDayXref(self, bandName: str) -> dict:
         
@@ -343,6 +358,8 @@ class Metrics(object):
     #
     # Do NDVI thresholding here, so it is written.  When it is read, it will
     # already have the threshold applied.
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def getNdvi(self, applyThreshold = True) -> np.ndarray:
 
@@ -401,14 +418,16 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     # sortByReflectance
     # ------------------------------------------------------------------------
-    def _sortByReflectance(self, band: Band) -> np.ndarray:
-        
-        ascIndexes = np.argsort(band.cube, axis=0)
-        sc = np.take_along_axis(band.cube, ascIndexes, axis=0)
-        return sc
+    # def _sortByReflectance(self, cube: np.ndarray) -> np.ndarray:
+    #
+    #     ascIndexes = np.argsort(cube, axis=0)
+    #     sc = np.take_along_axis(cube, ascIndexes, axis=0)
+    #     return sc
 
     # ------------------------------------------------------------------------
     # sortByNDVI
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def _sortByNDVI(self, cube: np.ndarray) -> np.ndarray:
         
@@ -418,6 +437,8 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # sortByThermal
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def _sortByThermal(self, cube: np.ndarray) -> np.ndarray:
         
@@ -603,7 +624,7 @@ class Metrics(object):
 
             cube = self.getBandCube(bandName)
             sortedCube = self._sortByNDVI(cube)
-            value = sortedCube[-1, :, :]
+            value = sortedCube[-1, :, :]  # b/c sorted in ascending order
             
             noDataValue = np.where(np.isnan(value), 
                                    Band.NO_DATA, 
@@ -618,6 +639,8 @@ class Metrics(object):
         
     # ------------------------------------------------------------------------
     # metricBandReflMedianGreenness
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def metricBandReflMedianGreenness(self) -> list:
         
@@ -681,7 +704,7 @@ class Metrics(object):
 
             cube = self.getBandCube(bandName)
             sortedCube = self._sortByNDVI(cube)
-            value = sortedCube[0, :, :]
+            value = sortedCube[0, :, :]  # b/c sorted in ascending order
             
             noDataValue = np.where(np.isnan(value), 
                                    Band.NO_DATA, 
@@ -713,7 +736,7 @@ class Metrics(object):
 
             cube = self.getBandCube(bandName)
             sortedCube = self._sortByThermal(cube)
-            value = sortedCube[-1, :, :]
+            value = sortedCube[-1, :, :]  # b/c sorted in ascending order
             
             noDataValue = np.where(np.isnan(value), 
                                    Band.NO_DATA, 
@@ -790,7 +813,7 @@ class Metrics(object):
 
             cube = self.getBandCube(bandName)
             sortedCube = self._sortByThermal(cube)
-            value = sortedCube[0, :, :]
+            value = sortedCube[0, :, :]  # b/c sorted in ascending order
             
             noDataValue = np.where(np.isnan(value), 
                                    Band.NO_DATA, 
@@ -874,7 +897,7 @@ class Metrics(object):
         for bandName in Pair.BANDS + [Metrics.NDVI]:
 
             cube = self.getBandCube(bandName)
-            sortedCube = self._sortByNDVI(cube)
+            sortedCube = self._sortByNDVI(cube)  # ascending sort
             startIndex = sortedCube.shape[0] - numBands
             slicedCube = sortedCube[startIndex:, :, :]
             value = np.nanmean(slicedCube, axis=0)
@@ -927,7 +950,7 @@ class Metrics(object):
         for bandName in Pair.BANDS + [Metrics.NDVI]:
 
             cube = self.getBandCube(bandName)
-            sortedCube = self._sortByThermal(cube)
+            sortedCube = self._sortByThermal(cube)  # ascending sort
             startIndex = sortedCube.shape[0] - numBands
             slicedCube = sortedCube[startIndex:, :, :]
             value = np.nanmean(slicedCube, axis=1)
@@ -998,6 +1021,8 @@ class Metrics(object):
         
     # ------------------------------------------------------------------------
     # metricAmpGreenestBandRefl
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def metricAmpGreenestBandRefl(self) -> list:
         
@@ -1015,8 +1040,21 @@ class Metrics(object):
 
             cube = self.getBandCube(bandName)
             sortedCube = self._sortByNDVI(cube)
-            minBand = np.nanmin(sortedCube, axis=0)
-            maxBand = np.nanmax(sortedCube, axis=0)
+            minBand = sortedCube[0]
+
+            # ---
+            # NaNs are sorted as greater than real numbers, so they appear at
+            # the end of the sorted cube.  The following counts the NaNs, 
+            # revealing the index of the earliest NaN, then subtracts one
+            # to get the last non-NaN.
+            # ---
+            lastNonNanIndex = (~np.isnan(sortedCube)).sum(axis=0) - 1
+
+            maxBand = \
+                np.take_along_axis(sortedCube, 
+                                   lastNonNanIndex[None, :, :],
+                                   axis=0).reshape(lastNonNanIndex.shape)
+            
             value = maxBand - minBand
             
             noDataValue = np.where(np.isnan(value), 
@@ -1032,6 +1070,8 @@ class Metrics(object):
         
     # ------------------------------------------------------------------------
     # metricAmpWarmestBandRefl
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def metricAmpWarmestBandRefl(self) -> list:
         
@@ -1049,8 +1089,21 @@ class Metrics(object):
 
             cube = self.getBandCube(bandName)
             sortedCube = self._sortByThermal(cube)
-            minBand = np.nanmin(sortedCube, axis=0)
-            maxBand = np.nanmax(sortedCube, axis=0)
+            minBand = sortedCube[0]
+
+            # ---
+            # NaNs are sorted as greater than real numbers, so they appear at
+            # the end of the sorted cube.  The following counts the NaNs, 
+            # revealing the index of the earliest NaN, then subtracts one
+            # to get the last non-NaN.
+            # ---
+            lastNonNanIndex = (~np.isnan(sortedCube)).sum(axis=0) - 1
+
+            maxBand = \
+                np.take_along_axis(sortedCube, 
+                                   lastNonNanIndex[None, :, :],
+                                   axis=0).reshape(lastNonNanIndex.shape)
+
             value = maxBand - minBand
             
             noDataValue = np.where(np.isnan(value), 
@@ -1067,7 +1120,9 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     # metricTempMeanWarmest3
     #
-    # Same guts as _warmestMeanBandRefl.
+    # Has test.  
+    #
+    # TO DO: Deal with NaNs in sortedCube.
     # ------------------------------------------------------------------------
     def metricTempMeanWarmest3(self) -> list:
         
@@ -1081,8 +1136,8 @@ class Metrics(object):
         sortedCube = np.sort(cube, axis=0)
         startIndex = sortedCube.shape[0] - 3
         slicedCube = sortedCube[startIndex:, :, :]
-        value = np.nanmean(slicedCube, axis=1)
-            
+        value = np.nanmean(slicedCube, axis=0)
+        
         noDataValue = np.where(np.isnan(value), 
                                Band.NO_DATA, 
                                value).astype(int)
@@ -1093,7 +1148,9 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     # metricTempMeanGreenest3
     #
-    # Same guts as in _greenestMeanBandRefl.
+    # Test underway
+    #
+    # TO DO: Deal with NaNs in sortedCube.
     # ------------------------------------------------------------------------
     def metricTempMeanGreenest3(self) -> list:
         
@@ -1103,10 +1160,22 @@ class Metrics(object):
             self._logger.info(desc)
 
         baseName = 'TempMeanGreenest3'
-        cube = self.getBandCube(Pair.BAND31)
-        sortedCube = self._sortByNDVI(cube)
-        startIndex = sortedCube.shape[0] - 1
-        slicedCube = sortedCube[startIndex:, :, :]
+        cube: np.ndarray = self.getBandCube(Pair.BAND31)
+        sortedCube: np.ndarray = self._sortByNDVI(cube)
+
+        # ---
+        # NaNs are sorted as greater than real numbers, so they appear at
+        # the end of the sorted cube.  The following counts the NaNs, 
+        # revealing the index of the earliest NaN, then subtracts one
+        # to get the last non-NaN.
+        # ---
+        lastNonNanIndex: np.ndarray = (~np.isnan(sortedCube)).sum(axis=0) - 1
+        startIndex: np.ndarray = lastNonNanIndex - 3
+        import pdb
+        pdb.set_trace()
+        # The following is invalid syntax, but it reflects what is needed.
+        # This?  https://stackoverflow.com/questions/24398708/slicing-a-numpy-array-along-a-dynamically-specified-axis
+        slicedCube = sortedCube[startIndex:lastNonNanIndex, :, :]
         value = np.nanmean(slicedCube, axis=0)
 
         noDataValue = np.where(np.isnan(value), 

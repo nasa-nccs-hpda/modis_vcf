@@ -5,7 +5,6 @@ from pathlib import Path
 import random
 
 import pyarrow as pa
-from pyarrow.parquet import ParquetDataset
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.inspection import permutation_importance
@@ -39,18 +38,59 @@ class MonteCarloSim(object):
                  trainingDir: Path, 
                  numTrials: int = 10, 
                  predictorsPerTrial: int = 10, 
+                 numVarsToSelect: int = 10,
+                 minTimesEachVarUsed: int = 10,
                  logger: logging.RootLogger = None):
         
         self._numTrials: int = numTrials
         self._predictorsPerTrial: int = predictorsPerTrial
+        self._logger = logger
         self._masterTraining = MasterTraining(trainingDir, logger)
         
+        self._allVars = self.masterTraining.dataset.schema.names \
+                        [MasterTraining.START_COL:]
+
+        # ---
+        # This is the number of highest-performing variables to select for
+        # the final model.  In other words, the top ten (top numVarsToSelect).
+        # ---
+        self._numVarsToSelect: int = numVarsToSelect
+        
+        # ---
+        # Each variable must be randomly selected at least minTimesEachVarUsed
+        # times before the accumulation of trials may stop.  This overrides
+        # self._numTrials, if self._numTrials is reached before
+        # minTimesEachVarUsed is satisfied.
+        # ---
+        self._minTimesEachVarUsed: int = minTimesEachVarUsed
+
     # ------------------------------------------------------------------------
-    # trainingDs
+    # allVars
     # ------------------------------------------------------------------------
     @property
-    def masterTraining(self) -> MasterTraining:
-        return self._masterTraining
+    def allVars(self) -> list:
+        return self._allVars
+        
+    # ------------------------------------------------------------------------
+    # rankVars
+    # ------------------------------------------------------------------------
+    def rankVars(self, trials) -> dict:
+        
+        # Collate permutation importance for each variable.
+        collatedImportance = dict.fromkeys(self.allVars, float)
+
+        for trial in trials:
+            
+            means = trial.permImportance['importances_mean']
+        
+            for i in range(len(means)):
+
+                varName = trial.predictorNames[i]
+                varMean = means[i]
+                curMean = collatedImportance[varName]
+                collatedImportance[varName] = (curMean + varMean) / 2.0
+                
+        return collatedImportance
         
     # ------------------------------------------------------------------------
     # numTrials
@@ -59,6 +99,22 @@ class MonteCarloSim(object):
     def numTrials(self) -> int:
         return self._numTrials
         
+    # ------------------------------------------------------------------------
+    # pollVarUsage
+    # ------------------------------------------------------------------------
+    def _pollVarUsage(self, varUsageCount: dict) -> bool:
+        
+        usageAchieved = True
+        
+        for var in varUsageCount:
+
+            if varUsageCount[var] < self._minTimesEachVarUsed:
+
+                usageAchieved = False
+                break
+                
+        return usageAchieved
+            
     # ------------------------------------------------------------------------
     # predictorsPerTrial
     # ------------------------------------------------------------------------
@@ -71,32 +127,63 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def run(self):
         
-        trials = []
+        trials: list = self._runTrials()
+        rankedVars: dict = self.rankVars(trials)
         
-        for trialNum in range(1, self._numTrials + 1):
+    # ------------------------------------------------------------------------
+    # runTrials
+    # ------------------------------------------------------------------------
+    def _runTrials(self) -> list[Trial]:
+        
+        self._logger.info('Starting trials.')
 
+        # Tally variable usage for self._minTimesEachVarUsed.
+        varUsageCount = dict.fromkeys(self.allVars, 0) 
+        usageAchieved = False
+        trials = []
+        trialNum = 0
+        
+        while not usageAchieved:
+
+            trialNum += 1
+            
+            self._logger.info('Running trial ' + 
+                              str(trialNum) + 
+                              ' of ' + 
+                              str(self._numTrials))
+                              
             trial: Trial = self._runOneTrial(trialNum)
             trials.append(trial)
             
+            # Tally variable usage.
+            for var in trial.predictorNames:
+                varUsageCount[var] += 1
+                
+            # Do not bother polling usage until miniumum trials satisfied.
+            if trialNum >= self._numTrials:
+                
+                self._logger.info('Minimum trials achieved.  ' + \
+                                  'Checking minimum variable usage.')
+                      
+                usageAchieved = self._pollVarUsage(varUsageCount)  
+                
+        self._logger.info('Trials completed.') 
+        
+        return trials          
+
     # ------------------------------------------------------------------------
     # runOneTrial
     #
     # Need all rows for each of predictorsPerTrial columns, plus one more 
     # column, the training column.
     # https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html
-    #
-    # predictions = rf.predict(xTest)
-    # acc = accuracy_score(yTest, predictions)
     # ------------------------------------------------------------------------
     def _runOneTrial(self, trialNum: int) -> Trial:
         
         name = 'Trial-' + str(trialNum)
         
         # Randomly choose among the columns, omitting the index-related ones.
-        allCols = self.masterTraining.dataset.schema.names \
-                  [MasterTraining.START_COL:]
-
-        colNames = random.sample(allCols, self.predictorsPerTrial)
+        colNames = random.sample(self.allVars, self.predictorsPerTrial)
         
         # Read the columns.  Sklearn cannot use Pyarrow.Table.
         X: pd.DataFrame = \
@@ -116,8 +203,22 @@ class MonteCarloSim(object):
         rf = RandomForestClassifier()
         rf = rf.fit(xTrain, yTrain)
 
+        # ---
+        # According to the user manual, permutation importance items are
+        # presented in the same order as the input variables.  Wish this were
+        # explicit.  For the trial object, the permutation importance values
+        # correspond, in order, to the predictor names.  See
+        # https://scikit-learn.org/stable/modules/permutation_importance.html#permutation-importance
+        # ---
         permImportance = dict(permutation_importance(rf, X, y))
         trial = Trial(name, colNames, permImportance)
         
         return trial
+
+    # ------------------------------------------------------------------------
+    # trainingDs
+    # ------------------------------------------------------------------------
+    @property
+    def masterTraining(self) -> MasterTraining:
+        return self._masterTraining
         
