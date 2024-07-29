@@ -6,13 +6,14 @@ from pathlib import Path
 import sys
 
 from modis_vcf.model.Metrics import Metrics
-from modis_vcf.model.Pair import Pair
+from modis_vcf.model.ProductTypeMod09A import ProductTypeMod09A
+from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
 
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/makeMetricsCLV.py -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles -t h08v04 -y 2019
+# modis_vcf/view/makeMetricsCLV.py -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -t h09v05 -y 2019
 # -----------------------------------------------------------------------------
 def main():
     
@@ -20,6 +21,7 @@ def main():
     parser = argparse.ArgumentParser(description=desc)
 
     inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+    inDir09 = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
 
     parser.add_argument('-i',
                         type=Path,
@@ -66,9 +68,12 @@ def main():
     # ---
     # Make Metrics
     # ---
+    # prodType = ProductTypeMod44(args.i)
+    prodType = ProductTypeMod09A(inDir09, inDir)
+    
     for tid in args.t:
 
-        mm = Metrics(tid, args.y, args.i, args.o, logger=logger)
+        mm = Metrics(tid, args.y, prodType, args.o, logger=logger)
     
         if args.p:
 

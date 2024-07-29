@@ -5,29 +5,23 @@ import logging
 from pathlib import Path
 import sys
 
-from modis_vcf.model.CollateBandsByDate import CollateBandsByDate
-
 
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/collateOneBand.py -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles -t h24v04 -y 2019 -b BAND_1
+# modis_vcf/view/writeBandDayFiles.py -i /explore/nobackup/projects/ilab/data/MODIS/MOD44C -a /explore/nobackup/projects/ilab/data/MODIS/MOD09A1 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -t h09v05 -y 2019 -p MOD09
 # -----------------------------------------------------------------------------
 def main():
     
-    desc = 'Use this application to compute metrics.'
+    desc = 'Use this application to write bands for individual days.'
     parser = argparse.ArgumentParser(description=desc)
 
-    inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
-
-    parser.add_argument('-b',
-                        type=str,
-                        required='True',
-                        help='Band name.  See Pair.py.')
+    parser.add_argument('-a',
+                        type=Path,
+                        help='Auxilliary directory for finding MODIS files')
 
     parser.add_argument('-i',
                         type=Path,
-                        default=inDir,
                         help='Input directory for finding MODIS files')
 
     parser.add_argument('-o',
@@ -36,9 +30,10 @@ def main():
                         help='Output directory for writing metrics')
 
     parser.add_argument('-t',
+                        nargs='+',
                         type=str,
                         required='True',
-                        help='Tile ID in the form h##v##')
+                        help='List of tile IDs in the form h##v## h##v## ...')
 
     parser.add_argument('-y',
                         type=int,
@@ -55,16 +50,10 @@ def main():
     ch = logging.StreamHandler(sys.stdout)
     ch.setLevel(logging.INFO)
     logger.addHandler(ch)
-
-    cbbd = CollateBandsByDate(args.t, 
-                              args.y, 
-                              args.i, 
-                              args.o, 
-                              logger, 
-                              write=True)
-                           
-    cbbd.getBand(args.b)
     
+    # ---
+    # ProductType
+    # ---
 
 # -----------------------------------------------------------------------------
 # Invoke the main

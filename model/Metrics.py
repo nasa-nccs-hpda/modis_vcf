@@ -1,9 +1,8 @@
 
 import inspect
 import logging
-import math
 from collections import namedtuple
-import numpy as np
+import math
 import os
 from pathlib import Path
 import pickle
@@ -14,9 +13,8 @@ import numpy.ma as ma
 
 from osgeo import gdal
 
-from modis_vcf.model.Band import Band
-from modis_vcf.model.CollateBandsByDate import CollateBandsByDate
-from modis_vcf.model.Pair import Pair
+from modis_vcf.model.CompositeDayFile import CompositeDayFile
+from modis_vcf.model.ProductType import ProductType
 
 
 # ----------------------------------------------------------------------------
@@ -33,6 +31,9 @@ from modis_vcf.model.Pair import Pair
 # does not seem to support NaN.  Therefore, the NaNs in the metrics must be
 # converted back to Band.NO_DATA.
 #
+# See comment in metricAmpGreenestBandRefl() for an important note regarding
+# NaNs.
+#
 # TODO:  A metric should be its own class.  They can inherit from a base, and 
 # it will eliminate much of this copy and paste. Metrics can have different
 # data types.  This matters because of memory limits.  Another reason for 
@@ -40,9 +41,6 @@ from modis_vcf.model.Pair import Pair
 # of repeated code that should be in its own methods.  While this could be
 # done in MetricsTestCase, it would confuse the structure with so many 
 # ancillary methods that relate only to specific test methods.
-#
-# TODO:  The sort methods, sortByNDVI and sortByThermal, do not consider NaN.
-# Numpy sorts NaNs as the greatest value.  Is this ok?
 # ----------------------------------------------------------------------------
 class Metrics(object):
 
@@ -61,31 +59,25 @@ class Metrics(object):
     def __init__(self,
                  tileId: str, 
                  year: int, 
-                 inputDir: Path, 
+                 productType: ProductType,
                  outDir: Path,
                  logger: logging.RootLogger):
 
-        # Input directory
-        if not inputDir or not inputDir.exists() or not inputDir.is_dir():
-            raise RuntimeError('A valid input directory must be provided.')
-            
         # Output directory
         if not outDir or not outDir.exists() or not outDir.is_dir():
             raise RuntimeError('A valid output directory must be provided.')
             
         self._outDir = outDir / (tileId + '-' + str(year))
-        # self._outDir = outDir / tileId
 
         # ---
         # Create the output directories.
         # ---
         self._logger: logging.RootLogger = logger
-        self._uncombinedDir = self._outDir / '1-uncombined-bands'
-        self._combinedDir = self._outDir / '2-combined-bands'
-        self._metricsDir = self._outDir / '3-metrics'
+        self._metricsDir = self._outDir / '3-Metrics'
     
-        for d in [self._outDir, self._uncombinedDir, self._combinedDir,
-                  self._metricsDir]:
+        # for d in [self._outDir, self._uncombinedDir, self._combinedDir,
+        #           self._metricsDir]:
+        for d in [self._outDir, self._metricsDir]:
 
             if not os.path.exists(d):
                 os.mkdir(d)
@@ -93,27 +85,15 @@ class Metrics(object):
         if self._logger:
 
             self._logger.info('    Output dir: ' + str(self._outDir))
-            self._logger.info('Uncombined dir: ' + str(self._uncombinedDir))
-            self._logger.info('  Combined dir: ' + str(self._combinedDir))
             self._logger.info('   Metrics dir: ' + str(self._metricsDir))
 
         # Other members
-        self._cbbd: CollateBandsByDate = \
-            CollateBandsByDate(tileId, 
-                               year, 
-                               inputDir, 
-                               self._uncombinedDir, 
-                               logger,
-                               write=True)
-        
-        self._periodsToCombine: int = 2
+        self._productType: ProductType = productType
         self._nanThreshold: int = 3
         self.availableMetrics: list = None
-        self._ndvi: np.ndarray = None
+        self._tid: str = tileId
+        self._year: int = year
                 
-        # Combined bands use NaNs instead of no-data values.
-        self._combinedCubes = {}  # {bandName, np.ndarray}
-        
         # ---
         # This executes @property members, unfortunately.
         # "Introspection is a sign of a bad design," said some famous 
@@ -132,7 +112,7 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     # applyThreshold
     #
-    # Has test
+    # Needs V2 test
     # ------------------------------------------------------------------------
     def _applyThreshold(self, cube: np.ndarray) -> np.ndarray:
         
@@ -151,75 +131,12 @@ class Metrics(object):
         # Parquet file?  No.
         # ---
         threshed = np.where( \
-            np.count_nonzero(np.isnan(cube), axis=0) > self._nanThreshold, 
-            np.nan, 
+            np.count_nonzero(np.isnan(cube), axis=0) > self._nanThreshold,
+            np.nan,
             cube)
         
         return threshed
         
-    # ------------------------------------------------------------------------
-    # combine
-    #
-    # Has test
-    # ------------------------------------------------------------------------
-    def _combine(self, band: Band) -> (np.ndarray, dict):
-        
-        if self._periodsToCombine == 1:
-            return band
-            
-        # ---
-        # This splits the 23 days to lists that are 
-        # _periodsToCombine x 4800 x 4800.
-        # ---
-        numSplits, allDays = self._getNumSplits()
-        
-        # Keep track of days by splitting dayXref.
-        sortedDays = sorted(allDays)  # [yyyydd, ...]
-        
-        # [[yyyydd, yyyydd], [yyyydd, yyyydd], ...]
-        splitDays = np.array_split(sortedDays, numSplits) 
-        self._logger.info('Split days: ' + str(splitDays))
-        splitCube = np.full((len(splitDays), Band.ROWS, Band.COLS), np.nan)
-
-        # ---
-        # Unsorted monthly bands needs to know which day each element of the 
-        # first axis represents.  Save the cross-reference table here.  It
-        # can be retrieved using getDayXref(), which reads the file saved
-        # here.
-        # ---
-        splitCubeXref = {}  # yyyydd: index into cube
-        splitCubeIndex = 0
-        
-        for days in splitDays:
-            
-            dayArray = np.empty((self._periodsToCombine, Band.ROWS, Band.COLS))
-            dayIndex = 0
-            
-            # Get the days of which to take the mean.
-            for day in days:
-
-                # Substitute all no-data values for missing days.
-                try:
-                    dayNoData = band.getDay(day).astype(float)
-
-                except KeyError:
-
-                    dayNoData = np.full((Band.ROWS, Band.COLS), 
-                                        Band.NO_DATA, 
-                                        dtype=np.float)
-                    
-                dayNan = np.where(dayNoData == Band.NO_DATA, np.nan, dayNoData)
-                dayArray[dayIndex] = dayNan
-                dayIndex += 1
-                
-            combo = np.nanmean(dayArray, axis=0)
-
-            splitCubeXref[days[0]] = splitCubeIndex
-            splitCube[splitCubeIndex] = combo
-            splitCubeIndex += 1
-
-        return splitCube, splitCubeXref
-
     # ------------------------------------------------------------------------
     # getBandCube
     #
@@ -227,40 +144,44 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     def getBandCube(self, 
                     bandName: str, 
-                    applyThreshold: bool = True) -> np.ndarray:
+                    applyThreshold: bool = True) -> (np.ndarray, dict):
+
+        if bandName == self._productType.NDVI:
+            return self.getNdvi(applyThreshold)
         
-        if bandName not in self._combinedCubes or \
-            self._combinedCubes[bandName] is None:
+        # For one band, get all the days in the year and put them into a cube.
+        DAYS_SOUGHT = [(self._year,  65), (self._year,  97), (self._year, 129),
+                       (self._year, 161), (self._year, 193), (self._year, 225),
+                       (self._year, 257), (self._year, 289), (self._year, 321),
+                       (self._year, 353), (self._year + 1,  17), 
+                       (self._year + 1,  49)]
+        
+        cube = np.full((len(DAYS_SOUGHT), 
+                       self._productType.ROWS, 
+                       self._productType.COLS), np.nan)
+        
+        xref = {}  # yyyydd: index into cube
+        cubeIndex = 0
 
-            combName, xrefName = self.getCombinedFileNames(bandName)
+        for year, day in DAYS_SOUGHT:
             
-            if combName.exists():
-                
-                combined = np.fromfile(combName)
-                numDays = self._getNumSplits()[0]
-                combined = combined.reshape(numDays, Band.ROWS, Band.COLS)
-                
-            elif bandName == Metrics.NDVI:
-                
-                combined = self.getNdvi()
-                
-            else:
-
-                band = self._cbbd.getBand(bandName)
-                combined, dayXref = self._combine(band)
-                
-                if applyThreshold:
-                    combined = self._applyThreshold(combined)
-                
-                combined.tofile(combName)
-                
-                # Save the day Xref.
-                with open(xrefName, 'wb') as fh:
-                    pickle.dump(dayXref, fh, protocol=pickle.HIGHEST_PROTOCOL)
+            cdf = CompositeDayFile(self._outDir,
+                                   self._productType, 
+                                   self._tid, 
+                                   year, 
+                                   day, 
+                                   bandName)
+                                   
+            raster = cdf.getRaster
+            cube[cubeIndex] = raster
+            key = str(year) + str(day).zfill(3)
+            xref[key] = cubeIndex
+            cubeIndex += 1
             
-            self._combinedCubes[bandName] = combined  # Float
+        if applyThreshold:
+            cube = self._applyThreshold(cube)
 
-        return self._combinedCubes[bandName]
+        return cube, xref
         
     # ------------------------------------------------------------------------
     # getBaseName
@@ -271,30 +192,6 @@ class Metrics(object):
         return name
     
     # ------------------------------------------------------------------------
-    # getCombinedFileNames
-    # ------------------------------------------------------------------------
-    def getCombinedFileNames(self, bandName: str) -> (Path, Path):
-        
-        combName = self._combinedDir / (bandName + '.bin')
-        xrefName = combName.with_suffix('.xref')
-        return combName, xrefName
-        
-    # ------------------------------------------------------------------------
-    # getDayXref
-    #
-    # Has test
-    # ------------------------------------------------------------------------
-    def getDayXref(self, bandName: str) -> dict:
-        
-        xrefName = self.getCombinedFileNames(bandName)[1]
-        xref = None
-        
-        with open(xrefName, 'rb') as fh:
-            xref = pickle.load(fh)
-            
-        return xref
-        
-    # ------------------------------------------------------------------------
     # getMyBaseName
     # ------------------------------------------------------------------------
     def _getMyBaseName(self) -> str:
@@ -302,20 +199,6 @@ class Metrics(object):
         funcName = inspect.currentframe().f_back.f_code.co_name
         return self._getBaseName(funcName)
     
-    # ------------------------------------------------------------------------
-    # getNumSplits
-    # ------------------------------------------------------------------------
-    def _getNumSplits(self) -> (int, list):
-        
-        yearOne = str(self._cbbd._year)
-        daysYearOne = [yearOne + str(d).zfill(3) for d in range(65, 354, 16)]
-        yearTwo = str(self._cbbd._year + 1)
-        daysYearTwo = [yearTwo + str(d).zfill(3) for d in range(17, 50, 16)]
-        allDays = daysYearOne + daysYearTwo
-        numSplits = math.ceil(len(allDays) / self._periodsToCombine)
-
-        return numSplits, allDays
-        
     # ------------------------------------------------------------------------
     # getOutName
     # ------------------------------------------------------------------------
@@ -361,51 +244,35 @@ class Metrics(object):
     #
     # Has test
     # ------------------------------------------------------------------------
-    def getNdvi(self, applyThreshold = True) -> np.ndarray:
+    def getNdvi(self, applyThreshold = True) -> (np.ndarray, dict):
 
-        if self._ndvi is None:
+        if self._logger:
+            self._logger.info('Computing NDVI')
 
-            ndviName, xrefName = self.getCombinedFileNames(Metrics.NDVI)
-            
-            if ndviName.exists():
+        b1, b1Xref = self.getBandCube(self._productType.BAND1)
+        b2, b2Xref = self.getBandCube(self._productType.BAND2)
 
-                ndvi = np.fromfile(ndviName)
-                
-                self._ndvi = ndvi.reshape(self._getNumSplits()[0], 
-                                          Band.ROWS, 
-                                          Band.COLS)
+        ndviCube = np.full((b1.shape[0],
+                            self._productType.ROWS,
+                            self._productType.COLS), np.nan)
 
-            else:
+        for day in range(b1.shape[0]):
 
-                if self._logger:
-                    self._logger.info('Computing NDVI')
+            b1d = b1[day]
+            b2d = b2[day]
 
-                b1: np.ndarray = self.getBandCube(Pair.BAND1)
-                b2: np.ndarray = self.getBandCube(Pair.BAND2)
-                ndviCube = np.full((b1.shape[0], Band.ROWS, Band.COLS), np.nan)
+            ndviDay = \
+                np.where(b1d + b2d != 0,
+                         ((b2d - b1d) / (b2d + b1d)) * 1000,
+                         np.nan)
 
-                for day in range(b1.shape[0]):
+            ndviCube[day] = ndviDay
 
-                    b1d = b1[day]
-                    b2d = b2[day]
+        if applyThreshold:
+            ndviCube = self._applyThreshold(ndviCube)
 
-                    ndviDay = \
-                        np.where(b1d + b2d != 0,
-                                 ((b2d - b1d) / (b2d + b1d)) * 1000,
-                                 np.nan)
-                    
-                    ndviCube[day] = ndviDay
-                    
-                if applyThreshold:
-                    ndviDay = self._applyThreshold(ndviDay)
-                
-                # NDVI's xref is the same as band 1.
-                b1Xref = self.getCombinedFileNames(Pair.BAND1)[1]
-                shutil.copy(b1Xref, xrefName)
-                ndviCube.tofile(ndviName)
-                self._ndvi = ndviCube
-                
-        return self._ndvi
+        # NDVI's xref is the same as band 1.
+        return ndviCube, b1Xref
 
     # ------------------------------------------------------------------------
     # printAvailableMetrics
@@ -416,22 +283,13 @@ class Metrics(object):
             print(item[0])
 
     # ------------------------------------------------------------------------
-    # sortByReflectance
-    # ------------------------------------------------------------------------
-    # def _sortByReflectance(self, cube: np.ndarray) -> np.ndarray:
-    #
-    #     ascIndexes = np.argsort(cube, axis=0)
-    #     sc = np.take_along_axis(cube, ascIndexes, axis=0)
-    #     return sc
-
-    # ------------------------------------------------------------------------
     # sortByNDVI
     #
     # Has test
     # ------------------------------------------------------------------------
     def _sortByNDVI(self, cube: np.ndarray) -> np.ndarray:
         
-        ascIndexes = np.argsort(self.getNdvi(), axis=0)
+        ascIndexes = np.argsort(self.getNdvi()[0], axis=0)
         sc = np.take_along_axis(cube, ascIndexes, axis=0)
         return sc
 
@@ -442,7 +300,7 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     def _sortByThermal(self, cube: np.ndarray) -> np.ndarray:
         
-        b31 = self.getBandCube(Pair.BAND31)
+        b31, b31Xref = self.getBandCube(self._productType.BAND31)
         ascIndexes = np.argsort(b31, axis=0)
         sc = np.take_along_axis(cube, ascIndexes, axis=0)
         return sc
@@ -460,8 +318,8 @@ class Metrics(object):
 
         ds = gdal.GetDriverByName('GTiff').Create(
             str(outName),
-            Band.ROWS,
-            Band.COLS,
+            self._productType.ROWS,
+            self._productType.COLS,
             len(metrics),
             gdal.GDT_Int16,
             options=['BIGTIFF=YES'])
@@ -476,7 +334,7 @@ class Metrics(object):
             gdBand.WriteArray(metric.value)
             gdBand.SetMetadataItem('Name', metric.name)
             gdBand.SetMetadataItem('Description', metric.desc)
-            gdBand.SetNoDataValue(Band.NO_DATA)
+            gdBand.SetNoDataValue(self._productType.NO_DATA)
             gdBand.FlushCache()
             gdBand = None
 
@@ -487,6 +345,8 @@ class Metrics(object):
     # metricUnsortedMonthlyBands
     #
     # "Unsorted monthly bands (1 – 7 and NDVI) = 96 metrics"
+    #
+    # Has test
     # ------------------------------------------------------------------------
     def metricUnsortedMonthlyBands(self) -> list:
         
@@ -498,13 +358,12 @@ class Metrics(object):
         baseName = self._getMyBaseName()
         metrics = []
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
             
-            cube = self.getBandCube(bandName)
-            dayXref = self.getDayXref(bandName)
+            cube, dayXref = self.getBandCube(bandName)
             
             noDataCube = np.where(np.isnan(cube), 
-                                  Band.NO_DATA, cube).astype(int)
+                                  self._productType.NO_DATA, cube).astype(int)
 
             # ---
             # Each day is a metric.  This makes one huge file with each band's
@@ -532,13 +391,13 @@ class Metrics(object):
         baseName = self._getMyBaseName()
         metrics = []
 
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             value = np.nanmin(cube, axis=0)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             name = baseName + '-' + bandName
@@ -560,13 +419,13 @@ class Metrics(object):
         metrics = []
         baseName = self._getMyBaseName()
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             value = np.nanmedian(cube, axis=0)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -589,13 +448,13 @@ class Metrics(object):
         metrics = []
         baseName = self._getMyBaseName()
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             value = np.nanmax(cube, axis=0)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -620,14 +479,14 @@ class Metrics(object):
         metrics = []
         baseName = 'BandReflMaxGreenness'
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             sortedCube = self._sortByNDVI(cube)
             value = sortedCube[-1, :, :]  # b/c sorted in ascending order
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -640,43 +499,53 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     # metricBandReflMedianGreenness
     #
-    # Has test
+    # NaN are nuisances:
+    #
+    # 1.            ndvi = [3, 2, NaN, 4]
+    # 2.   numNdviNotNan = 3
+    # 3.            cube = [44, NaN, 66, 77]
+    # 4.      sortedCube = [NaN, 44, 77, 66]
+    # 5.           index = int(numNdviNotNan / 2) = 1
+    # 6.          median = sortedCube[index] = 44
+    #
+    # V2 test successful.
     # ------------------------------------------------------------------------
     def metricBandReflMedianGreenness(self) -> list:
-        
+
         if self._logger:
 
             desc = 'band x reflectance associated with median ' + \
                    'greenness = 8 metrics'
-                   
+
             self._logger.info('Running ' + desc)
-            
+
         metrics = []
         baseName = 'BandReflMedianGreenness'
+
+        # Prepare thermal information for dealing with NaNs.
+        ndvi, nXref = self.getNdvi()  #1
+        numNdviNotNan = (~np.isnan(ndvi)).sum(axis=0)  #2
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
-            sortedCube = self._sortByNDVI(cube)
-            numBands = sortedCube.shape[0]
+            print('Processing', bandName)
+            cube, xref = self.getBandCube(bandName)  #3
+            sortedCube = self._sortByNDVI(cube)   #4
 
-            if numBands % 2:
-                
-                # Odd number of bands, so use the middle index.
-                midIndex = math.ceil(numBands / 2)
-                value = sortedCube[midIndex, :, :]
-                
-            else:
-                
-                # Even number of bands
-                midIndex = math.floor(numBands / 2)
-                v1 = sortedCube[midIndex, :, :]
-                v2 = sortedCube[midIndex + 1, :, :]
-                diff = v1 / v2
-                value = v1 + diff
+            # This is considerably slower than Numpy functions.
+            value = np.empty((self._productType.ROWS, self._productType.COLS))
+
+            for r in range(self._productType.ROWS):
+
+                for c in range(self._productType.COLS):
+
+                    days = sortedCube[:, r, c]
+                    ndviNotNan = numNdviNotNan[r, c]  #2
+                    index = int(ndviNotNan / 2)  #6
+                    value[r, c] = days[index] if index > 0 else np.nan
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             name = baseName + '-' + bandName
@@ -684,7 +553,7 @@ class Metrics(object):
             metrics.append(Metrics.Metric(name, desc, noDataValue))
             
         return metrics
-        
+
     # ------------------------------------------------------------------------
     # metricBandReflMinGreenness
     # ------------------------------------------------------------------------
@@ -700,14 +569,14 @@ class Metrics(object):
         metrics = []
         baseName = 'BandReflMinGreenness'
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             sortedCube = self._sortByNDVI(cube)
             value = sortedCube[0, :, :]  # b/c sorted in ascending order
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -732,14 +601,14 @@ class Metrics(object):
         metrics = []
         baseName = 'BandReflMaxTemp'
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             sortedCube = self._sortByThermal(cube)
             value = sortedCube[-1, :, :]  # b/c sorted in ascending order
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
                 
@@ -751,6 +620,17 @@ class Metrics(object):
         
     # ------------------------------------------------------------------------
     # metricBandReflMedianTemp
+    #
+    # NaN are nuisances:
+    #
+    # 1.         thermal = [3, 2, NaN, 4]
+    # 2.  numThermNotNan = 3
+    # 3.            cube = [44, NaN, 66, 77]
+    # 4.      sortedCube = [NaN, 44, 77, 66]
+    # 5.           index = int(numThermalNotNan / 2) = 1
+    # 6.          median = sortedCube[index] = 44
+    #
+    # V2 test in progress.
     # ------------------------------------------------------------------------
     def metricBandReflMedianTemp(self) -> list:
         
@@ -764,28 +644,30 @@ class Metrics(object):
         metrics = []
         baseName = 'BandReflMedianTemp'
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        # Prepare thermal information for dealing with NaNs.
+        thermal, tXref = self.getBandCube(self._productType.BAND31)  # 1
+        numThermNotNan = (~np.isnan(thermal)).sum(axis=0)  #2
 
-            cube = self.getBandCube(bandName)
-            sortedCube = self._sortByThermal(cube)
-            
-            numBands = sortedCube.shape[0]
-            midIndex = math.floor(numBands / 2)
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            if midIndex % 2:
-                
-                # Odd number of bands
-                v1 = sortedCube[midIndex-1, :, :]
-                v2 = sortedCube[midIndex, :, :]
-                value = (v1 / v2).astype(np.int)
-                
-            else:
-                
-                # Even number of bands
-                value = sortedCube[midIndex, :, :]
+            print('Processing', bandName)
+            cube, xref = self.getBandCube(bandName)  # 3
+            sortedCube = self._sortByThermal(cube)   # 4
+
+            # This is considerably slower than Numpy functions.
+            value = np.empty((self._productType.ROWS, self._productType.COLS))
+
+            for r in range(self._productType.ROWS):
+
+                for c in range(self._productType.COLS):
+
+                    days = sortedCube[:, r, c]
+                    thermNotNan = numThermNotNan[r, c]  #2
+                    index = int(thermNotNan / 2)  #6
+                    value[r, c] = days[index] if index > 0 else np.nan
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             name = baseName + '-' + bandName
@@ -809,14 +691,14 @@ class Metrics(object):
         metrics = []
         baseName = 'BandReflMinTemp'
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             sortedCube = self._sortByThermal(cube)
             value = sortedCube[0, :, :]  # b/c sorted in ascending order
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -842,15 +724,15 @@ class Metrics(object):
         metrics = []
         baseName = 'Lowest' + str(numBands) + 'MeanBandRefl'
         
-        for bandName in Pair.BANDS:
+        for bandName in self._productType.BANDS:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             sortedBand = np.sort(cube, axis=0)
             slicedBand = sortedBand[0:numBands, :, :]
             value = np.nanmean(slicedBand, axis=0)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -894,16 +776,16 @@ class Metrics(object):
         metrics = []
         baseName = 'Greenest' + str(numBands) + 'MeanBandRefl'
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             sortedCube = self._sortByNDVI(cube)  # ascending sort
             startIndex = sortedCube.shape[0] - numBands
             slicedCube = sortedCube[startIndex:, :, :]
             value = np.nanmean(slicedCube, axis=0)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -947,16 +829,16 @@ class Metrics(object):
         metrics = []
         baseName = 'Warmest' + str(numBands) + 'MeanBandRefl'
         
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             sortedCube = self._sortByThermal(cube)  # ascending sort
             startIndex = sortedCube.shape[0] - numBands
             slicedCube = sortedCube[startIndex:, :, :]
             value = np.nanmean(slicedCube, axis=1)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -986,6 +868,8 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # metricAmpBandRefl
+    #
+    # Has test.
     # ------------------------------------------------------------------------
     def metricAmpBandRefl(self) -> list:
         
@@ -999,9 +883,9 @@ class Metrics(object):
         metrics = []
         baseName = 'AmpBandRefl'
 
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             minBand = np.nanmin(cube, axis=0)
             maxBand = np.nanmax(cube, axis=0)
 
@@ -1010,7 +894,7 @@ class Metrics(object):
                              maxBand - minBand)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
                                    
             name = baseName + '-' + bandName
@@ -1036,9 +920,9 @@ class Metrics(object):
         metrics = []
         baseName = 'AmpGreenestBandRefl'
 
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, xref = self.getBandCube(bandName)
             sortedCube = self._sortByNDVI(cube)
             minBand = sortedCube[0]
 
@@ -1047,18 +931,22 @@ class Metrics(object):
             # the end of the sorted cube.  The following counts the NaNs, 
             # revealing the index of the earliest NaN, then subtracts one
             # to get the last non-NaN.
+            # 
+            # Nanargmin and nanargmax do not always work because it sometimes
+            # encounters all-nan slices and raises a value error.
             # ---
-            lastNonNanIndex = (~np.isnan(sortedCube)).sum(axis=0) - 1
+            ndvi, ndviXref = self.getNdvi()
+            lastNonNanIndex = (~np.isnan(ndvi)).sum(axis=0) - 1
 
             maxBand = \
-                np.take_along_axis(sortedCube, 
+                np.take_along_axis(sortedCube,
                                    lastNonNanIndex[None, :, :],
                                    axis=0).reshape(lastNonNanIndex.shape)
-            
-            value = maxBand - minBand
+
+            value = abs(maxBand - minBand)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -1085,9 +973,9 @@ class Metrics(object):
         metrics = []
         baseName = 'AmpWarmestBandRefl'
 
-        for bandName in Pair.BANDS + [Metrics.NDVI]:
+        for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
-            cube = self.getBandCube(bandName)
+            cube, cubeXref = self.getBandCube(bandName)
             sortedCube = self._sortByThermal(cube)
             minBand = sortedCube[0]
 
@@ -1097,17 +985,18 @@ class Metrics(object):
             # revealing the index of the earliest NaN, then subtracts one
             # to get the last non-NaN.
             # ---
-            lastNonNanIndex = (~np.isnan(sortedCube)).sum(axis=0) - 1
+            b31, b31Xref = self.getBandCube(self._productType.BAND31)
+            lastNonNanIndex = (~np.isnan(b31)).sum(axis=0) - 1
 
             maxBand = \
                 np.take_along_axis(sortedCube, 
                                    lastNonNanIndex[None, :, :],
                                    axis=0).reshape(lastNonNanIndex.shape)
 
-            value = maxBand - minBand
+            value = abs(maxBand - minBand)
             
             noDataValue = np.where(np.isnan(value), 
-                                   Band.NO_DATA, 
+                                   self._productType.NO_DATA, 
                                    value).astype(int)
 
             
@@ -1121,8 +1010,6 @@ class Metrics(object):
     # metricTempMeanWarmest3
     #
     # Has test.  
-    #
-    # TO DO: Deal with NaNs in sortedCube.
     # ------------------------------------------------------------------------
     def metricTempMeanWarmest3(self) -> list:
         
@@ -1132,25 +1019,35 @@ class Metrics(object):
             self._logger.info(desc)
 
         baseName = 'TempMeanWarmest3'        
-        cube = self.getBandCube(Pair.BAND31)
-        sortedCube = np.sort(cube, axis=0)
-        startIndex = sortedCube.shape[0] - 3
-        slicedCube = sortedCube[startIndex:, :, :]
-        value = np.nanmean(slicedCube, axis=0)
+        thermal, tXref = self.getBandCube(self._productType.BAND31)
         
-        noDataValue = np.where(np.isnan(value), 
-                               Band.NO_DATA, 
-                               value).astype(int)
-
+        # ---
+        # Change NaN to low values so they are at the beginning of the sorted
+        # array and are disregarded when selecting the warmest.
+        # ---
+        thermal = np.where(np.isnan(thermal), 
+                           self._productType.NO_DATA, 
+                           thermal)
+                           
+        sortedCube = np.sort(thermal, axis=0)
+        
+        # ---
+        # There remains the cases where there are fewer than three valid 
+        # values.  Create a masked array, masking the low values, take the
+        # last three elements from the array, which may contain low values,
+        # and compute the mean with masked_array.mean().
+        # ---
+        mArray = ma.masked_equal(sortedCube, self._productType.NO_DATA)
+        slicedArray = mArray[-3:, :, :]
+        value = slicedArray.mean(axis=0).astype(int)
+        noDataValue = value.filled(self._productType.NO_DATA)
         metric = Metrics.Metric(baseName, desc, noDataValue)
         return [metric]
         
     # ------------------------------------------------------------------------
     # metricTempMeanGreenest3
     #
-    # Test underway
-    #
-    # TO DO: Deal with NaNs in sortedCube.
+    # Has test.  
     # ------------------------------------------------------------------------
     def metricTempMeanGreenest3(self) -> list:
         
@@ -1160,28 +1057,25 @@ class Metrics(object):
             self._logger.info(desc)
 
         baseName = 'TempMeanGreenest3'
-        cube: np.ndarray = self.getBandCube(Pair.BAND31)
-        sortedCube: np.ndarray = self._sortByNDVI(cube)
-
+        ndvi, ndviXref = self.getNdvi()
+        
         # ---
-        # NaNs are sorted as greater than real numbers, so they appear at
-        # the end of the sorted cube.  The following counts the NaNs, 
-        # revealing the index of the earliest NaN, then subtracts one
-        # to get the last non-NaN.
+        # Change NaN to low values so they are at the beginning of the sorted
+        # array and are disregarded when selecting the warmest.
         # ---
-        lastNonNanIndex: np.ndarray = (~np.isnan(sortedCube)).sum(axis=0) - 1
-        startIndex: np.ndarray = lastNonNanIndex - 3
-        import pdb
-        pdb.set_trace()
-        # The following is invalid syntax, but it reflects what is needed.
-        # This?  https://stackoverflow.com/questions/24398708/slicing-a-numpy-array-along-a-dynamically-specified-axis
-        slicedCube = sortedCube[startIndex:lastNonNanIndex, :, :]
-        value = np.nanmean(slicedCube, axis=0)
-
-        noDataValue = np.where(np.isnan(value), 
-                               Band.NO_DATA, 
-                               value).astype(int)
-
+        ndvi = np.where(np.isnan(ndvi), self._productType.NO_DATA, ndvi)
+        sortedCube = np.sort(ndvi, axis=0)
+        
+        # ---
+        # There remains the cases where there are fewer than three valid 
+        # values.  Create a masked array, masking the low values, take the
+        # last three elements from the array, which may contain low values,
+        # and compute the mean with masked_array.mean().
+        # ---
+        mArray = ma.masked_equal(sortedCube, self._productType.NO_DATA)
+        slicedArray = mArray[-3:, :, :]
+        value = slicedArray.mean(axis=0).astype(int)
+        noDataValue = value.filled(self._productType.NO_DATA)
         metric = Metrics.Metric(baseName, desc, noDataValue)
         return [metric]
         
