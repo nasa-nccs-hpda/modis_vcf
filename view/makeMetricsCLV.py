@@ -13,7 +13,10 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/makeMetricsCLV.py -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -t h09v05 -y 2019
+# modis_vcf/view/makeMetricsCLV.py --productType MOD09 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD09A -y 2019 -t h09v05
+#
+# TODO: product type and input directories depend on each other, and should not
+#       be hard coded
 # -----------------------------------------------------------------------------
 def main():
     
@@ -23,10 +26,10 @@ def main():
     inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
     inDir09 = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
 
-    parser.add_argument('-i',
-                        type=Path,
-                        default=inDir,
-                        help='Input directory for finding MODIS files')
+    # parser.add_argument('-i',
+    #                     type=Path,
+    #                     default=inDir,
+    #                     help='Input directory for finding MODIS files')
 
     parser.add_argument('-m',
                         type=str,
@@ -42,6 +45,11 @@ def main():
                         action='store_true',
                         help='Print descriptions of available metrics ' + \
                              'and exit.')
+
+    parser.add_argument('--productType',
+                        choices=[ProductTypeMod09A.PRODUCT_TYPE, 
+                                 ProductTypeMod44.PRODUCT_TYPE],
+                        help='Choose the product type to run.')
 
     parser.add_argument('-t',
                         nargs='+',
@@ -66,14 +74,31 @@ def main():
     logger.addHandler(ch)
 
     # ---
-    # Make Metrics
+    # Product type
+    #
+    # This can be accomplished with registration, instead of this hard coding.
     # ---
-    # prodType = ProductTypeMod44(args.i)
-    prodType = ProductTypeMod09A(inDir09, inDir)
+    inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+    inDir09 = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
+    prodType = None
+
+    if args.productType == ProductTypeMod09A.PRODUCT_TYPE:
+        
+        prodType = ProductTypeMod09A(inDir09, inDir)
+        
+    else:
+        prodType = ProductTypeMod44(inDir)
     
+    # ---
+    # Make metrics
+    # ---
     for tid in args.t:
 
-        mm = Metrics(tid, args.y, prodType, args.o, logger=logger)
+        mm = Metrics(tid, 
+                     args.y, 
+                     prodType, 
+                     args.o, 
+                     logger=logger)
     
         if args.p:
 

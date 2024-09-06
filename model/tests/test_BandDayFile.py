@@ -54,17 +54,22 @@ class BandDayFileTestCase(unittest.TestCase):
                           BandDayFileTestCase._outDir)
         
         self.assertEqual(bdf._productType.productType, pt.productType)
-        self.assertEqual(bdf._tileId, tid)
+        self.assertEqual(bdf._tid, tid)
         self.assertEqual(bdf._year, year)
         self.assertEqual(bdf._day, day)
         self.assertEqual(bdf._bandName, bandName)
         
-        outName = BandDayFileTestCase._outDir / \
-            '1-Days' / \
-            (pt.productType + '-' + str(year) + str(day).zfill(3) + '-' +
-             bandName +
-             '.bin')
-        
+        outName: Path = BandDayFileTestCase._outDir / \
+                        (pt.productType +
+                        '-' +
+                         tid +
+                        '-' +
+                        str(year) +
+                        str(day).zfill(3) +
+                        '-' +
+                        bandName +
+                        '.bin')
+
         self.assertEqual(bdf._outName, outName)
 
     # -------------------------------------------------------------------------
@@ -327,4 +332,28 @@ class BandDayFileTestCase(unittest.TestCase):
         bdf._outName.unlink()  # Delete, so non-qa version is not read.
         band = bdf.getRaster
         print('Band[', x, ',', y, '] =', band[x, y])
-        
+
+    # -------------------------------------------------------------------------
+    # testRead
+    # -------------------------------------------------------------------------
+    def testRead(self):
+ 
+        inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
+        pt = ProductTypeMod09A(inDir, BandDayFileTestCase._inDir44)
+
+        bdf = BandDayFile(pt, 
+                          'h09v05', 
+                          2019, 
+                          65, 
+                          ProductType.BAND5, 
+                          BandDayFileTestCase._outDir)
+
+        r1 = bdf.getRaster
+        self.assertEqual(r1.shape, (4800, 4800))
+        self.assertEqual(r1.dtype, np.int16)
+        r2 = bdf.getRaster
+        self.assertTrue(np.array_equal(r1, r2, equal_nan=True))
+        bdf._raster = None
+        r3 = bdf.getRaster
+        self.assertTrue(np.array_equal(r1, r3, equal_nan=True))
+                

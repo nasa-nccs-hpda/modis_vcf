@@ -1,6 +1,8 @@
 
+import logging
 import os
 from pathlib import Path
+import sys
 
 import numpy as np
 
@@ -36,33 +38,54 @@ class BandDayFile(object):
     # ------------------------------------------------------------------------
     def __init__(self, 
                  productType: ProductType,
-                 tileId: str,
+                 tid: str,
                  year: int,
                  day: int,
                  bandName: str,
-                 outDir: Path):
+                 outDir: Path,
+                 debug: bool = False,
+                 logger: logging.RootLogger = None):
         
         self._productType: ProductType = productType
-        self._tileId: str = tileId  #  Needs validation
+        self._tid: str = tid  #  Needs validation
         self._year: int = year  # Needs validation
         self._day: int = day  # Needs validation
         self._bandName: str = bandName  # Needs validation
-        
-        outDir = outDir / '1-Days'
+        self._debug: bool = debug
         
         if not outDir.exists():
-            os.mkdir(outDir)
+            
+            raise RuntimeError('Output directory, ' + 
+                               str(outDir) + 
+                               ' does not exist.')
+                               
+        self._outDir: Path = outDir
         
         self._outName: Path = outDir / \
-                              (self._productType.productType + 
-                              '-' +
-                               str(self._year) + 
-                               str(self._day).zfill(3) + 
-                              '-' +
+                              (self._productType.productType +
+                               '-' +
+                               tid +
+                               '-' +
+                               str(self._year) +
+                               str(self._day).zfill(3) +
+                               '-' +
                                self._bandName +
                                '.bin')
                                
-        # If the raster exists, read it; otherwise, create it.
+        # Logger
+        if not logger:
+            
+            logger = logging.getLogger()
+            logger.setLevel(logging.INFO)
+
+            if (not logger.hasHandlers()):
+
+                ch = logging.StreamHandler(sys.stdout)
+                ch.setLevel(logging.INFO)
+                logger.addHandler(ch)
+
+        self._logger: logging.RootLogger = logger
+        
         self._solarZenith: np.ndarray = None
         self._qaMask: np.ndarray = None
         self._raster: np.ndarray = None
@@ -73,12 +96,10 @@ class BandDayFile(object):
     @property
     def getRaster(self) -> np.ndarray:
 
-        if type(self._raster) is np.ndarray:
-            
-            return self._raster
-            
-        else:
-            return self._readRaster()
+        if not type(self._raster) is np.ndarray:
+            self._raster = self._readRaster()
+
+        return self._raster
         
     # ------------------------------------------------------------------------
     # readSubdataset
@@ -89,7 +110,7 @@ class BandDayFile(object):
         
         bandName = inBandName or self._bandName
         
-        fileName: Path = self._productType.findFile(self._tileId,
+        fileName: Path = self._productType.findFile(self._tid,
                                                     self._year,
                                                     self._day,
                                                     bandName)
@@ -120,13 +141,23 @@ class BandDayFile(object):
         
         if self._outName.exists():
             
+            self._logger.info('Reading band from file.')
+
             outBand = np.fromfile(self._outName, dtype=np.int16). \
                       reshape(ProductType.ROWS, ProductType.COLS)
                                                     
             return outBand
 
+        self._logger.info('Reading band from HDF for ' +
+                          self._tid + 
+                          ' ' + 
+                          self._bandName +
+                          ' ' + 
+                          str(self._year) + 
+                          str(self._day).zfill(3))
+
         # Read the raster without QA.
-        rawRaster, dataType = self._readSubdataset()  # Int16
+        outBand, dataType = self._readSubdataset()  # Int16
         
         # ---
         # If a pixel value is larger than the solar zenith cut off, clamp it
@@ -137,9 +168,7 @@ class BandDayFile(object):
         
         solz = (solz * self._productType.solarZenithScaleFactor). \
                astype(np.int16)
-        
-        outBand = np.where(solz < zenithCutOff, rawRaster, 16000)
-
+               
         # Apply the QA.  It does not use ProductType.NO_DATA.
         if applyQa:
             
@@ -153,6 +182,12 @@ class BandDayFile(object):
         outBand = outBand.astype(np.int16)
         outBand.tofile(self._outName)
     
+        if self._debug: 
+            
+            solzName = self._outName.with_suffix('.solz.tif')
+            self._writeTif(solz, solzName)
+            self.toTif()
+            
         return outBand
 
     # ------------------------------------------------------------------------
@@ -161,10 +196,16 @@ class BandDayFile(object):
     def toTif(self) -> None:
         
         outName = self._outName.with_suffix('.tif')        
-        print('Writing ' + str(outName))
-        
-        raster = self.getRaster
+        if outName.exists(): return
+        self._writeTif(self.getRaster, outName)
 
+    # ------------------------------------------------------------------------
+    # _writeTif
+    # ------------------------------------------------------------------------
+    def _writeTif(self, raster: np.ndarray, outName: Path) -> None:
+        
+        self._logger.info('Writing ' + str(outName))
+        
         modisSinusoidal = SpatialReference()
     
         modisSinusoidal.ImportFromProj4(
@@ -178,7 +219,7 @@ class BandDayFile(object):
             str(outName),
             raster.shape[0],
             raster.shape[1],
-            2,
+            1,
             dataType,
             options=['COMPRESS=LZW', 'BIGTIFF=YES'])
 
@@ -188,12 +229,12 @@ class BandDayFile(object):
         gdBand.SetNoDataValue(self._productType.NO_DATA)
         gdBand.SetMetadata({'name': self._bandName})
         gdBand.FlushCache()
-        gdBand = None
-        gdBand = ds.GetRasterBand(2)
-        gdBand.WriteArray(self._qaMask)
-        gdBand.SetNoDataValue(self._productType.NO_DATA)
-        gdBand.SetMetadata({'name': 'QA'})
-        gdBand.FlushCache()
+        # gdBand = None
+        # gdBand = ds.GetRasterBand(2)
+        # gdBand.WriteArray(self._qaMask)
+        # gdBand.SetNoDataValue(self._productType.NO_DATA)
+        # gdBand.SetMetadata({'name': 'QA'})
+        # gdBand.FlushCache()
         gdBand = None
 
         ds = None

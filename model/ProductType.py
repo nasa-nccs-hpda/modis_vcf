@@ -10,6 +10,8 @@ import numpy as np
 # Class ProductType
 #
 # TODO: Complete validation in __init__().
+# TODO: Refactor QA code as appropriate.
+# TODO: Make product types register themselves.
 # ----------------------------------------------------------------------------
 class ProductType(ABC):
 
@@ -106,15 +108,18 @@ class ProductType(ABC):
         
     # ------------------------------------------------------------------------
     # findFile
+    #
+    # The altDir argument is a kludge until this can be redesigned.
     # ------------------------------------------------------------------------
     def findFile(self, 
                  tileId: str, 
                  year: int, 
                  day: int,
-                 bandName: str) -> Path:
+                 bandName: str,
+                 altDir: Path = None) -> Path:
         
         searchPt: ProductType = self.getProductTypeForBand(bandName)
-        globDir = searchPt._inputDir
+        globDir = altDir or searchPt._inputDir
         prefix = searchPt._prefixXref[bandName]
         yNj = str(year) + str(day).zfill(3)
         pt = searchPt.productType

@@ -94,11 +94,12 @@ class ProductTypeMod09A(ProductType):
         cloudInternal = state & ProductTypeMod09A.CLOUD_INT
         aerosol = state & ProductTypeMod09A.AERO_MASK
         
-        mask = np.where((cloudMixed == ProductTypeMod09A.CLOUD_MIXED) |
+        mask = np.where(
+                        (cloudMixed == ProductTypeMod09A.CLOUD_MIXED) |
                         (cloudy == ProductTypeMod09A.CLOUDY) |
                         (shadow == ProductTypeMod09A.CLOUD_SHADOW) |
                         (cloudInternal == ProductTypeMod09A.CLOUD_INT) |
-                        (aerosol == ProductTypeMod09A.AERO_CLIMATOLOGY) |
+                        # (aerosol == ProductTypeMod09A.AERO_CLIMATOLOGY) |
                         (aerosol == ProductTypeMod09A.AERO_HIGH) |
                         (solz > zenithCutOff),
                         ProductType.NO_DATA,

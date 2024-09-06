@@ -33,8 +33,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
             Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
         
         cls._outDir = Path(tempfile.mkdtemp())
+        cls._dayDir = cls._outDir / '1-Days'
+        cls._compDir = cls._outDir / '2-Composites'
+        cls._dayDir.mkdir()
+        cls._compDir.mkdir()
+        
         print(cls._outDir)
-
+        
     # -------------------------------------------------------------------------
     # testInit
     # -------------------------------------------------------------------------
@@ -46,12 +51,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         day = 65
         bandName = ProductType.BAND1
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         self.assertEqual(cdf._productType.productType, pt.productType)
         self.assertEqual(cdf._tileId, tid)
@@ -60,11 +66,17 @@ class CompositeDayFileTestCase(unittest.TestCase):
         self.assertEqual(cdf._bandName, bandName)
         self.assertEqual(cdf._daysInComp, 32)
         
-        outName = CompositeDayFileTestCase._outDir / \
-            '2-Composites' / \
-            (pt.productType + '-' + str(year) + str(day).zfill(3) + '-' +
-             bandName + '.bin')
-        
+        outName: Path = CompositeDayFileTestCase._compDir / \
+                        (pt.productType +
+                         '-' +
+                         tid +
+                         '-' +
+                         str(year) +
+                         str(day).zfill(3) +
+                         '-' +
+                         bandName +
+                         '.bin')
+
         self.assertEqual(cdf._outName, outName)
 
     # -------------------------------------------------------------------------
@@ -78,22 +90,23 @@ class CompositeDayFileTestCase(unittest.TestCase):
         day = 65
         bandName = ProductType.BAND3
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
-        
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
+
         composite = cdf.getRaster
         self.assertEqual(composite.shape, (4800, 4800))
-        self.assertEqual(composite.dtype, np.float64)
+        self.assertEqual(composite.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
         composite2 = cdf.getRaster
         self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
         self.assertEqual(composite2.shape, (4800, 4800))
-        self.assertEqual(composite2.dtype, np.float64)
+        self.assertEqual(composite2.dtype, np.int16)
 
     # -------------------------------------------------------------------------
     # testMod09B1 (Band 1)
@@ -108,22 +121,23 @@ class CompositeDayFileTestCase(unittest.TestCase):
         day = 65
         bandName = ProductType.BAND1
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         composite = cdf.getRaster
         self.assertEqual(composite.shape, (4800, 4800))
-        self.assertEqual(composite.dtype, np.float64)
+        self.assertEqual(composite.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
         composite2 = cdf.getRaster
         self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
         self.assertEqual(composite2.shape, (4800, 4800))
-        self.assertEqual(composite2.dtype, np.float64)
+        self.assertEqual(composite2.dtype, np.int16)
 
     # -------------------------------------------------------------------------
     # testMod09B31 (Band 31)
@@ -138,22 +152,23 @@ class CompositeDayFileTestCase(unittest.TestCase):
         day = 65
         bandName = ProductType.BAND31
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         composite = cdf.getRaster
         self.assertEqual(composite.shape, (4800, 4800))
-        self.assertEqual(composite.dtype, np.float64)
+        self.assertEqual(composite.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
         composite2 = cdf.getRaster
         self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
         self.assertEqual(composite2.shape, (4800, 4800))
-        self.assertEqual(composite2.dtype, np.float64)
+        self.assertEqual(composite2.dtype, np.int16)
 
     # -------------------------------------------------------------------------
     # testYearWrap
@@ -168,16 +183,17 @@ class CompositeDayFileTestCase(unittest.TestCase):
         day = 353
         bandName = ProductType.BAND5
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         composite = cdf.getRaster
         self.assertEqual(composite.shape, (4800, 4800))
-        self.assertEqual(composite.dtype, np.float64)
+        self.assertEqual(composite.dtype, np.int16)
 
     # -------------------------------------------------------------------------
     # testLastDayOfYear2
@@ -192,12 +208,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         day = 49
         bandName = ProductType.BAND5
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         # ---
         # 2020049 is the last day of the 32-day composites starting in 2019.
@@ -205,13 +222,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         # ---
         composite = cdf.getRaster
         self.assertEqual(composite.shape, (4800, 4800))
-        self.assertEqual(composite.dtype, np.float64)
+        self.assertEqual(composite.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
         composite2 = cdf.getRaster
         self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
         self.assertEqual(composite2.shape, (4800, 4800))
-        self.assertEqual(composite2.dtype, np.float64)
+        self.assertEqual(composite2.dtype, np.int16)
 
     # -------------------------------------------------------------------------
     # testGetDaysToFindMod09
@@ -228,12 +245,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2019
         day = 65
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2019, 65), (2019, 73), (2019, 81), (2019, 89)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -242,12 +260,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2019
         day = 225
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2019, 225), (2019, 233), (2019, 241), (2019, 249)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -256,12 +275,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2019
         day = 353
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2019, 353), (2019, 361), (2020, 1), (2020, 9)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -270,12 +290,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2020
         day = 17
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2020, 17), (2020, 25), (2020, 33), (2020, 41)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -284,12 +305,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2020
         day = 49
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2020, 49), (2020, 57)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -307,12 +329,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2019
         day = 65
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2019, 65), (2019, 81)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -321,12 +344,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2019
         day = 225
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2019, 225), (2019, 241)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -335,12 +359,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2019
         day = 353
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2019, 353), (2020, 1)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -349,12 +374,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2020
         day = 17
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2020, 17), (2020, 33)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -363,12 +389,13 @@ class CompositeDayFileTestCase(unittest.TestCase):
         year = 2020
         day = 49
         
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2020, 49)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
@@ -386,25 +413,26 @@ class CompositeDayFileTestCase(unittest.TestCase):
         bandName = ProductType.BAND5
         
         # Create the composite.
-        cdf = CompositeDayFile(CompositeDayFileTestCase._outDir,
-                               pt, 
+        cdf = CompositeDayFile(pt, 
                                tid, 
                                year, 
                                day, 
-                               bandName)
+                               bandName,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
         
         expDays = [(2019, 65), (2019, 81)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
         comp = cdf.getRaster   
-        self.assertEqual(comp.dtype, np.float64)     
+        self.assertEqual(comp.dtype, np.int16)     
         testDays = []
         
         for year, day in expDays:
             
-            name = 'MOD44-' + str(year) + str(day).zfill(3) + \
+            name = 'MOD44-' + tid + '-' + str(year) + str(day).zfill(3) + \
                    '-' + bandName + '.bin'
                    
-            fName = Path(CompositeDayFileTestCase._outDir / '1-Days') / name
+            fName = CompositeDayFileTestCase._dayDir / name
             raster = np.fromfile(fName, dtype=np.int16).reshape(4800, 4800)
             testDays.append(raster)
         
@@ -414,7 +442,7 @@ class CompositeDayFileTestCase(unittest.TestCase):
         self.assertFalse(np.isnan(testDays[1][x, y]))
         
         self.assertEqual(comp[x, y], \
-                         (testDays[0][x, y] + testDays[1][x, y]) / 2)
+                         int((testDays[0][x, y] + testDays[1][x, y]) / 2))
 
         x = 21
         y = 12
@@ -422,7 +450,7 @@ class CompositeDayFileTestCase(unittest.TestCase):
         self.assertFalse(np.isnan(testDays[1][x, y]))
         
         self.assertEqual(comp[0, 0], \
-                         (testDays[0][0, 0] + testDays[1][0, 0]) / 2)
+                         int((testDays[0][0, 0] + testDays[1][0, 0]) / 2))
 
         x = 2100
         y = 1200
@@ -430,7 +458,7 @@ class CompositeDayFileTestCase(unittest.TestCase):
         self.assertFalse(np.isnan(testDays[1][x, y]))
         
         self.assertEqual(comp[0, 0], \
-                         (testDays[0][0, 0] + testDays[1][0, 0]) / 2)
+                         int((testDays[0][0, 0] + testDays[1][0, 0]) / 2))
 
         x = 4799
         y = 4799
@@ -438,5 +466,55 @@ class CompositeDayFileTestCase(unittest.TestCase):
         self.assertFalse(np.isnan(testDays[1][x, y]))
         
         self.assertEqual(comp[0, 0], \
-                         (testDays[0][0, 0] + testDays[1][0, 0]) / 2)
+                         int((testDays[0][0, 0] + testDays[1][0, 0]) / 2))
+ 
+    # -------------------------------------------------------------------------
+    # testSolz
+    #
+    # The metrics in h12v02 suggested an erroneous composition of day files
+    # related to solar zenith.
+    # -------------------------------------------------------------------------
+    def testSolz(self):
+ 
+        inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
+
+        outDir = Path('/explore/nobackup/people/rlgill' +      
+                      '/SystemTesting/modis-vcf/MOD09A')
+
+        pt = ProductTypeMod09A(inDir, CompositeDayFileTestCase._inDir44)
+
+        cdf = CompositeDayFile(pt, 
+                               'h12v02', 
+                               2019, 
+                               289, 
+                               pt.BAND1,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
+
+        cdf.getRaster
+
+    # -------------------------------------------------------------------------
+    # testRead
+    # -------------------------------------------------------------------------
+    def testRead(self):
+ 
+        inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
+        pt = ProductTypeMod09A(inDir, CompositeDayFileTestCase._inDir44)
+
+        cdf = CompositeDayFile(pt, 
+                               'h12v02', 
+                               2019, 
+                               289, 
+                               pt.BAND1,
+                               CompositeDayFileTestCase._compDir,
+                               CompositeDayFileTestCase._dayDir)
+
+        r1 = cdf.getRaster
+        self.assertEqual(r1.shape, (4800, 4800))
+        self.assertEqual(r1.dtype, np.int16)
+        r2 = cdf.getRaster
+        self.assertTrue(np.array_equal(r1, r2, equal_nan=True))
+        cdf._raster = None
+        r3 = cdf.getRaster
+        self.assertTrue(np.array_equal(r1, r3, equal_nan=True))
         
