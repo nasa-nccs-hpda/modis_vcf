@@ -166,9 +166,6 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     def getBandCube(self, bandName: str) -> (np.ndarray, dict):
 
-        # if bandName == self._productType.NDVI:
-        #     return self.getNdvi()
-        
         # For one band, get all the days in the year and put them into a cube.
         DAYS_SOUGHT = [(self._year,  65), (self._year,  97), (self._year, 129),
                        (self._year, 161), (self._year, 193), (self._year, 225),
@@ -1141,36 +1138,6 @@ class Metrics(object):
                 
             else:
                 cube, xref = self.getBandCube(bandName)
-
-            # sortedCube = self._sortByThermal(cube)
-            # # minBand = sortedCube[0]
-            #
-            # # ---
-            # # Nanargmin and nanargmax do not always work because it sometimes
-            # # encounters all-nan slices and raises a value error.
-            # #
-            # # SortByThermal() puts the band values related to thermal NaN values
-            # # at the beginning of the sorted array.
-            # # ---
-            # # thermal, tXref = self.getBandCube(ProductType.BAND31)
-            # # numThermNan = np.isnan(thermal).sum(axis=0)
-            #
-            # numNoData = (sortedCube == ProductType.NO_DATA).sum(axis=0)
-            #
-            # # Ensure the index is within the bounds.
-            # totalMonths = cube.shape[0]
-            #
-            # firstIndex = np.where(numNoData >= totalMonths,
-            #                       totalMonths - 1,
-            #                       numNoData)
-            #
-            # minBand = \
-            #     np.take_along_axis(sortedCube,
-            #                        firstIndex[None, :, :],
-            #                        axis=0).reshape(firstIndex.shape)
-            #
-            # maxBand = sortedCube[-1]
-            # value = abs(maxBand - minBand)
 
             # ---
             # Where the band is NaN, set thermal to NaN.  This prevents the

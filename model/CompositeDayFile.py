@@ -21,7 +21,7 @@ from modis_vcf.model.ProductType import ProductType
 # composites.
 #
 # TODO: Is the xref needed?
-# TODO: Make DayFile base class.
+# TODO: Make DayFile base class.  This also is a GeospatialImageFile. 
 # TODO: Generalize the directory structure for all MODIS. 
 # ----------------------------------------------------------------------------
 class CompositeDayFile(object):
@@ -47,6 +47,7 @@ class CompositeDayFile(object):
         self._bandName: str = bandName  # Needs validation
         self._daysInComp: int = daysInComposite  # Needs validation
         self._debug: bool = debug
+        self._geoTransform: tuple = None  # For toTif().
         
         # Logger
         if not logger:
@@ -154,6 +155,9 @@ class CompositeDayFile(object):
                 # Use float because of the forthcoming mean operation.
                 dayNoData = bdf.getRaster.astype(np.float64)
                           
+                if not self._geoTransform: 
+                    self._geoTransform = bdf._geoTransform
+            
             except RuntimeError as e:
 
                 msg = 'Substituting empty day due to: ' + str(e)
@@ -185,6 +189,29 @@ class CompositeDayFile(object):
             
         return self._raster
     
+    # ------------------------------------------------------------------------
+    # debugPixel
+    #
+    # This method facilitates debugging a composite image.
+    # ------------------------------------------------------------------------
+    # def _debugPixel(self, x: int, y: int) -> None:
+    #
+    #     daysToFind = self._getDaysToFind()
+    #
+    #     for year, day in daysToFind:
+    #
+    #         bdf = BandDayFile(self._productType,
+    #                           self._tid,
+    #                           year,
+    #                           day,
+    #                           self._bandName,
+    #                           self._dayDir,
+    #                           debug=self._debug)
+    #
+    #         # bdf._outName.unlink(missing_ok=True)
+    #         raster = bdf._readRaster(applyQa=False)
+            
+        
     # ------------------------------------------------------------------------
     # getDaysToFind
     # ------------------------------------------------------------------------
@@ -263,6 +290,7 @@ class CompositeDayFile(object):
             options=['COMPRESS=LZW', 'BIGTIFF=YES'])
 
         ds.SetSpatialRef(modisSinusoidal)
+        ds.SetGeoTransform(self._geoTransform)
         gdBand = ds.GetRasterBand(1)
         gdBand.WriteArray(raster)
         gdBand.SetNoDataValue(self._productType.NO_DATA)

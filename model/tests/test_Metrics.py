@@ -1879,7 +1879,9 @@ class MetricsTestCase(unittest.TestCase):
         # self.assertEqual(metric.cube.shape, (8, 4800, 4800))
         # self.assertEqual(metric.name, 'Greenest3MeanBandRefl')
 
-        mm = Metrics('h12v02',
+        tid = 'h12v02'
+        
+        mm = Metrics(tid,
                      self.year2019,
                      self.productTypeMod09A,
                      self._mod09OutDir,
@@ -1891,8 +1893,51 @@ class MetricsTestCase(unittest.TestCase):
         metName.unlink(missing_ok=True)
         import pdb
         pdb.set_trace()
-        metric = mm.getMetric(METRIC_NAME)
+        # metric = mm.getMetric(METRIC_NAME)
 
         # Mark's points should not be no-data values
         x = 158
         y = 1138
+        
+        # More questionable no-data values
+        x = 2256  # col
+        y = 795   # row
+
+        # Amp = 0
+        x = 2538  # col
+        y = 769   # row
+        
+        inDir = Path('/explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD09A/h12v02/2019/1-Days')
+        
+        files = [Path('MOD44-h12v02-2019065-Band31.bin'),
+                 Path('MOD44-h12v02-2019081-Band31.bin'),
+                 Path('MOD44-h12v02-2019097-Band31.bin'),
+                 Path('MOD44-h12v02-2019113-Band31.bin'),
+                 Path('MOD44-h12v02-2019129-Band31.bin'),
+                 Path('MOD44-h12v02-2019145-Band31.bin'),
+                 Path('MOD44-h12v02-2019161-Band31.bin'),
+                 Path('MOD44-h12v02-2019177-Band31.bin'),
+                 Path('MOD44-h12v02-2019193-Band31.bin'),
+                 Path('MOD44-h12v02-2019209-Band31.bin'),
+                 Path('MOD44-h12v02-2019225-Band31.bin'),
+                 Path('MOD44-h12v02-2019241-Band31.bin'),
+                 Path('MOD44-h12v02-2019257-Band31.bin'),
+                 Path('MOD44-h12v02-2019273-Band31.bin'),
+                 Path('MOD44-h12v02-2019289-Band31.bin'),
+                 Path('MOD44-h12v02-2019305-Band31.bin'),
+                 Path('MOD44-h12v02-2019321-Band31.bin'),
+                 Path('MOD44-h12v02-2019337-Band31.bin'),
+                 Path('MOD44-h12v02-2019353-Band31.bin'),
+                 Path('MOD44-h12v02-2020001-Band31.bin'),
+                 Path('MOD44-h12v02-2020017-Band31.bin'),
+                 Path('MOD44-h12v02-2020033-Band31.bin'),
+                 Path('MOD44-h12v02-2020049-Band31.bin')]
+        
+        for f in files:
+            
+            outBand = np.fromfile(inDir / f, dtype=np.int16). \
+                      reshape(self.productTypeMod09A.ROWS,
+                              self.productTypeMod09A.COLS)
+                      
+            print(f.name, outBand[x,y])
+            

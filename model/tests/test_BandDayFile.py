@@ -1,5 +1,7 @@
 
+import logging
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 
@@ -23,52 +25,92 @@ class BandDayFileTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     # setUpClass
     # -------------------------------------------------------------------------
-    @classmethod
-    def setUpClass(cls):
+    # @classmethod
+    # def setUpClass(cls):
+    #
+    #     cls._inDir44 = \
+    #         Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+    #
+    #     cls._inDir09 = \
+    #         Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
+    #
+    #     cls._outDir = Path(tempfile.mkdtemp())
+    #     print(cls._outDir)
 
-        cls._inDir44 = \
+    # -------------------------------------------------------------------------
+    # setUp
+    # -------------------------------------------------------------------------
+    def setUp(self):
+
+        # Logger
+        self._logger = logging.getLogger()
+        self._logger.setLevel(logging.INFO)
+
+        if (not self._logger.hasHandlers()):
+
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(logging.INFO)
+            self._logger.addHandler(ch)
+
+        # MOD44
+        self.h09v05 = 'h09v05'
+        self.year2019 = 2019
+        
+        self._mod44InDir = \
             Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
-        
-        cls._inDir09 = \
+
+        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' +      
+                                 '/SystemTesting/modis-vcf/MOD44')
+
+        self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
+
+        # MOD09
+        self._mod09InDir = \
             Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
-        
-        cls._outDir = Path(tempfile.mkdtemp())
-        print(cls._outDir)
+
+        self._mod09OutDir = Path('/explore/nobackup/people/rlgill' +      
+                                 '/SystemTesting/modis-vcf/MOD09A')
+
+        self.productTypeMod09A = \
+            ProductTypeMod09A(self._mod09InDir, self._mod44InDir)
+
+        self.days = [(2019,  65), (2019,  97), (2019, 129), (2019, 161),
+                    (2019, 193), (2019, 225), (2019, 257), (2019, 289),
+                    (2019, 321), (2019, 353), (2020,  17), (2020, 49)]
 
     # -------------------------------------------------------------------------
     # testInit
     # -------------------------------------------------------------------------
     def testInit(self):
         
-        pt = ProductTypeMod44(BandDayFileTestCase._inDir44)
-        tid = 'h09v05'
-        year = 2019
         day = 65
         bandName = ProductType.BAND1
         
-        bdf = BandDayFile(pt, 
-                          tid, 
-                          year, 
+        bdf = BandDayFile(self.productTypeMod44, 
+                          self.h09v05, 
+                          self.year2019, 
                           day, 
                           bandName, 
-                          BandDayFileTestCase._outDir)
+                          self._mod44OutDir)
         
-        self.assertEqual(bdf._productType.productType, pt.productType)
-        self.assertEqual(bdf._tid, tid)
-        self.assertEqual(bdf._year, year)
+        self.assertEqual(bdf._productType.productType,
+                         self.productTypeMod44.productType)
+        
+        self.assertEqual(bdf._tid, self.h09v05)
+        self.assertEqual(bdf._year, self.year2019)
         self.assertEqual(bdf._day, day)
         self.assertEqual(bdf._bandName, bandName)
         
-        outName: Path = BandDayFileTestCase._outDir / \
-                        (pt.productType +
-                        '-' +
-                         tid +
-                        '-' +
-                        str(year) +
-                        str(day).zfill(3) +
-                        '-' +
-                        bandName +
-                        '.bin')
+        outName: Path = self._mod44OutDir / \
+                        (self.productTypeMod44.productType +
+                         '-' +
+                         self.h09v05 +
+                         '-' +
+                         str(self.year2019) +
+                         str(day).zfill(3) +
+                         '-' +
+                         bandName +
+                         '.bin')
 
         self.assertEqual(bdf._outName, outName)
 
@@ -77,19 +119,16 @@ class BandDayFileTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testMod44Ch(self):
         
-        pt = ProductTypeMod44(BandDayFileTestCase._inDir44)
-        tid = 'h09v05'
-        year = 2019
         day = 65
         bandName = ProductType.BAND3
         
-        bdf = BandDayFile(pt, 
-                          tid, 
-                          year, 
+        bdf = BandDayFile(self.productTypeMod44, 
+                          self.h09v05, 
+                          self.year2019, 
                           day, 
                           bandName, 
-                          BandDayFileTestCase._outDir)
-        
+                          self._mod44OutDir)
+
         raster = bdf.getRaster
         self.assertEqual(raster.shape, (4800, 4800))
         self.assertEqual(raster.dtype, np.int16)
@@ -286,6 +325,32 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(np.max(b5), 9214)  # unverified 
         self.assertEqual(b5[x, y], -10001)
         bdf.toTif()
+        
+    # -------------------------------------------------------------------------
+    # testQuestionablePixel
+    # -------------------------------------------------------------------------
+    # def testQuestionablePixel(self):
+    #
+    #     tid = 'h12v02'
+    #     x = 2538  # col
+    #     y = 769   # row
+    #
+    #     import pdb
+    #     pdb.set_trace()
+    #
+    #
+    #     bdf = BandDayFile(self.productTypeMod44,
+    #                       tid,
+    #                       self.year2019,
+    #                       65,
+    #                       ProductType.BAND31,
+    #                       self._mod44OutDir)
+    #
+    #     bdf._outName.unlink(missing_ok=True)
+    #
+    #     raster = bdf._readRaster()
+        
+        
 
     # -------------------------------------------------------------------------
     # testPrintValues

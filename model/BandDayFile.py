@@ -28,6 +28,8 @@ from modis_vcf.model.ProductType import ProductType
 #
 # TODO:  After this point, ProductType is no longer needed because combining
 #        can be performed based on the file name.  True?
+#
+# TODO:  Make _geoTransform a property
 # ----------------------------------------------------------------------------
 class BandDayFile(object):
 
@@ -52,6 +54,7 @@ class BandDayFile(object):
         self._day: int = day  # Needs validation
         self._bandName: str = bandName  # Needs validation
         self._debug: bool = debug
+        self._geoTransform: tuple = None  # For toTif().
         
         if not outDir.exists():
             
@@ -120,6 +123,7 @@ class BandDayFile(object):
         bandDs = gdal.Open(ds.GetSubDatasets()[subdatasetIndex][0])
         bandNoData = bandDs.GetRasterBand(1).GetNoDataValue()
         bandDataType = bandDs.GetRasterBand(1).DataType
+        self._geoTransform: tuple = bandDs.GetGeoTransform()
         
         # ReadAsArray automatically resamples when necessary.
         rawBand = bandDs.ReadAsArray(buf_xsize=ProductType.COLS,
@@ -130,8 +134,6 @@ class BandDayFile(object):
             rawBand = \
                 np.where(rawBand == bandNoData, ProductType.NO_DATA, rawBand)
 
-        # rawBand = rawBand.astype(np.int16)
-        
         return (rawBand, bandDataType)
 
     # ------------------------------------------------------------------------
@@ -224,6 +226,7 @@ class BandDayFile(object):
             options=['COMPRESS=LZW', 'BIGTIFF=YES'])
 
         ds.SetSpatialRef(modisSinusoidal)
+        ds.SetGeoTransform(self._geoTransform)
         gdBand = ds.GetRasterBand(1)
         gdBand.WriteArray(raster)
         gdBand.SetNoDataValue(self._productType.NO_DATA)
