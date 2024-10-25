@@ -54,10 +54,10 @@ class MetricsTestCase(unittest.TestCase):
         self._mod44InDir = \
             Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
 
-        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' +      
-                                 '/SystemTesting/modis-vcf/MOD44')
-
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
+
+        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
+                                 '/SystemTesting/modis-vcf/MOD44') 
 
         self.mmMod44 = Metrics(self.h09v05,
                                self.year2019,
@@ -69,11 +69,11 @@ class MetricsTestCase(unittest.TestCase):
         self._mod09InDir = \
             Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
 
-        self._mod09OutDir = Path('/explore/nobackup/people/rlgill' +      
-                                 '/SystemTesting/modis-vcf/MOD09A')
-
         self.productTypeMod09A = \
             ProductTypeMod09A(self._mod09InDir, self._mod44InDir)
+
+        self._mod09OutDir = Path('/explore/nobackup/people/rlgill' +      
+                                 '/SystemTesting/modis-vcf/MOD09A')
 
         self.mmMod09A = Metrics(self.h09v05,
                                 self.year2019,
@@ -286,6 +286,19 @@ class MetricsTestCase(unittest.TestCase):
                                         bandThresh[:, gtx, gty], 
                                         equal_nan=True))
 
+    # -------------------------------------------------------------------------
+    # testDirs
+    # -------------------------------------------------------------------------
+    def testDirs(self):
+
+        self.assertEqual(self.mmMod44._outDir, self.mmMod44._outDir)
+        
+        self.assertEqual(self.mmMod44._dayDir, 
+                         self.mmMod44._outDir / Path('1-Days'))
+                         
+        self.assertEqual(self.mmMod44._compDir, 
+                         self.mmMod44._outDir / Path('2-Composites'))
+        
     # -------------------------------------------------------------------------
     # testGetBandCube
     # -------------------------------------------------------------------------
@@ -695,16 +708,27 @@ class MetricsTestCase(unittest.TestCase):
                   str(self.year2019) + str(day).zfill(3)
 
         index = metric.dayXref[xrefKey]
+        
+        compDir = self._mod09OutDir / \
+                  Path(tid) / \
+                  Path(str(self.year2019)) / \
+                  Path('2-Composites')
+        
+        dayDir = self._mod09OutDir / \
+                  Path(tid) / \
+                  Path(str(self.year2019)) / \
+                  Path('1-Days')
 
-        cdf = CompositeDayFile(self.productTypeMod09A, 
-                               tid, 
-                               self.year2019, 
-                               day, 
-                               ProductTypeMod09A.BAND1,
-                               mm._compDir,
-                               mm._dayDir)
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod09A, 
+                                                ProductTypeMod09A.BAND1,
+                                                tid, 
+                                                self.year2019, 
+                                                day, 
+                                                compDir,
+                                                logger=None,
+                                                dayDir=dayDir)
 
-        raster = cdf.getRaster
+        raster = cdf.raster
         raster = np.where(np.isnan(raster), -10001, raster).astype(int)
         self.assertTrue(np.array_equal(metric.cube[index], raster))
         
@@ -737,15 +761,26 @@ class MetricsTestCase(unittest.TestCase):
 
         index = metric.dayXref[xrefKey]
 
-        cdf = CompositeDayFile(self.productTypeMod09A, 
-                               tid, 
-                               self.year2019, 
-                               day, 
-                               ProductTypeMod09A.BAND1,
-                               mm._compDir,
-                               mm._dayDir)
+        compDir = self._mod09OutDir / \
+                  Path(tid) / \
+                  Path(str(self.year2019)) / \
+                  Path('2-Composites')
+        
+        dayDir = self._mod09OutDir / \
+                  Path(tid) / \
+                  Path(str(self.year2019)) / \
+                  Path('1-Days')
 
-        raster = cdf.getRaster
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod09A, 
+                                                ProductTypeMod09A.BAND1,
+                                                tid, 
+                                                self.year2019, 
+                                                day, 
+                                                compDir,
+                                                logger=None,
+                                                dayDir=dayDir)
+
+        raster = cdf.raster
         raster = np.where(np.isnan(raster), -10001, raster).astype(int)
 
         x = 2888
@@ -1789,155 +1824,229 @@ class MetricsTestCase(unittest.TestCase):
         self.assertEqual(metric.cube[0, x, y], ProductTypeMod44.NO_DATA)
 
     # -------------------------------------------------------------------------
-    # marksTest
+    # qaBits
     # -------------------------------------------------------------------------
-    def marksTest(self):
+    def qaBits(self):
         
-        # 1. Run them normally.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/allQa')
-
-        # 2. Run them with cloud-mixed off.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/cloudMixedOff')
-
-        # 3. Run them with cloud-shadow off.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/cloudShadowOff')
-
-        # 4. Run them with cloudy off.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/cloudyOff')
-
-        # 5. Run them with aerosol climatology off.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/aeroClimOff')
-
-        # 6. Run them with aerosol climatology and cloud-mixed off.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/aeroCloudMixedOff')
-
-        # 7. Run them with aerosol climatology and cloud-shadow off.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/aeroCloudShadowOff')
-
-        # 8. Run them with aerosol climatology and cloudy off.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/aeroCloudyOff')
-
-        # 9. Run them with aerosol climatology and cloud-internal off.
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/aeroCloudInternalOff')
-
+        pt = self.productTypeMod44
+        outDir = self._mod44OutDir
+        tid = 'h12v02'
+        self._logger.setLevel(logging.WARNING)
+        
+        mm = Metrics(tid,
+                     self.year2019,
+                     pt,
+                     outDir,
+                     self._logger)
+                     
         # ---
-        # 10. All QA, threshold off
-        # h12v02: all no-data values
+        # Mark wants information for the day associated with the minimum
+        # NDVI value for certain points.
         # ---
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/allQa-threshOff')
+        ndvi, nXref = mm.getNdvi()
+        ascIndexes = np.argsort(ndvi, axis=0)
 
-        # ---
-        # 11. Aero off, threshold off
-        # h12v02: mostly no-data values
-        # ---
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/aeroOff-threshOff')
+        p1 = (3965, 1010)
+        p2 = (3965, 1009)
+        d1Index = ascIndexes[0, p1[0], p1[1]]
+        d2Index = ascIndexes[0, p2[0], p2[1]]
+        yd1 = list(nXref.keys())[list(nXref.values()).index(d1Index)]
+        yd2 = list(nXref.keys())[list(nXref.values()).index(d2Index)]
+        yearDays = [yd1, yd2]
+                     
+        for bandName in pt.BANDS:
+    
+            for yearDay in yearDays:
+            
+                year = int(yearDay[:4])
+                day = int(yearDay[5:])
+                
+                cdf = CompositeDayFile().initFromParams(mm._productType, 
+                                                        bandName,
+                                                        mm._tid, 
+                                                        year, 
+                                                        day, 
+                                                        mm._compDir,
+                                                        logger=mm._logger,
+                                                        dayDir=mm._dayDir)
+        
+                for cdfYear, cdfDay in cdf._getDaysToFind():
 
-        # ---
-        # 12. Aero off, threshold off
-        # h09v05: looks good
-        # ---
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/aeroOff-threshOff')
+                    bdf = BandDayFile().initFromParams(cdf.productType,
+                                                       cdf.bandName,
+                                                       cdf.tid,
+                                                       cdfYear,
+                                                       cdfDay,
+                                                       cdf._outDir,
+                                                       cdf._logger)
+    
+                    state, dtype = \
+                        bdf._readSubdataset(pt.STATE, 
+                                            False,
+                                            productType=bdf.productType)
+                                            
+                    solz, dType = \
+                        bdf._readSubdataset(pt.SOLZ,
+                                            productType=bdf.productType)
+        
+                    solz = (solz * pt.solarZenithScaleFactor).astype(np.int16)
 
-        # ---
-        # 13. All QA, threshold off
-        # h09v05: looks good, but more no-data values than #12
-        # ---
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/allQa-threshOff')
+                    if yearDay == yd1:
+                        
+                        v = state[p1[0], p1[1]]
+                        sz = solz[p1[0], p1[1]]
+                        print(p1, bandName, cdfYear, cdfDay, bin(v), sz)
+                        
+                    else:
 
-        # ---
-        # 14. All QA, threshold off
-        # h12v09: looks ok, but a moderate amount of no-data values throughout
-        # ---
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/allQa-threshOff')
+                        v = state[p2[0], p2[1]]
+                        sz = solz[p2[0], p2[1]]
+                        print(p2, bandName, cdfYear, cdfDay, bin(v), sz)
 
-        # ---
-        # 15. All QA, threshold off
-        # h12v09: looks ok, but a moderate amount of no-data values throughout
-        # ---
-        # outDir = Path('/explore/nobackup/people/rlgill' +
-        #               '/SystemTesting/modis-vcf/MOD09A/aeroOff-threshOff')
-
-        # Run the metrics.
-        # tid = 'h12v09'
-        # METRIC_NAME = 'metricGreenest3MeanBandRefl'
-        # mm = Metrics(tid, julYear, pt, outDir, MetricsTestCase._logger)
-        # metric: Band = mm.getMetric(METRIC_NAME, applyThreshold=False)
-        # self.assertEqual(metric.cube.shape, (8, 4800, 4800))
-        # self.assertEqual(metric.name, 'Greenest3MeanBandRefl')
-
+    # -------------------------------------------------------------------------
+    # debug
+    # -------------------------------------------------------------------------
+    def debug(self):
+        
+        pt = self.productTypeMod44
+        outDir = self._mod44OutDir
         tid = 'h12v02'
         
         mm = Metrics(tid,
                      self.year2019,
-                     self.productTypeMod09A,
-                     self._mod09OutDir,
+                     pt,
+                     outDir,
                      self._logger)
+                     
+        # metric = mm.getMetric('metricBandReflMin')
+        metric = mm.getMetric('metricBandReflMinTemp')
+        
+        # Find a point where all metric values are 0
+        # allSame = np.argwhere(np.sum(metric.cube, axis=0) == 0)
 
-        METRIC_TITLE = 'AmpWarmestBandRefl'
-        METRIC_NAME = 'metric' + METRIC_TITLE
-        metName: Band = mm._metricsDir / (METRIC_TITLE + '.tif')
-        metName.unlink(missing_ok=True)
-        import pdb
-        pdb.set_trace()
-        # metric = mm.getMetric(METRIC_NAME)
+        # Find a point where all metric values are no-data values
+        allSame = np.argwhere(np.sum(metric.cube, axis=0) == \
+                              pt.NO_DATA * metric.cube.shape[0])
 
-        # Mark's points should not be no-data values
-        x = 158
-        y = 1138
-        
-        # More questionable no-data values
-        x = 2256  # col
-        y = 795   # row
+        x, y = allSame[0]
 
-        # Amp = 0
-        x = 2538  # col
-        y = 769   # row
+        print('Interrogating (', x, ',', y, ')')
+        print('Metric:', metric.cube[:, x , y])
+
+        # ---
+        # Why is every metric at this coordinate a no-data value?
+        # First, why does B1 have a no-data value?
+        # Does the CDF contain no-data values for the entire year?
+        # ---
+        bandName = pt.BAND1
+        cdfs = []
+        cdfValues = []
+
+        for year, day in mm._daysSought:
+
+                cdf = CompositeDayFile().initFromParams(pt,
+                                                        bandName,
+                                                        tid,
+                                                        year,
+                                                        day,
+                                                        mm._compDir,
+                                                        logger=None,
+                                                        dayDir=mm._dayDir)
+
+                cdf._logger.setLevel(logging.WARNING)
+                cdfs.append(cdf)
+                cdfValues.append(cdf.raster[x, y])
+
+        print('All CDFs no-data?', (np.array(cdfValues) == pt.NO_DATA).all())
         
-        inDir = Path('/explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD09A/h12v02/2019/1-Days')
+        # Why is the first composite day a no-data value?
+        daysInComp = cdfs[0]._getDaysToFind()
+
+        for year, day in daysInComp:
+
+            bdf = BandDayFile().initFromParams(pt,
+                                               bandName,
+                                               tid,
+                                               year,
+                                               day,
+                                               mm._dayDir)
+
+            bdf._logger.setLevel(logging.WARNING)
+            print(bdf.raster[x, y])
         
-        files = [Path('MOD44-h12v02-2019065-Band31.bin'),
-                 Path('MOD44-h12v02-2019081-Band31.bin'),
-                 Path('MOD44-h12v02-2019097-Band31.bin'),
-                 Path('MOD44-h12v02-2019113-Band31.bin'),
-                 Path('MOD44-h12v02-2019129-Band31.bin'),
-                 Path('MOD44-h12v02-2019145-Band31.bin'),
-                 Path('MOD44-h12v02-2019161-Band31.bin'),
-                 Path('MOD44-h12v02-2019177-Band31.bin'),
-                 Path('MOD44-h12v02-2019193-Band31.bin'),
-                 Path('MOD44-h12v02-2019209-Band31.bin'),
-                 Path('MOD44-h12v02-2019225-Band31.bin'),
-                 Path('MOD44-h12v02-2019241-Band31.bin'),
-                 Path('MOD44-h12v02-2019257-Band31.bin'),
-                 Path('MOD44-h12v02-2019273-Band31.bin'),
-                 Path('MOD44-h12v02-2019289-Band31.bin'),
-                 Path('MOD44-h12v02-2019305-Band31.bin'),
-                 Path('MOD44-h12v02-2019321-Band31.bin'),
-                 Path('MOD44-h12v02-2019337-Band31.bin'),
-                 Path('MOD44-h12v02-2019353-Band31.bin'),
-                 Path('MOD44-h12v02-2020001-Band31.bin'),
-                 Path('MOD44-h12v02-2020017-Band31.bin'),
-                 Path('MOD44-h12v02-2020033-Band31.bin'),
-                 Path('MOD44-h12v02-2020049-Band31.bin')]
         
-        for f in files:
-            
-            outBand = np.fromfile(inDir / f, dtype=np.int16). \
-                      reshape(self.productTypeMod09A.ROWS,
-                              self.productTypeMod09A.COLS)
-                      
-            print(f.name, outBand[x,y])
+        
+        
+        
+        
+        
+        
+        # for year, day in daysSought:
+        #
+        #     for bandName in pt.BANDS:
+        #
+        #         cdf = CompositeDayFile().initFromParams(pt,
+        #                                                 bandName,
+        #                                                 tid,
+        #                                                 year,
+        #                                                 day,
+        #                                                 mm._compDir,
+        #                                                 logger=None,
+        #                                                 dayDir=mm._dayDir)
+        #
+        #         cdf._logger.setLevel(logging.WARNING)
+        #         band, xref = mm.getBandCube(bandName)
+        #         # b31, b31X = mm.getBandCube(pt.BAND31)
+        #
+        #         print(year, day, bandName, cdf.raster[x, y], band[:, x, y])
+        #         # print('B31', b31[:, x, y])
+        #
+        #         daysInComp = cdf._getDaysToFind()
+        #
+        #         for year, day in daysInComp:
+        #
+        #             print('Day ' + str(year) + str(day))
+        #
+        #             bdf = BandDayFile().initFromParams(pt,
+        #                                                bandName,
+        #                                                tid,
+        #                                                year,
+        #                                                day,
+        #                                                mm._dayDir)
+        #
+        #             bdf._logger.setLevel(logging.WARNING)
+        #             # bdf.outName.unlink(missing_ok=True)
+        #
+        #             # Ensure it is valid data before applying QA.
+        #             subDsValue = bdf._readSubdataset()[0][x, y]
+        #             self.assertNotEqual(subDsValue, pt.NO_DATA)
+        #
+        #             # Execute the full read without QA.
+        #             noQaValue = bdf._getRaster(applyQa=False)[x, y]
+        #             self.assertEqual(subDsValue, noQaValue)
+        #
+        #             # What is the QA doing?  First, solar zenith.
+        #             solz, dType = bdf._readSubdataset(pt.SOLZ)
+        #
+        #             solzValue = (solz * \
+        #                          bdf._productType.solarZenithScaleFactor). \
+        #                          astype(np.int16)[x, y]
+        #
+        #             # self.assertLessEqual(solzValue, bdf.DEFAULT_ZENITH_CUTOFF)
+        #             if solzValue >= bdf.DEFAULT_ZENITH_CUTOFF:
+        #                 print('Solz > cutoff')
+        #
+                    # Check the state.
+                    # state, dtype = bdf._readSubdataset(pt.STATE, False)
+                    # stateValue = state[x, y]
+                    #
+                    # cloud = state & 3
+                    # shadow = state & 4
+                    # adjacency = state & 8192
+                    # aerosol = (state & 192) >> 6
+                    #
+                    # print('Cloud == 0:', (cloud == 0).sum())
+                    # print('Shadow == 0:', (shadow == 0).sum())
+                    # print('Aerosol == 0:', (aerosol != 3).sum())
+                    # print('Adjacency == 0:', (adjacency == 0).sum())
             

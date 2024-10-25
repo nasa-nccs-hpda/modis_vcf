@@ -91,7 +91,9 @@ class MasterTraining(object):
     # ------------------------------------------------------------------------
     def writeCsv(self, outDir: Path) -> Path:
         
-        csvPath = outDir / (Path(self.dataset.files[0]).name + '.csv')
+        firstParqName = Path(self.dataset.files[0]).name
+        year = firstParqName.split('-')[1]
+        csvPath = outDir / ('Master-' + year + '.csv')
         self.toPandas().to_csv(csvPath)
         return csvPath
         

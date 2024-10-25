@@ -13,7 +13,11 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/makeMetricsCLV.py --productType MOD09 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD09A -y 2019 -t h09v05
+# modis_vcf/view/makeMetricsCLV.py --productType MOD44 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -y 2019 -t h24v02 -m metricBandReflMin
+#
+# modis_vcf/view/makeMetricsCLV.py --productType MOD44 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -y 2019 -t h08v04 h08v05 h09v04 h09v05 h10v04 h10v05 h10v06 h11v02 h11v03 h11v04 h11v05 h11v08 h11v09 h11v10 h12v01 h12v02 h12v03 h12v04 h12v05 h12v09 h12v10 h12v12 h13v01 h13v02 h13v10 h13v11 h13v12 h16v01 h17v05 h18v03 h18v04 h18v07 
+#
+# modis_vcf/view/makeMetricsCLV.py --productType MOD44 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -y 2019 -t h19v04 h19v07 h19v08 h19v09 h19v10 h19v11 h19v12 h20v02 h20v03 h20v04 h20v06 h20v08 h20v09 h20v10 h20v11 h21v01 h21v02 h21v04 h21v05 h21v06 h21v10 h22v03 h22v04 h23v02 h23v03 h24v02 h24v03 h26v06 h27v04 h27v07 h28v11 h29v11 h29v12 h30v12 h31v11
 #
 # TODO: product type and input directories depend on each other, and should not
 #       be hard coded
@@ -25,11 +29,6 @@ def main():
 
     inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
     inDir09 = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
-
-    # parser.add_argument('-i',
-    #                     type=Path,
-    #                     default=inDir,
-    #                     help='Input directory for finding MODIS files')
 
     parser.add_argument('-m',
                         type=str,

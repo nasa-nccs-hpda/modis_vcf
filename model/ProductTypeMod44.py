@@ -79,6 +79,7 @@ class ProductTypeMod44(ProductType):
                         (shadow == 0) &
                         (aerosol != 3) &   
                         (adjacency == 0) & 
+                        (solz > 0) &
                         (solz < zenithCutOff),
                         1,
                         ProductType.NO_DATA).astype(np.int16)

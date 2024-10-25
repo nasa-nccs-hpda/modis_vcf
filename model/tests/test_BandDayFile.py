@@ -23,21 +23,6 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 class BandDayFileTestCase(unittest.TestCase):
 
     # -------------------------------------------------------------------------
-    # setUpClass
-    # -------------------------------------------------------------------------
-    # @classmethod
-    # def setUpClass(cls):
-    #
-    #     cls._inDir44 = \
-    #         Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
-    #
-    #     cls._inDir09 = \
-    #         Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
-    #
-    #     cls._outDir = Path(tempfile.mkdtemp())
-    #     print(cls._outDir)
-
-    # -------------------------------------------------------------------------
     # setUp
     # -------------------------------------------------------------------------
     def setUp(self):
@@ -60,19 +45,40 @@ class BandDayFileTestCase(unittest.TestCase):
             Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
 
         self._mod44OutDir = Path('/explore/nobackup/people/rlgill' +      
-                                 '/SystemTesting/modis-vcf/MOD44')
+                                 '/SystemTesting/modis-vcf/MOD44') / \
+                            Path(self.h09v05) / \
+                            Path(str(self.year2019))
 
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
+
+        day = 65
+        bandName = ProductType.BAND1
+
+        self.bdfMod44 = BandDayFile().initFromParams(self.productTypeMod44,
+                                                     bandName,
+                                                     self.h09v05,
+                                                     self.year2019,
+                                                     day,
+                                                     self._mod44OutDir)
 
         # MOD09
         self._mod09InDir = \
             Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
 
         self._mod09OutDir = Path('/explore/nobackup/people/rlgill' +      
-                                 '/SystemTesting/modis-vcf/MOD09A')
+                                 '/SystemTesting/modis-vcf/MOD09A') / \
+                            Path(self.h09v05) / \
+                            Path(str(self.year2019))
 
         self.productTypeMod09A = \
             ProductTypeMod09A(self._mod09InDir, self._mod44InDir)
+
+        self.bdfMod09A = BandDayFile().initFromParams(self.productTypeMod09A,
+                                                      bandName,
+                                                      self.h09v05,
+                                                      self.year2019,
+                                                      day,
+                                                      self._mod09OutDir)
 
         self.days = [(2019,  65), (2019,  97), (2019, 129), (2019, 161),
                     (2019, 193), (2019, 225), (2019, 257), (2019, 289),
@@ -82,25 +88,36 @@ class BandDayFileTestCase(unittest.TestCase):
     # testInit
     # -------------------------------------------------------------------------
     def testInit(self):
+
+        bdf = BandDayFile()
+
+    # -------------------------------------------------------------------------
+    # testInitFromParams
+    # -------------------------------------------------------------------------
+    def testInitFromParams(self):
         
         day = 65
         bandName = ProductType.BAND1
-        
-        bdf = BandDayFile(self.productTypeMod44, 
-                          self.h09v05, 
-                          self.year2019, 
-                          day, 
-                          bandName, 
-                          self._mod44OutDir)
-        
-        self.assertEqual(bdf._productType.productType,
+
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           self.h09v05,
+                                           self.year2019,
+                                           day,
+                                           self._mod44OutDir)
+
+        self.assertEqual(bdf.productType.productType,
                          self.productTypeMod44.productType)
+
+        self.assertEqual(bdf.tid, self.h09v05)
+        self.assertEqual(bdf.year, self.year2019)
+        self.assertEqual(bdf.day, day)
+        self.assertEqual(bdf.bandName, bandName)
         
-        self.assertEqual(bdf._tid, self.h09v05)
-        self.assertEqual(bdf._year, self.year2019)
-        self.assertEqual(bdf._day, day)
-        self.assertEqual(bdf._bandName, bandName)
+        expDir = self._mod44OutDir
         
+        self.assertEqual(bdf._outDir, expDir)
+
         outName: Path = self._mod44OutDir / \
                         (self.productTypeMod44.productType +
                          '-' +
@@ -112,7 +129,90 @@ class BandDayFileTestCase(unittest.TestCase):
                          bandName +
                          '.bin')
 
-        self.assertEqual(bdf._outName, outName)
+        self.assertEqual(bdf.outName, outName)
+
+    # -------------------------------------------------------------------------
+    # testCopy
+    # -------------------------------------------------------------------------
+    def testCopy(self):
+        
+        bandName = ProductType.BAND1
+        day = 66
+        bdf = BandDayFile().copy(self.bdfMod44, self.year2019, day)
+        
+        self.assertEqual(bdf.productType.productType,
+                         self.productTypeMod44.productType)
+
+        self.assertEqual(bdf.tid, self.h09v05)
+        self.assertEqual(bdf.year, self.year2019)
+        self.assertEqual(bdf.day, day)
+        self.assertEqual(bdf.bandName, bandName)
+
+        outName: Path = self._mod44OutDir / \
+                        (self.productTypeMod44.productType +
+                         '-' +
+                         self.h09v05 +
+                         '-' +
+                         str(self.year2019) +
+                         str(day).zfill(3) +
+                         '-' +
+                         bandName +
+                         '.bin')
+
+        self.assertEqual(bdf.outName, outName)
+
+    # -------------------------------------------------------------------------
+    # testBandName
+    # -------------------------------------------------------------------------
+    def testBandName(self):
+
+        self.assertEqual(self.bdfMod44.bandName, ProductType.BAND1)
+
+    # -------------------------------------------------------------------------
+    # testDay
+    # -------------------------------------------------------------------------
+    def testDay(self):
+
+        self.assertEqual(self.bdfMod44.day, 65)
+
+    # -------------------------------------------------------------------------
+    # testOutName
+    # -------------------------------------------------------------------------
+    def testOutName(self):
+        
+        expName = self._mod44OutDir / \
+                  (self.bdfMod44.productType.productType + 
+                   '-' +
+                   self.h09v05 +
+                   '-' +
+                   str(self.year2019) +
+                   str(65).zfill(3) +
+                   '-' +
+                   ProductType.BAND1 +
+                   '.bin')
+
+        self.assertEqual(self.bdfMod44.outName, expName)
+        
+    # -------------------------------------------------------------------------
+    # testProductType
+    # -------------------------------------------------------------------------
+    def testProductType(self):
+
+        self.assertEqual(self.bdfMod44.productType, self.productTypeMod44)
+
+    # -------------------------------------------------------------------------
+    # testTid
+    # -------------------------------------------------------------------------
+    def testTid(self):
+
+        self.assertEqual(self.bdfMod44.tid, self.h09v05)
+
+    # -------------------------------------------------------------------------
+    # testYear
+    # -------------------------------------------------------------------------
+    def testYear(self):
+
+        self.assertEqual(self.bdfMod44.year, self.year2019)
 
     # -------------------------------------------------------------------------
     # testMod44Ch (Band 3)
@@ -122,19 +222,19 @@ class BandDayFileTestCase(unittest.TestCase):
         day = 65
         bandName = ProductType.BAND3
         
-        bdf = BandDayFile(self.productTypeMod44, 
-                          self.h09v05, 
-                          self.year2019, 
-                          day, 
-                          bandName, 
-                          self._mod44OutDir)
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           self.h09v05,
+                                           self.year2019,
+                                           day,
+                                           self._mod44OutDir)
 
-        raster = bdf.getRaster
+        raster = bdf.raster
         self.assertEqual(raster.shape, (4800, 4800))
         self.assertEqual(raster.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
-        raster2 = bdf.getRaster
+        raster2 = bdf.raster
         self.assertTrue((raster == raster2).all())
         self.assertEqual(raster2.shape, (4800, 4800))
         self.assertEqual(raster2.dtype, np.int16)
@@ -144,82 +244,51 @@ class BandDayFileTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testMod09B1(self):
         
-        pt = ProductTypeMod09A(BandDayFileTestCase._inDir09,
-                               BandDayFileTestCase._inDir44)
-        
-        tid = 'h09v05'
-        year = 2019
-        day = 65
-        bandName = ProductType.BAND1
-        
-        bdf = BandDayFile(pt, 
-                          tid, 
-                          year, 
-                          day, 
-                          bandName, 
-                          BandDayFileTestCase._outDir)
-        
-        raster = bdf.getRaster
+        raster = self.bdfMod09A.raster
         self.assertEqual(raster.shape, (4800, 4800))
         self.assertEqual(raster.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
-        raster2 = bdf.getRaster
+        raster2 = self.bdfMod09A.raster
         self.assertTrue((raster == raster2).all())
         self.assertEqual(raster2.shape, (4800, 4800))
         self.assertEqual(raster2.dtype, np.int16)
 
     # -------------------------------------------------------------------------
-    # testMod09 (Band 31)
+    # testMod09B31
     # -------------------------------------------------------------------------
     def testMod09B31(self):
         
-        pt = ProductTypeMod09A(BandDayFileTestCase._inDir09,
-                               BandDayFileTestCase._inDir44)
-        
-        tid = 'h09v05'
-        year = 2019
         day = 65
         bandName = ProductType.BAND31
         
-        bdf = BandDayFile(pt, 
-                          tid, 
-                          year, 
-                          day, 
-                          bandName, 
-                          BandDayFileTestCase._outDir)
-        
-        raster = bdf.getRaster
+        bdf = BandDayFile().initFromParams(self.productTypeMod09A,
+                                           bandName,
+                                           'h20v06',
+                                           self.year2019,
+                                           day,
+                                           self._mod09OutDir)
+
+        bdf.outName.unlink(missing_ok=True)
+        raster = bdf.raster
         self.assertEqual(raster.shape, (4800, 4800))
-        self.assertEqual(raster.dtype, np.int16)
+        self.assertEqual(raster.dtype, np.int32)
+        self.assertEqual(raster.max(), 31883)
 
         # Call it again to test Numpy fromfile.
-        raster2 = bdf.getRaster
+        raster2 = bdf.raster
         self.assertTrue((raster == raster2).all())
         self.assertEqual(raster2.shape, (4800, 4800))
         self.assertEqual(raster2.dtype, np.int16)
-
+        
     # -------------------------------------------------------------------------
     # testToTif
     # -------------------------------------------------------------------------
     def testToTif(self):
         
-        pt = ProductTypeMod09A(BandDayFileTestCase._inDir09,
-                               BandDayFileTestCase._inDir44)
-        
-        tid = 'h09v05'
-        year = 2019
-        day = 65
-        bandName = ProductType.BAND5
-        
-        bdf = BandDayFile(pt, 
-                          tid, 
-                          year, 
-                          day, 
-                          bandName, 
-                          BandDayFileTestCase._outDir)
-        
-        bdf.toTif()
+        tifName = self.bdfMod09A.outName.with_suffix('.tif')        
+        tifName.unlink(missing_ok=True)
+        self.bdfMod09A.toTif()
 
     # -------------------------------------------------------------------------
     # testValues
@@ -229,19 +298,16 @@ class BandDayFileTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testValues(self):
         
-        pt = ProductTypeMod44(BandDayFileTestCase._inDir44)
-        tid = 'h09v05'
-        year = 2019
         day = 65
         bandName = ProductType.BAND5
         
-        bdf = BandDayFile(pt, 
-                          tid, 
-                          year, 
-                          day, 
-                          bandName, 
-                          BandDayFileTestCase._outDir)
-        
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           self.h09v05,
+                                           self.year2019,
+                                           day,
+                                           self._mod44OutDir)
+
         x = 0
         y = 292
         
@@ -272,7 +338,10 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(solz[x, y], 43)
         
         solz, dType = bdf._readSubdataset(ProductType.SOLZ)
-        solz = (solz * pt.solarZenithScaleFactor).astype(np.int16)
+        
+        solz = (solz * \
+                self.productTypeMod44.solarZenithScaleFactor).astype(np.int16)
+        
         self.assertFalse((solz > 72).any())  # No zenith cut offs
         self.assertEqual(solz.shape, (4800, 4800))
         self.assertEqual(solz.dtype, np.int16)
@@ -282,7 +351,7 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(solz[x, y], 43)  # Not subject to zenith cut off
         
         # Band 5 proper, without QA
-        b5NoQa = bdf._readRaster(applyQa = False)
+        b5NoQa = bdf._getRaster(applyQa = False)
         self.assertEqual(b5NoQa.shape, (4800, 4800))
         self.assertEqual(b5NoQa.dtype, np.int16)
         self.assertEqual(np.min(b5NoQa), -28672)
@@ -300,7 +369,7 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(state[x, y], 1)
         
         # QA mask
-        qa: np.ndarray = pt.createQaMask(state, solz, 72)
+        qa: np.ndarray = self.productTypeMod44.createQaMask(state, solz, 72)
         uniques = np.unique(qa)
         self.assertEqual(len(uniques), 2)
         self.assertTrue(1 in uniques)
@@ -308,8 +377,8 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(qa[x, y], -10001)  # cloud = 1
 
         # Band 5 proper, with QA
-        bdf._outName.unlink()  # Delete, so non-qa version is not read.
-        b5 = bdf._readRaster()
+        bdf.outName.unlink()  # Delete, so non-qa version is not read.
+        b5 = bdf._getRaster()
         self.assertEqual(b5.shape, (4800, 4800))
         self.assertEqual(b5.dtype, np.int16)
         self.assertEqual(np.min(b5), -28672)
@@ -317,8 +386,8 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(b5[x, y], -10001)
 
         # Band 5 proper, with QA
-        bdf._outName.unlink()  # Delete, so non-qa version is not read.
-        b5 = bdf.getRaster
+        bdf.outName.unlink()  # Delete, so non-qa version is not read.
+        b5 = bdf.raster
         self.assertEqual(b5.shape, (4800, 4800))
         self.assertEqual(b5.dtype, np.int16)
         self.assertEqual(np.min(b5), -28672)
@@ -327,49 +396,21 @@ class BandDayFileTestCase(unittest.TestCase):
         bdf.toTif()
         
     # -------------------------------------------------------------------------
-    # testQuestionablePixel
-    # -------------------------------------------------------------------------
-    # def testQuestionablePixel(self):
-    #
-    #     tid = 'h12v02'
-    #     x = 2538  # col
-    #     y = 769   # row
-    #
-    #     import pdb
-    #     pdb.set_trace()
-    #
-    #
-    #     bdf = BandDayFile(self.productTypeMod44,
-    #                       tid,
-    #                       self.year2019,
-    #                       65,
-    #                       ProductType.BAND31,
-    #                       self._mod44OutDir)
-    #
-    #     bdf._outName.unlink(missing_ok=True)
-    #
-    #     raster = bdf._readRaster()
-        
-        
-
-    # -------------------------------------------------------------------------
     # testPrintValues
     # -------------------------------------------------------------------------
     def testPrintValues(self):
         
-        pt = ProductTypeMod44(BandDayFileTestCase._inDir44)
-        tid = 'h09v05'
         year = 2020
         day = 49
         bandName = ProductType.BAND5
         
-        bdf = BandDayFile(pt, 
-                          tid, 
-                          year, 
-                          day, 
-                          bandName, 
-                          BandDayFileTestCase._outDir)
-        
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           self.h09v05,
+                                           year,
+                                           day,
+                                           self._mod44OutDir)
+
         x = 0
         y = 292
         
@@ -385,17 +426,17 @@ class BandDayFileTestCase(unittest.TestCase):
         solz = bdf._readSubdataset(ProductType.SOLZ)[0]
         print('Solz[', x, ',', y, '] =', solz[x, y])
 
-        bandNoQa = bdf._readRaster(applyQa = False)
+        bandNoQa = bdf._getRaster(applyQa = False)
         print('Band[', x, ',', y, '] w/o QA =', bandNoQa[x, y])
 
         state = bdf._readSubdataset(ProductType.STATE, applyNoData=False)[0]
         print('State[', x, ',', y, '] =', state[x, y])
 
-        qa: np.ndarray = pt.createQaMask(state, solz, 72)
+        qa: np.ndarray = self.productTypeMod44.createQaMask(state, solz, 72)
         print('QA[', x, ',', y, '] =', qa[x, y])
 
-        bdf._outName.unlink()  # Delete, so non-qa version is not read.
-        band = bdf.getRaster
+        bdf.outName.unlink()  # Delete, so non-qa version is not read.
+        band = bdf.raster
         print('Band[', x, ',', y, '] =', band[x, y])
 
     # -------------------------------------------------------------------------
@@ -403,22 +444,12 @@ class BandDayFileTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testRead(self):
  
-        inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
-        pt = ProductTypeMod09A(inDir, BandDayFileTestCase._inDir44)
-
-        bdf = BandDayFile(pt, 
-                          'h09v05', 
-                          2019, 
-                          65, 
-                          ProductType.BAND5, 
-                          BandDayFileTestCase._outDir)
-
-        r1 = bdf.getRaster
+        r1 = self.bdfMod09A.raster
         self.assertEqual(r1.shape, (4800, 4800))
         self.assertEqual(r1.dtype, np.int16)
-        r2 = bdf.getRaster
+        r2 = self.bdfMod09A.raster
         self.assertTrue(np.array_equal(r1, r2, equal_nan=True))
-        bdf._raster = None
-        r3 = bdf.getRaster
+        self.bdfMod09A._raster = None
+        r3 = self.bdfMod09A.raster
         self.assertTrue(np.array_equal(r1, r3, equal_nan=True))
-                
+            

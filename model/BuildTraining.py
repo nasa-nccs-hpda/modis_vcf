@@ -1,12 +1,14 @@
 
 import logging
 from pathlib import Path
+import sys
 
 import numpy as np
 import pandas as pd
 
 from modis_vcf.model.Band import Band
 from modis_vcf.model.Metrics import Metrics
+from modis_vcf.model.ProductType import ProductType
 
 
 # ----------------------------------------------------------------------------
@@ -14,6 +16,8 @@ from modis_vcf.model.Metrics import Metrics
 #
 # Include all tiles for the given year.
 # Training data: /explore/nobackup/projects/ilab/data/MODIS/MODIS_VCF/Mark_training/VCF_training_adjusted/tile_adjustment/v5.0.3samp/
+#
+# TODO: Validate input.
 # ----------------------------------------------------------------------------
 class BuildTraining(object):
     
@@ -25,13 +29,16 @@ class BuildTraining(object):
     # __init__
     # ------------------------------------------------------------------------
     def __init__(self, 
+                 productType: ProductType,
                  year: int, 
                  modisDir: Path,
+                 metricsDir: Path,
                  outDir: Path,
-                 logger: logging.RootLogger,
-                 trainingName: str, 
+                 trainingDir: Path,
+                 trainingName: str,
                  tileIds: list = None, 
-                 metricNames: list = None):
+                 metricNames: list = None,
+                 logger: logging.RootLogger = None):
     
         if not year:
             raise RuntimeException('A year must be provided.')
@@ -42,14 +49,33 @@ class BuildTraining(object):
                                str(outDir) + 
                                ', does not exist.')
         
-        self._outDir: Path = outDir
+        if not logger:
+            
+            logger = logging.getLogger()
+            logger.setLevel(logging.INFO)
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(logging.INFO)
+            logger.addHandler(ch)
+
         self._year: int = year
         self._modisDir: Path = modisDir
-        self._logger: logging.RootLogger = logger
+        self._metricsDir: Path = metricsDir
+        self._outDir: Path = outDir
+        self._trainingDir: Path = trainingDir or BuildTraining.TRAINING_DIR
         self._trainingName: str = trainingName
         self._tids: list = tileIds or BuildTraining._getTileIds()
         self._metricNames: list = metricNames
+        self._logger: logging.RootLogger = logger
         self._training = None
+        
+        self._logger.info('Year: ' + str(self._year))
+        self._logger.info('MODIS dir: ' + str(self._modisDir))
+        self._logger.info('Metrics dir: ' + str(self._metricsDir))
+        self._logger.info('Output dir: ' + str(self._outDir))
+        self._logger.info('Training dir: ' + str(self._trainingDir))
+        self._logger.info('Training name: ' + self._trainingName)
+        self._logger.info('TIDs: ' + str(self._tids))
+        self._logger.info('Metric names: ' + str(self._metricNames))
         
     # ------------------------------------------------------------------------
     # addMetricsToDf
@@ -96,8 +122,16 @@ class BuildTraining(object):
         mets = Metrics(tid,
                        self._year,
                        self._modisDir,
-                       self._outDir,
+                       self._metricsDir,
                        self._logger)
+
+    def __init__(self,
+                 tileId: str, 
+                 year: int, 
+                 productType: ProductType,
+                 outDir: Path,
+                 logger: logging.RootLogger,
+                 nanThreshold: int = 9999):
 
         metricsToRun: list = self._metricNames or mets.availableMetrics
 
@@ -142,7 +176,7 @@ class BuildTraining(object):
     # getParquetName
     # ------------------------------------------------------------------------
     def getParquetName(self) -> Path:
-        
+
         outFile = self._outDir / ('Master-' + str(self._year) + '.parquet')
         return outFile
         
@@ -152,7 +186,8 @@ class BuildTraining(object):
     @staticmethod
     def _getTileIds() -> list:
 
-        sampleFiles = BuildTraining.TRAINING_DIR.glob('*.samp.bin')
+        # sampleFiles = BuildTraining.TRAINING_DIR.glob('*.samp.bin')
+        sampleFiles = self._trainingDir.glob('*.samp.bin')
         tids = [f.name.split('.')[0] for f in sampleFiles]
         return tids
         
@@ -161,7 +196,8 @@ class BuildTraining(object):
     # ------------------------------------------------------------------------
     def getTrainingFileName(self, tid) -> Path:
         
-        tFileName = BuildTraining.TRAINING_DIR / (tid + '.samp.bin')
+        # tFileName = BuildTraining.TRAINING_DIR / (tid + '.samp.bin')
+        tFileName = self._trainingDir / (tid + '.samp.bin')
         return tFileName
         
     # ------------------------------------------------------------------------
@@ -239,7 +275,9 @@ class BuildTraining(object):
             
             self._logger.info('Running tile: ' + str(tid))
         
-            outFile = self._outDir / (tid + '-' + str(self._year) + '.parq')
+            parqDir = self._outDir
+            parqDir.mkdir(exist_ok=True)
+            outFile = parqDir / (tid + '-' + str(self._year) + '.parq')
             tidFiles.append(outFile)
 
             if outFile.exists() and self._logger:
@@ -267,6 +305,8 @@ class BuildTraining(object):
             df: pd.DataFrame = self._addTrainingToDf(df, tid)
 
             # tid-x-y, tid, x, y, training, metric 1, metric 2, ...
+            import pdb
+            pdb.set_trace()
             try:
                 df: pd.DataFrame = self._addOneMetricToDf(df, tid)
 
