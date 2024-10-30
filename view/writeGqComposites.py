@@ -12,6 +12,8 @@ from modis_vcf.model.ProductTypeMod09G import ProductTypeMod09G
 # main
 #
 # modis_vcf/view/writeGqComposites.py -i /explore/nobackup/projects/ilab/data/MODIS/MOD09G_greenland -o /explore/nobackup/people/rlgill/SystemTesting/mfTest --numDays 10 -y 2000 -t h15v02 --startDay 213
+#
+# modis_vcf/view/writeGqComposites.py -i /explore/nobackup/projects/ilab/data/MODIS/MOD09G_greenland -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/b1b2 --numDays 30 -y 2012 -t h15v03 --startDay 213
 # -----------------------------------------------------------------------------
 def main():
     
@@ -64,14 +66,17 @@ def main():
     
     for band in bands:
         
-        cdf = CompositeDayFile(pt, 
-                               args.t, 
-                               args.y, 
-                               args.startDay,
-                               band, 
-                               args.o, 
-                               daysInComposite = args.numDays)
-    
+        cdf = CompositeDayFile()
+        
+        cdf.initFromParams(pt,
+                           band,
+                           args.t,
+                           args.y,
+                           args.startDay,
+                           args.o,
+                           None,
+                           args.numDays)
+        
         cdf.toTif()
 
 

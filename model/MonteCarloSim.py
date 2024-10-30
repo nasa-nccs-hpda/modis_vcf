@@ -3,6 +3,7 @@ import glob
 import logging
 from pathlib import Path
 import random
+import sys
 
 import pyarrow as pa
 
@@ -28,6 +29,8 @@ from modis_vcf.model.Trial import Trial
 #
 # And I forget what the other parameters are.  You can ask Caleb and Amanda 
 # what they used with MODIS water for basic parameters if you need to.
+#
+# TODO: -10001 must be +10001
 # ----------------------------------------------------------------------------
 class MonteCarloSim(object):
     
@@ -42,6 +45,19 @@ class MonteCarloSim(object):
                  minTimesEachVarUsed: int = 10,
                  logger: logging.RootLogger = None):
         
+        if not logger:
+            
+            logger = logging.getLogger()
+            logger.setLevel(logging.INFO)
+
+            if (not logger.hasHandlers()):
+
+                ch = logging.StreamHandler(sys.stdout)
+                ch.setLevel(logging.INFO)
+                logger.addHandler(ch)
+
+        self._logger: logging.RootLogger = logger
+
         self._numTrials: int = numTrials
         self._predictorsPerTrial: int = predictorsPerTrial
         self._logger = logger

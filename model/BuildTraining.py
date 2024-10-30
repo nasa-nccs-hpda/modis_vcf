@@ -9,6 +9,7 @@ import pandas as pd
 from modis_vcf.model.Band import Band
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductType import ProductType
+from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
 
 # ----------------------------------------------------------------------------
@@ -29,7 +30,6 @@ class BuildTraining(object):
     # __init__
     # ------------------------------------------------------------------------
     def __init__(self, 
-                 productType: ProductType,
                  year: int, 
                  modisDir: Path,
                  metricsDir: Path,
@@ -38,6 +38,7 @@ class BuildTraining(object):
                  trainingName: str,
                  tileIds: list = None, 
                  metricNames: list = None,
+                 productType: ProductType = None,
                  logger: logging.RootLogger = None):
     
         if not year:
@@ -63,10 +64,11 @@ class BuildTraining(object):
         self._outDir: Path = outDir
         self._trainingDir: Path = trainingDir or BuildTraining.TRAINING_DIR
         self._trainingName: str = trainingName
-        self._tids: list = tileIds or BuildTraining._getTileIds()
+        self._tids: list = tileIds or self._getTileIds()
         self._metricNames: list = metricNames
         self._logger: logging.RootLogger = logger
         self._training = None
+        self._productType = productType or ProductTypeMod44(self._modisDir)
         
         self._logger.info('Year: ' + str(self._year))
         self._logger.info('MODIS dir: ' + str(self._modisDir))
@@ -78,60 +80,15 @@ class BuildTraining(object):
         self._logger.info('Metric names: ' + str(self._metricNames))
         
     # ------------------------------------------------------------------------
-    # addMetricsToDf
-    # ------------------------------------------------------------------------
-    # def _addMetricsToDf(self, df: pd.DataFrame) -> pd.DataFrame:
-    #
-    #     tidMets: dict = self._getAllMetrics()
-    #
-    #     metricsToRun: list = self._metricNames or \
-    #                          list(tidMets.values())[0].availableMetrics
-    #
-    #     for metName in metricsToRun:
-    #
-    #         # ---
-    #         # Get the metric for the first tid, so we can know the names
-    #         # of all the bands it includes.
-    #         # ---
-    #         bandNames = list(tidMets.values())[0].getMetric(metName).dayXref
-    #
-    #         for bandName in bandNames:
-    #
-    #             self._logger.info('Adding column for ' + bandName)
-    #
-    #             metCol = []
-    #
-    #             for tid in self._tids:
-    #
-    #                 metric: Band = tidMets[tid].getMetric(metName)
-    #                 index = metric.dayXref[bandName]
-    #
-    #                 # The default behavior uses float64, so force int16.
-    #                 vals = metric.cube[index].flatten()
-    #                 metCol = np.append(metCol, vals).astype(np.int16)
-    #
-    #             df[bandName] = metCol
-    #
-    #     return df
-        
-    # ------------------------------------------------------------------------
     # addOneMetricToDf
     # ------------------------------------------------------------------------
     def _addOneMetricToDf(self, df: pd.DataFrame, tid: str) -> pd.DataFrame:
         
         mets = Metrics(tid,
                        self._year,
-                       self._modisDir,
+                       self._productType,
                        self._metricsDir,
                        self._logger)
-
-    def __init__(self,
-                 tileId: str, 
-                 year: int, 
-                 productType: ProductType,
-                 outDir: Path,
-                 logger: logging.RootLogger,
-                 nanThreshold: int = 9999):
 
         metricsToRun: list = self._metricNames or mets.availableMetrics
 
@@ -183,8 +140,7 @@ class BuildTraining(object):
     # ------------------------------------------------------------------------
     # getTileIds
     # ------------------------------------------------------------------------
-    @staticmethod
-    def _getTileIds() -> list:
+    def _getTileIds(self) -> list:
 
         # sampleFiles = BuildTraining.TRAINING_DIR.glob('*.samp.bin')
         sampleFiles = self._trainingDir.glob('*.samp.bin')
@@ -305,8 +261,6 @@ class BuildTraining(object):
             df: pd.DataFrame = self._addTrainingToDf(df, tid)
 
             # tid-x-y, tid, x, y, training, metric 1, metric 2, ...
-            import pdb
-            pdb.set_trace()
             try:
                 df: pd.DataFrame = self._addOneMetricToDf(df, tid)
 

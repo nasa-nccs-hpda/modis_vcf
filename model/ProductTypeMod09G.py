@@ -40,8 +40,11 @@ class ProductTypeMod09G(ProductType):
                      dayStep = ProductTypeMod09G.DAY_STEP,
                      yearTwoEndDay = ProductTypeMod09G.YEAR_TWO_END_DAY)
           
+        # ---
         # These indices start at 0.  
-        self._bandXref = {ProductType.BAND1: 1, ProductType.BAND2: 3,
+        # B2 was 3.
+        # ---
+        self._bandXref = {ProductType.BAND1: 1, ProductType.BAND2: 2,
                           ProductType.BAND3: 13, ProductType.BAND4: 14,
                           ProductType.BAND5: 15, ProductType.BAND6: 16,
                           ProductType.BAND7: 17, # ProductType.BAND31: 9,
