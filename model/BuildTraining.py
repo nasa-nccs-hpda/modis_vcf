@@ -69,6 +69,7 @@ class BuildTraining(object):
         self._logger: logging.RootLogger = logger
         self._training = None
         self._productType = productType or ProductTypeMod44(self._modisDir)
+        self._trainingFileSuffix = '.bin'  # Sometimes '.samp.bin'
         
         self._logger.info('Year: ' + str(self._year))
         self._logger.info('MODIS dir: ' + str(self._modisDir))
@@ -153,7 +154,8 @@ class BuildTraining(object):
     def getTrainingFileName(self, tid) -> Path:
         
         # tFileName = BuildTraining.TRAINING_DIR / (tid + '.samp.bin')
-        tFileName = self._trainingDir / (tid + '.samp.bin')
+        # tFileName = self._trainingDir / (tid + '.samp.bin')
+        tFileName = self._trainingDir / (tid + self._trainingFileSuffix)
         return tFileName
         
     # ------------------------------------------------------------------------
@@ -252,6 +254,8 @@ class BuildTraining(object):
                 self._logger.warning('Samples file for ' + 
                                      tid + 
                                      ' does not exist.')
+
+                failedTids.append(tid)
                 continue
             
             # tid-x-y, tid, x, y

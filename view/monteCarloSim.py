@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import argparse
-import logging
 from pathlib import Path
 import sys
 
@@ -11,7 +10,7 @@ from modis_vcf.model.MonteCarloSim import MonteCarloSim
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/training --minVarUsage 1 
+# modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/training --minVarUsage 1 --numTrials 2
 # -----------------------------------------------------------------------------
 def main():
     
@@ -45,18 +44,14 @@ def main():
     args = parser.parse_args()
     
     # ---
-    # Logging
-    # ---
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    ch = logging.StreamHandler(sys.stdout)
-    ch.setLevel(logging.INFO)
-    logger.addHandler(ch)
-
-    # ---
     # Monte Carlo Simulation
     # ---
-    mcs = MonteCarloSim(args.trainingDir)
+    mcs = MonteCarloSim(args.trainingDir, 
+                        args.numTrials, 
+                        args.numPredsPerTrial,
+                        args.numVarsForFinalModel,
+                        args.minVarUsage)
+
     mcs.run()
 
 

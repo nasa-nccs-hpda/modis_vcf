@@ -53,6 +53,29 @@ class MonteCarloSimTestCase(unittest.TestCase):
         self.assertEqual(len(mcs.allVars), 255)
         
     # -------------------------------------------------------------------------
+    # testChooseColumns
+    # -------------------------------------------------------------------------
+    def testChooseColumns(self):
+        
+        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+                            predictorsPerTrial = 4,
+                            logger = MonteCarloSimTestCase.logger)
+
+        lastCols = None
+        
+        for i in range(100):
+            
+            curCols = mcs._chooseColumns()
+
+            if not lastCols:
+                lastCols = curCols
+                
+            elif curCols == lastCols:
+                return False
+                
+        return True
+        
+    # -------------------------------------------------------------------------
     # testPollVarUsage
     # -------------------------------------------------------------------------
     def testPollVarUsage(self):
@@ -82,7 +105,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
         # Test too few variables.
         varUsageCount[firstKey] = mcs._minTimesEachVarUsed
         self.assertTrue(mcs._pollVarUsage(varUsageCount))
-        del varUsageCount[firstKey]
+        varUsageCount[firstKey] = 0
         self.assertFalse(mcs._pollVarUsage(varUsageCount))
                          
     # -------------------------------------------------------------------------
@@ -126,6 +149,8 @@ class MonteCarloSimTestCase(unittest.TestCase):
             usedVars.update(trial.predictorNames)
         
         self.assertEqual(set(mcs.allVars), usedVars)
+        
+        # Ensure each trial has a different set of 
         
     # -------------------------------------------------------------------------
     # testRunOneTrial

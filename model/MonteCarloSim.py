@@ -31,6 +31,7 @@ from modis_vcf.model.Trial import Trial
 # what they used with MODIS water for basic parameters if you need to.
 #
 # TODO: -10001 must be +10001
+# TODO: Validate input
 # ----------------------------------------------------------------------------
 class MonteCarloSim(object):
     
@@ -39,10 +40,10 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def __init__(self, 
                  trainingDir: Path, 
-                 numTrials: int = 10, 
-                 predictorsPerTrial: int = 10, 
-                 numVarsToSelect: int = 10,
-                 minTimesEachVarUsed: int = 10,
+                 numTrials: int = None, 
+                 predictorsPerTrial: int = None, 
+                 numVarsToSelect: int = None,
+                 minTimesEachVarUsed: int = None,
                  logger: logging.RootLogger = None):
         
         if not logger:
@@ -58,8 +59,8 @@ class MonteCarloSim(object):
 
         self._logger: logging.RootLogger = logger
 
-        self._numTrials: int = numTrials
-        self._predictorsPerTrial: int = predictorsPerTrial
+        self._numTrials: int = numTrials or 10
+        self._predictorsPerTrial: int = predictorsPerTrial or 10
         self._logger = logger
         self._masterTraining = MasterTraining(trainingDir, logger)
         
@@ -70,7 +71,7 @@ class MonteCarloSim(object):
         # This is the number of highest-performing variables to select for
         # the final model.  In other words, the top ten (top numVarsToSelect).
         # ---
-        self._numVarsToSelect: int = numVarsToSelect
+        self._numVarsToSelect: int = numVarsToSelect or 10
         
         # ---
         # Each variable must be randomly selected at least minTimesEachVarUsed
@@ -78,7 +79,16 @@ class MonteCarloSim(object):
         # self._numTrials, if self._numTrials is reached before
         # minTimesEachVarUsed is satisfied.
         # ---
+        if minTimesEachVarUsed is None:
+            minTimesEachVarUsed = 10
+            
         self._minTimesEachVarUsed: int = minTimesEachVarUsed
+        
+        logger.info('Training dir: ' + str(trainingDir))
+        logger.info('Num trials: ' + str(self._numTrials))
+        logger.info('Predictors per trial: ' + str(self._predictorsPerTrial))
+        logger.info('Num vars for final model: ' + str(self._numVarsToSelect))
+        logger.info('Min var usage: ' + str(self._minTimesEachVarUsed))
 
     # ------------------------------------------------------------------------
     # allVars
@@ -88,25 +98,15 @@ class MonteCarloSim(object):
         return self._allVars
         
     # ------------------------------------------------------------------------
-    # rankVars
+    # chooseColumns
+    #
+    # This one-liner is in its own method so the unit test can ensure the
+    # seed is random.
     # ------------------------------------------------------------------------
-    def rankVars(self, trials) -> dict:
+    def _chooseColumns(self) -> list:
         
-        # Collate permutation importance for each variable.
-        collatedImportance = dict.fromkeys(self.allVars, float)
-
-        for trial in trials:
-            
-            means = trial.permImportance['importances_mean']
-        
-            for i in range(len(means)):
-
-                varName = trial.predictorNames[i]
-                varMean = means[i]
-                curMean = collatedImportance[varName]
-                collatedImportance[varName] = (curMean + varMean) / 2.0
-                
-        return collatedImportance
+        colNames = random.sample(self.allVars, self.predictorsPerTrial)
+        return colNames
         
     # ------------------------------------------------------------------------
     # numTrials
@@ -137,6 +137,27 @@ class MonteCarloSim(object):
     @property
     def predictorsPerTrial(self) -> int:
         return self._predictorsPerTrial
+        
+    # ------------------------------------------------------------------------
+    # rankVars
+    # ------------------------------------------------------------------------
+    def rankVars(self, trials) -> dict:
+        
+        # Collate permutation importance for each variable.
+        collatedImportance = dict.fromkeys(self.allVars, 0.0)
+
+        for trial in trials:
+            
+            means = trial.permImportance['importances_mean']
+        
+            for i in range(len(means)):
+
+                varName = trial.predictorNames[i]
+                varMean = means[i]
+                curMean = collatedImportance[varName]
+                collatedImportance[varName] = (curMean + varMean) / 2.0
+                
+        return collatedImportance
         
     # ------------------------------------------------------------------------
     # run
@@ -199,7 +220,8 @@ class MonteCarloSim(object):
         name = 'Trial-' + str(trialNum)
         
         # Randomly choose among the columns, omitting the index-related ones.
-        colNames = random.sample(self.allVars, self.predictorsPerTrial)
+        # colNames = random.sample(self.allVars, self.predictorsPerTrial)
+        colNames = self._chooseColumns()
         
         # Read the columns.  Sklearn cannot use Pyarrow.Table.
         X: pd.DataFrame = \
@@ -216,7 +238,7 @@ class MonteCarloSim(object):
         xTrain, xTest, yTrain, yTest = train_test_split(X, y)
         
         # Fit the model.
-        rf = RandomForestClassifier()
+        rf = RandomForestClassifier(n_estimators=10)  # estimators 10 for testing
         rf = rf.fit(xTrain, yTrain)
 
         # ---
