@@ -47,7 +47,8 @@ class BandDayFileTestCase(unittest.TestCase):
         self._mod44OutDir = Path('/explore/nobackup/people/rlgill' +      
                                  '/SystemTesting/modis-vcf/MOD44') / \
                             Path(self.h09v05) / \
-                            Path(str(self.year2019))
+                            Path(str(self.year2019)) / \
+                            '1-Days'
 
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
 
@@ -68,7 +69,8 @@ class BandDayFileTestCase(unittest.TestCase):
         self._mod09OutDir = Path('/explore/nobackup/people/rlgill' +      
                                  '/SystemTesting/modis-vcf/MOD09A') / \
                             Path(self.h09v05) / \
-                            Path(str(self.year2019))
+                            Path(str(self.year2019)) / \
+                            '1-Days'
 
         self.productTypeMod09A = \
             ProductTypeMod09A(self._mod09InDir, self._mod44InDir)
@@ -279,7 +281,7 @@ class BandDayFileTestCase(unittest.TestCase):
         raster2 = bdf.raster
         self.assertTrue((raster == raster2).all())
         self.assertEqual(raster2.shape, (4800, 4800))
-        self.assertEqual(raster2.dtype, np.int16)
+        self.assertEqual(raster2.dtype, np.int32)
         
     # -------------------------------------------------------------------------
     # testToTif

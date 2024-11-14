@@ -238,7 +238,7 @@ class MonteCarloSim(object):
         xTrain, xTest, yTrain, yTest = train_test_split(X, y)
         
         # Fit the model.
-        rf = RandomForestClassifier(n_estimators=10)  # estimators 10 for testing
+        rf = RandomForestClassifier(n_estimators=1)  # single decision tree
         rf = rf.fit(xTrain, yTrain)
 
         # ---

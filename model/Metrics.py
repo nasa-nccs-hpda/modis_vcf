@@ -1204,15 +1204,22 @@ class Metrics(object):
         sortedCube = self._sortByNDVI(thermal)
 
         # ---
-        # There remains the cases where there are fewer than three valid
+        # There remains cases where there are fewer than three valid
         # values.  Create a masked array, masking the low values, take the
         # last three elements from the array, which may contain low values,
         # and compute the mean with masked_array.mean().
         # ---
         mArray = ma.masked_equal(sortedCube, self._productType.NO_DATA)
         slicedArray = mArray[-3:, :, :]
-        value = slicedArray.mean(axis=0).astype(int)
-        noDataValue = value.filled(self._productType.NO_DATA)
+        # value = slicedArray.mean(axis=0).astype(int)
+        # noDataValue = value.filled(self._productType.NO_DATA)
+
+        value = slicedArray.mean(axis=0)
+
+        noDataValue = np.where(np.isnan(value), 
+                               self._productType.NO_DATA, 
+                               value).astype(int)
+
         metric = Metrics.Metric(baseName, desc, noDataValue)
         return [metric]
         

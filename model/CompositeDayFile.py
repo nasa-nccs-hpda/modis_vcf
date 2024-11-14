@@ -13,7 +13,6 @@ from modis_vcf.model.ProductType import ProductType
 # Class CompositeDayFile
 #
 # TODO: Validate input.
-# TODO: Is _dayDir needed?
 # ----------------------------------------------------------------------------
 class CompositeDayFile(DayFile):
 
@@ -23,7 +22,7 @@ class CompositeDayFile(DayFile):
     def __init__(self):
         
         super(CompositeDayFile, self).__init__()
-        # self._dayDir: Path = None
+        self._dayDir: Path = None
         self._daysInComp: int = 32
 
     # ------------------------------------------------------------------------
@@ -37,7 +36,7 @@ class CompositeDayFile(DayFile):
                        day: int,
                        outDir: Path,
                        logger: logging.RootLogger,
-                       # dayDir: Path,
+                       dayDir: Path,
                        numDaysInComp: int = None):
 
         super().initFromParams(productType,
@@ -49,13 +48,13 @@ class CompositeDayFile(DayFile):
                                logger)
         
         # Day directory
-        # if not dayDir or not dayDir.exists() or not dayDir.is_dir():
-        #
-        #     raise RuntimeError('Day directory, ' +
-        #                        str(dayDir) +
-        #                        ', does not exist.')
-        #
-        # self._dayDir: Path = dayDir
+        if not dayDir or not dayDir.exists() or not dayDir.is_dir():
+
+            raise RuntimeError('Day directory, ' +
+                               str(dayDir) +
+                               ', does not exist.')
+
+        self._dayDir: Path = dayDir
         
         if numDaysInComp:
             self._daysInComp: int = numDaysInComp
@@ -74,7 +73,7 @@ class CompositeDayFile(DayFile):
                             day,
                             otherCDF._outDir,
                             otherCDF._logger,
-                            # otherCDF._dayDir,
+                            otherCDF._dayDir,
                             otherCDF._daysInComp)
                             
         return self
@@ -104,10 +103,9 @@ class CompositeDayFile(DayFile):
                                                self.tid,
                                                year,
                                                day,
-                                               self._outDir,
+                                               self._dayDir,
                                                self._logger)
             
-
             try:
                 
                 # Use float because of the forthcoming mean operation.

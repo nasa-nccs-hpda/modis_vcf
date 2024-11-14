@@ -228,7 +228,7 @@ class MetricsTestCase(unittest.TestCase):
 
         # ---
         # Use MetricsTestCase.findStacksForApplyThreshold() to discover these.
-        self.findStacksForApplyThreshold(band, threshold)
+        # self.findStacksForApplyThreshold(band, threshold)
         # ---
         ltx = 0
         lty = 4799
@@ -1006,10 +1006,16 @@ class MetricsTestCase(unittest.TestCase):
         band, bXref = mm.getBandCube(ProductTypeMod44.BAND1)
         bSorted = np.sort(band, axis=0)
 
-        ndvi, nXref = mm.getNdvi()
-        nSorted = np.sort(ndvi, axis=0)
-        bSortedByN = mm._sortByNDVI(band)
+        # ndvi, nXref = mm.getNdvi()
+        # nSorted = np.sort(ndvi, axis=0)
+        # bSortedByN = mm._sortByNDVI(band)
         
+        ndvi, nXref = mm.getNdvi()
+        bNansToNdvi = np.where(np.isnan(band), np.nan, ndvi)
+        nSorted = np.sort(bNansToNdvi, axis=0)
+        ascIndexes = np.argsort(bNansToNdvi, axis=0)
+        bSortedByN = np.take_along_axis(band, ascIndexes, axis=0)
+
         # ---
         # Case 1:  band with no NaNs and NDVI with no NaNs
         # ---
@@ -1202,10 +1208,16 @@ class MetricsTestCase(unittest.TestCase):
         band, bXref = mm.getBandCube(ProductTypeMod44.BAND4)
         bSorted = np.sort(band, axis=0)
 
-        thermal, tXref = mm.getBandCube(ProductTypeMod44.BAND31)
-        tSorted = np.sort(thermal, axis=0)
-        bSortedByT = mm._sortByThermal(band)
+        # thermal, tXref = mm.getBandCube(ProductTypeMod44.BAND31)
+        # tSorted = np.sort(thermal, axis=0)
+        # bSortedByT = mm._sortByThermal(band)
         
+        thermal, tXref = mm.getBandCube(ProductTypeMod44.BAND31)
+        tNansToNdvi = np.where(np.isnan(band), np.nan, thermal)
+        tSorted = np.sort(tNansToNdvi, axis=0)
+        ascIndexes = np.argsort(tNansToNdvi, axis=0)
+        bSortedByT = np.take_along_axis(band, ascIndexes, axis=0)
+
         # Case 1:  band with no NaNs and thermal with no NaNs
         x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
                            ~np.isnan(tSorted[11, :, :]))[0]
@@ -1765,8 +1777,14 @@ class MetricsTestCase(unittest.TestCase):
         self.assertEqual(metric.cube.shape, (1, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
-        ndvi, ndviXref = mm.getNdvi()
-        tSorted = np.sort(ndvi, axis=0)
+        # ndvi, ndviXref = mm.getNdvi()
+        # tSorted = np.sort(ndvi, axis=0)
+
+        thermal, tXref = mm.getBandCube(self.productTypeMod44.BAND31)
+        ndvi, nXref = mm.getNdvi()
+        tNansToNdvi = np.where(np.isnan(thermal), np.nan, ndvi)
+        ascIndexes = np.argsort(tNansToNdvi, axis=0)
+        tSorted = np.take_along_axis(thermal, ascIndexes, axis=0)
         
         # Start with a location with no NaNs.
         x, y = np.argwhere(~np.isnan(tSorted[11, :, :]))[0]
