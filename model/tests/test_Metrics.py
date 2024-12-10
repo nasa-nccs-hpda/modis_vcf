@@ -700,6 +700,8 @@ class MetricsTestCase(unittest.TestCase):
         metric: Band = mm.getMetric(METRIC_NAME)
         self.assertEqual(metric.cube.shape, (96, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
+        import pdb
+        pdb.set_trace()
         
         # Day 193, July 12, is summer and should have a decent sun angle.
         day = 193

@@ -250,7 +250,7 @@ class Metrics(object):
             
             # Write then read is wasteful.
             mFunc = self.availableMetrics[metricName]
-            metrics = mFunc()
+            metrics: list[Metric] = mFunc()
             self.writeMetrics(metrics)
 
         metric = Band()
@@ -437,7 +437,7 @@ class Metrics(object):
             # ---
             for day in dayXref:
                 
-                name = baseName + '-' + bandName + '-Day-' + str(day)
+                name = baseName + '-' + bandName + '-Day_' + str(day)
                 desc = name.replace('-', ' ')
                 index = dayXref[day]
                 metrics.append(Metrics.Metric(name, desc, noDataCube[index]))
@@ -994,10 +994,6 @@ class Metrics(object):
             minBand = np.nanmin(cube, axis=0)
             maxBand = np.nanmax(cube, axis=0)
 
-            # value = np.where(np.array_equal(minBand, maxBand, equal_nan=True),
-            #                  np.nan,
-            #                  maxBand - minBand)
-            
             value = np.where(np.array_equal(minBand, maxBand, equal_nan=True),
                              0,
                              maxBand - minBand)

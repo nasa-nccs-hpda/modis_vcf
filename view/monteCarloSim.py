@@ -10,7 +10,14 @@ from modis_vcf.model.MonteCarloSim import MonteCarloSim
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/training --minVarUsage 1 --numTrials 2
+# modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/training --minVarUsage 0 --numTrials 10   # noqa: E501
+#
+# Timing of the above command.  Training consists of h09v05 metrics.
+# ilab207: 4m26.821s, 4m28.300s
+# ilab213: 3m15.151s, 3m13.851s
+#
+# time modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C/training-V5.0.3/  # noqa: E501
+# ilab213: 
 # -----------------------------------------------------------------------------
 def main():
     
@@ -52,8 +59,9 @@ def main():
                         args.numVarsForFinalModel,
                         args.minVarUsage)
 
-    mcs.run()
-
+    topN: list = mcs.run()
+    print(topN)
+    
 
 # -----------------------------------------------------------------------------
 # Invoke the main

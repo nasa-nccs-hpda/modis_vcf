@@ -71,6 +71,15 @@ class MasterTrainingTestCase(unittest.TestCase):
                                 
         doNotSkipName.rename(MasterTrainingTestCase.h08v04)
         
+        # Test invalid training directory.
+        with self.assertRaisesRegex(RuntimeError, ' is invalid'):
+
+            tm = MasterTraining(Path('invalid/dir'),
+                                MasterTrainingTestCase.logger)
+        
+        with self.assertRaisesRegex(RuntimeError, ' is invalid'):
+            tm = MasterTraining(Path(__file__),  MasterTrainingTestCase.logger)
+            
     # -------------------------------------------------------------------------
     # testDataset
     # -------------------------------------------------------------------------

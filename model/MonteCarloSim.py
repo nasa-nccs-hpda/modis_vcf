@@ -1,10 +1,13 @@
 
 import glob
+import pickle
 import logging
 from pathlib import Path
 import random
 import sys
 
+import numpy as np
+import pandas as pd
 import pyarrow as pa
 
 from sklearn.ensemble import RandomForestClassifier
@@ -15,6 +18,9 @@ from sklearn.model_selection import train_test_split
 from modis_vcf.model.MasterTraining import MasterTraining
 from modis_vcf.model.Trial import Trial
 
+DEFAULT_VALUE = 10
+DEFAULT_TOP_N = 20
+    
 
 # ----------------------------------------------------------------------------
 # MonteCarloSim
@@ -30,7 +36,6 @@ from modis_vcf.model.Trial import Trial
 # And I forget what the other parameters are.  You can ask Caleb and Amanda 
 # what they used with MODIS water for basic parameters if you need to.
 #
-# TODO: -10001 must be +10001
 # TODO: Validate input
 # ----------------------------------------------------------------------------
 class MonteCarloSim(object):
@@ -40,10 +45,10 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def __init__(self, 
                  trainingDir: Path, 
-                 numTrials: int = None, 
-                 predictorsPerTrial: int = None, 
-                 numVarsToSelect: int = None,
-                 minTimesEachVarUsed: int = None,
+                 numTrials: int = DEFAULT_VALUE, 
+                 predictorsPerTrial: int = DEFAULT_VALUE, 
+                 numVarsForFinalModel: int = DEFAULT_TOP_N,
+                 minTimesEachVarUsed: int = DEFAULT_VALUE,
                  logger: logging.RootLogger = None):
         
         if not logger:
@@ -59,19 +64,27 @@ class MonteCarloSim(object):
 
         self._logger: logging.RootLogger = logger
 
-        self._numTrials: int = numTrials or 10
-        self._predictorsPerTrial: int = predictorsPerTrial or 10
-        self._logger = logger
+        # None could be passed, overriding the default value, so ...
+        self._numTrials: int = numTrials or DEFAULT_VALUE
+        self._predictorsPerTrial: int = predictorsPerTrial or DEFAULT_VALUE
         self._masterTraining = MasterTraining(trainingDir, logger)
         
-        self._allVars = self.masterTraining.dataset.schema.names \
-                        [MasterTraining.START_COL:]
+        self._allVars: list = self.masterTraining.dataset.schema.names \
+                              [MasterTraining.START_COL:]
 
         # ---
-        # This is the number of highest-performing variables to select for
-        # the final model.  In other words, the top ten (top numVarsToSelect).
+        # Save certain intermediate variables that might be helpful to 
+        # interrogate later.
         # ---
-        self._numVarsToSelect: int = numVarsToSelect or 10
+        self._averages: dict = None
+        self._topN: list[tuple] = None
+        self._trials: list[Trial] = None
+        
+        # ---
+        # This is the number of highest-performing variables to select for
+        # the final model.  In other words, the top ten (top numVarsForFinalModel).
+        # ---
+        self._numVarsForFinalModel: int = numVarsForFinalModel or DEFAULT_TOP_N
         
         # ---
         # Each variable must be randomly selected at least minTimesEachVarUsed
@@ -79,15 +92,30 @@ class MonteCarloSim(object):
         # self._numTrials, if self._numTrials is reached before
         # minTimesEachVarUsed is satisfied.
         # ---
-        if minTimesEachVarUsed is None:
-            minTimesEachVarUsed = 10
-            
-        self._minTimesEachVarUsed: int = minTimesEachVarUsed
+        self._minTimesEachVarUsed: int = \
+            minTimesEachVarUsed if minTimesEachVarUsed is not None else \
+            DEFAULT_VALUE
         
+        # ---
+        # Prepare y.
+        # ---
+        sampName = self.masterTraining.dataset.schema.names \
+                        [MasterTraining.SAMPLE_COL]
+                        
+        y: pd.DataFrame = \
+             self.masterTraining.dataset.read([sampName]). \
+             to_pandas().to_numpy().ravel()
+
+        self._y = np.where(y == -10001, 10001, y)
+
+        # Print configuration.
         logger.info('Training dir: ' + str(trainingDir))
         logger.info('Num trials: ' + str(self._numTrials))
         logger.info('Predictors per trial: ' + str(self._predictorsPerTrial))
-        logger.info('Num vars for final model: ' + str(self._numVarsToSelect))
+        
+        logger.info('Num vars for final model: ' + 
+                    str(self._numVarsForFinalModel))
+        
         logger.info('Min var usage: ' + str(self._minTimesEachVarUsed))
 
     # ------------------------------------------------------------------------
@@ -98,15 +126,75 @@ class MonteCarloSim(object):
         return self._allVars
         
     # ------------------------------------------------------------------------
+    # averages
+    # ------------------------------------------------------------------------
+    @property
+    def averages(self) -> dict:
+        
+        if not self._averages:
+            self._averages = self._computeAverages(self.trials)
+            
+        return self._averages
+        
+    # ------------------------------------------------------------------------
     # chooseColumns
     #
     # This one-liner is in its own method so the unit test can ensure the
     # seed is random.
     # ------------------------------------------------------------------------
-    def _chooseColumns(self) -> list:
+    def _chooseColumns(self) -> list[str]:
         
         colNames = random.sample(self.allVars, self.predictorsPerTrial)
         return colNames
+        
+    # ------------------------------------------------------------------------
+    # computeAverages
+    # ------------------------------------------------------------------------
+    def _computeAverages(self, trials) -> dict:
+        
+        # ---
+        # Collate permutation importance for each variable.
+        # permImports = {var1: [imp1, imp2, ...], var2: [imp1, imp2, ...]}
+        # ---
+        permImports = {k: [] for k in self.allVars}
+
+        for trial in trials:
+            
+            impMeans = trial.permImportances['importances_mean']
+        
+            for i in range(len(impMeans)):
+
+                varName = trial.predictorNames[i]
+                permImports[varName].append(impMeans[i])
+                
+        # Compute the average for each 
+        averages = dict.fromkeys(self.allVars, 0.0)
+        
+        for var in permImports:
+            
+            if permImports[var]:
+                
+                sumI = sum(permImports[var])
+                averages[var] = sumI / len(permImports[var])
+                
+        return averages
+
+    # ------------------------------------------------------------------------
+    # _finalModel
+    # ------------------------------------------------------------------------
+    def _finalModel(self) -> RandomForestClassifier:
+        
+        topPredictors = [t[0] for t in self.topN]
+        X, xTrain, xTest, yTrain, yTest = self._prepX(topPredictors)
+        rf: RandomForestClassifier = self._runRandomForest(xTrain, yTrain)
+        return rf
+        
+    # ------------------------------------------------------------------------
+    # masterTraining
+    # ------------------------------------------------------------------------
+    @property
+    def masterTraining(self) -> MasterTraining:
+        return self._masterTraining
         
     # ------------------------------------------------------------------------
     # numTrials
@@ -114,6 +202,13 @@ class MonteCarloSim(object):
     @property
     def numTrials(self) -> int:
         return self._numTrials
+        
+    # ------------------------------------------------------------------------
+    # numVarsForFinalModel
+    # ------------------------------------------------------------------------
+    @property
+    def numVarsForFinalModel(self) -> int:
+        return self._numVarsForFinalModel
         
     # ------------------------------------------------------------------------
     # pollVarUsage
@@ -139,38 +234,38 @@ class MonteCarloSim(object):
         return self._predictorsPerTrial
         
     # ------------------------------------------------------------------------
-    # rankVars
+    # prepX
     # ------------------------------------------------------------------------
-    def rankVars(self, trials) -> dict:
+    def _prepX(self, colNames: list) -> \
+        [pd.core.frame.DataFrame, 
+         pd.core.frame.DataFrame, 
+         np.ndarray, 
+         np.ndarray]:
         
-        # Collate permutation importance for each variable.
-        collatedImportance = dict.fromkeys(self.allVars, 0.0)
-
-        for trial in trials:
-            
-            means = trial.permImportance['importances_mean']
+        # Read the columns.  Sklearn cannot use Pyarrow.Table.
+        X: pd.DataFrame = \
+            self.masterTraining.dataset.read(colNames).to_pandas()
         
-            for i in range(len(means)):
-
-                varName = trial.predictorNames[i]
-                varMean = means[i]
-                curMean = collatedImportance[varName]
-                collatedImportance[varName] = (curMean + varMean) / 2.0
-                
-        return collatedImportance
+        # No-data value, -10001, must be changed to +10001.
+        X = X.where(X != -10001, 10001)
+        
+        # Split the columns into test and training subsets.
+        xTrain, xTest, yTrain, yTest = train_test_split(X, self._y)
+        
+        return X, xTrain, xTest, yTrain, yTest
         
     # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
-    def run(self):
-        
-        trials: list = self._runTrials()
-        rankedVars: dict = self.rankVars(trials)
+    def run(self) -> RandomForestClassifier:
+
+        rf = self._finalModel()
+        return rf
         
     # ------------------------------------------------------------------------
     # runTrials
     # ------------------------------------------------------------------------
-    def _runTrials(self) -> list[Trial]:
+    def _runTrials(self) -> list:
         
         self._logger.info('Starting trials.')
 
@@ -206,7 +301,7 @@ class MonteCarloSim(object):
                 
         self._logger.info('Trials completed.') 
         
-        return trials          
+        return trials
 
     # ------------------------------------------------------------------------
     # runOneTrial
@@ -218,28 +313,9 @@ class MonteCarloSim(object):
     def _runOneTrial(self, trialNum: int) -> Trial:
         
         name = 'Trial-' + str(trialNum)
-        
-        # Randomly choose among the columns, omitting the index-related ones.
-        # colNames = random.sample(self.allVars, self.predictorsPerTrial)
-        colNames = self._chooseColumns()
-        
-        # Read the columns.  Sklearn cannot use Pyarrow.Table.
-        X: pd.DataFrame = \
-            self.masterTraining.dataset.read(colNames).to_pandas()
-        
-        sampName = self.masterTraining.dataset.schema.names \
-                        [MasterTraining.SAMPLE_COL]
-                        
-        y: pd.DataFrame = \
-             self.masterTraining.dataset.read([sampName]). \
-             to_pandas().to_numpy().ravel()
-        
-        # Split the columns into test and training subsets.
-        xTrain, xTest, yTrain, yTest = train_test_split(X, y)
-        
-        # Fit the model.
-        rf = RandomForestClassifier(n_estimators=1)  # single decision tree
-        rf = rf.fit(xTrain, yTrain)
+        colNames: list[str]  = self._chooseColumns()
+        X, xTrain, xTest, yTrain, yTest = self._prepX(colNames)
+        rf: RandomForestClassifier = self._runRandomForest(xTrain, yTrain)
 
         # ---
         # According to the user manual, permutation importance items are
@@ -248,15 +324,57 @@ class MonteCarloSim(object):
         # correspond, in order, to the predictor names.  See
         # https://scikit-learn.org/stable/modules/permutation_importance.html#permutation-importance
         # ---
-        permImportance = dict(permutation_importance(rf, X, y))
-        trial = Trial(name, colNames, permImportance)
-        
+        permImportances = dict(permutation_importance(rf, X, self._y))
+        trial = Trial(name, colNames, permImportances)
+
         return trial
+        
+    # ------------------------------------------------------------------------
+    # runRandomForest
+    # ------------------------------------------------------------------------
+    def _runRandomForest(self, xTrain, yTrain) -> RandomForestClassifier:
+
+        rf = RandomForestClassifier(n_estimators=1)  # single decision tree
+        rf = rf.fit(xTrain, yTrain)
+        return rf
 
     # ------------------------------------------------------------------------
-    # trainingDs
+    # saveFinalModel
+    # ------------------------------------------------------------------------
+    def saveFinalModel(self, outDir: Path) -> Path:
+        
+        finalModel = self._finalModel()
+        outBase: str = Path(self.masterTraining.dataset.files[0]).name
+        outName: Path = Path(outBase).stem
+        
+        outPath: Path = outDir / (outName + '-model.bin')
+        
+        with open(outPath, 'wb') as f:
+            pickle.dump(finalModel, f)
+
+        return outPath
+        
+    # ------------------------------------------------------------------------
+    # topN
     # ------------------------------------------------------------------------
     @property
-    def masterTraining(self) -> MasterTraining:
-        return self._masterTraining
+    def topN(self) -> list[tuple]:
+        
+        if not self._topN:
+            
+            self._topN = sorted(self.averages.items(),
+                                key=lambda x: x[1],
+                                reverse=True)[:self._numVarsForFinalModel]
+        return self._topN
+        
+    # ------------------------------------------------------------------------
+    # trials
+    # ------------------------------------------------------------------------
+    @property
+    def trials(self) -> list:
+        
+        if not self._trials:
+            self._trials = self._runTrials()
+            
+        return self._trials
         

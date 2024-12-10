@@ -19,6 +19,11 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # Training data: /explore/nobackup/projects/ilab/data/MODIS/MODIS_VCF/Mark_training/VCF_training_adjusted/tile_adjustment/v5.0.3samp/
 #
 # TODO: Validate input.
+#
+# TODO: A Parquet file for a TID could contain a subset of the available 
+#       metrics.  When a different set of metrics is requested and this class
+#       finds and existing file.  It will stop and return the file, which will
+#       not contain what the client requested.  Fix this.
 # ----------------------------------------------------------------------------
 class BuildTraining(object):
     
@@ -54,9 +59,14 @@ class BuildTraining(object):
             
             logger = logging.getLogger()
             logger.setLevel(logging.INFO)
+
+        self._logger: logging.RootLogger = logger
+
+        if (not self._logger.hasHandlers()):
+
             ch = logging.StreamHandler(sys.stdout)
             ch.setLevel(logging.INFO)
-            logger.addHandler(ch)
+            self._logger.addHandler(ch)
 
         self._year: int = year
         self._modisDir: Path = modisDir
@@ -66,10 +76,10 @@ class BuildTraining(object):
         self._trainingName: str = trainingName
         self._tids: list = tileIds or self._getTileIds()
         self._metricNames: list = metricNames
-        self._logger: logging.RootLogger = logger
-        self._training = None
         self._productType = productType or ProductTypeMod44(self._modisDir)
-        self._trainingFileSuffix = '.bin'  # Sometimes '.samp.bin'
+
+        # self._trainingFileSuffix = '.bin'  # Sometimes '.samp.bin'
+        self._trainingFileSuffix = '.samp.bin'
         
         self._logger.info('Year: ' + str(self._year))
         self._logger.info('MODIS dir: ' + str(self._modisDir))
@@ -131,20 +141,11 @@ class BuildTraining(object):
         return df
         
     # ------------------------------------------------------------------------
-    # getParquetName
-    # ------------------------------------------------------------------------
-    def getParquetName(self) -> Path:
-
-        outFile = self._outDir / ('Master-' + str(self._year) + '.parquet')
-        return outFile
-        
-    # ------------------------------------------------------------------------
     # getTileIds
     # ------------------------------------------------------------------------
     def _getTileIds(self) -> list:
 
-        # sampleFiles = BuildTraining.TRAINING_DIR.glob('*.samp.bin')
-        sampleFiles = self._trainingDir.glob('*.samp.bin')
+        sampleFiles = self._trainingDir.glob('*' + self._trainingFileSuffix)
         tids = [f.name.split('.')[0] for f in sampleFiles]
         return tids
         
@@ -153,8 +154,6 @@ class BuildTraining(object):
     # ------------------------------------------------------------------------
     def getTrainingFileName(self, tid) -> Path:
         
-        # tFileName = BuildTraining.TRAINING_DIR / (tid + '.samp.bin')
-        # tFileName = self._trainingDir / (tid + '.samp.bin')
         tFileName = self._trainingDir / (tid + self._trainingFileSuffix)
         return tFileName
         
@@ -186,8 +185,8 @@ class BuildTraining(object):
         df = pd.DataFrame.from_dict( \
             dfRows,
             orient='index',
-            columns=['tid-year', 'x', 'y'],
-            dtype=np.int16)
+            columns=['tid-year', 'x', 'y'])  #,
+            # dtype=np.int16)
 
         return df
         
@@ -220,7 +219,7 @@ class BuildTraining(object):
     #
     # Training file name:  Master-yyyy.parquet
     # ------------------------------------------------------------------------
-    def run(self) -> None:
+    def run(self) -> list:
         
         self._logger.info('Running tiles: ' + str(self._tids))
         
@@ -253,6 +252,8 @@ class BuildTraining(object):
 
                 self._logger.warning('Samples file for ' + 
                                      tid + 
+                                     ', ' + 
+                                     str(tFileName) +
                                      ' does not exist.')
 
                 failedTids.append(tid)
@@ -287,6 +288,8 @@ class BuildTraining(object):
                               str(len(self._tids)))
                               
         self._logger.warning('Failed tids: ' + str(failedTids))
+        
+        return tidFiles
 
     # ------------------------------------------------------------------------
     # statistics
@@ -304,22 +307,4 @@ class BuildTraining(object):
                     [Band.NO_DATA].to_list()[-1]
         
         print('Num rows that are full of no-data values:', numAllNoData)
-        
-    # ------------------------------------------------------------------------
-    # training
-    # ------------------------------------------------------------------------
-    @property
-    def training(self):
-        
-        if self._training is None:
             
-            parquetName = self.getParquetName()
-
-            if parquetName.exists():
-                self._training = pd.read_parquet(parquetName)
-                
-            else:
-                self.run()
-                
-        return self._training
-    

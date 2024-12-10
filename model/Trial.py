@@ -12,11 +12,27 @@ class Trial(object):
     def __init__(self, 
                  name: str, 
                  predictorNames: list[str],
-                 permImportance: dict):
+                 permImportances: dict):
         
         self._name: str = name
-        self._permImportance: dict = permImportance
+        self._permImportances: dict = permImportances
         self._predictorNames: list[str] = predictorNames
+        
+    # ------------------------------------------------------------------------
+    # includesPredictor
+    # ------------------------------------------------------------------------
+    def includesPredictor(self, predictorName: str) -> bool:
+        return predictorName in self.predictorNames
+        
+    # ------------------------------------------------------------------------
+    # index
+    # ------------------------------------------------------------------------
+    def index(self, predictorName: str) -> int:
+
+        if self.includesPredictor(predictorName):
+            return self.predictorNames.index(predictorName)
+            
+        return -1
         
     # ------------------------------------------------------------------------
     # name
@@ -26,11 +42,25 @@ class Trial(object):
         return self._name
         
     # ------------------------------------------------------------------------
-    # permImportance
+    # importanceMean
+    # ------------------------------------------------------------------------
+    def importanceMean(self, predictorName: str) -> float:
+
+        if self.includesPredictor(predictorName):
+            
+            pos: int = self.index(predictorName)
+            return self.permImportances['importances_mean'][pos]
+            
+        else:
+            raise RuntimeError('Trial does not include predictor ' + \
+                               predictorName)
+        
+    # ------------------------------------------------------------------------
+    # permImportances
     # ------------------------------------------------------------------------
     @property
-    def permImportance(self) -> dict:
-        return self._permImportance
+    def permImportances(self) -> dict:
+        return self._permImportances
         
     # ------------------------------------------------------------------------
     # predictorNames

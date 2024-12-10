@@ -19,9 +19,10 @@ class TrialTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
 
-        pts1D = random.choices(range(100), k = 5)
-        cls._sampleLocs = [(int(p / 5), p % 5) for p in pts1D]
-
+        cls.importance = {'importances_mean': [1, 2], 
+                          'importances_std': [3, 4],
+                          'importances': []}
+       
     # -------------------------------------------------------------------------
     # testInit
     # -------------------------------------------------------------------------
@@ -29,9 +30,46 @@ class TrialTestCase(unittest.TestCase):
 
         NAME = 'test'
         PRED_NAMES = ['pred1', 'pred2']
-        PREM_IMPORT =  {'a': 1, 'b': 2}
-        t = Trial(NAME, PRED_NAMES, PREM_IMPORT)
+        t = Trial(NAME, PRED_NAMES, TrialTestCase.importance)
         self.assertEqual(t.name, NAME)
         self.assertEqual(t.predictorNames, PRED_NAMES)
-        self.assertEqual(t.permImportance, PREM_IMPORT)
+        self.assertEqual(t.permImportances, TrialTestCase.importance)
+
+    # -------------------------------------------------------------------------
+    # testIncludesPredictor
+    # -------------------------------------------------------------------------
+    def testIncludesPredictor(self):
+
+        NAME = 'test'
+        PRED_NAMES = ['pred1', 'pred2']
+        t = Trial(NAME, PRED_NAMES, TrialTestCase.importance)
+        self.assertTrue(t.includesPredictor('pred1'))
+        self.assertTrue(t.includesPredictor('pred2'))
+        self.assertFalse(t.includesPredictor('pred3'))
+
+    # -------------------------------------------------------------------------
+    # testIndex
+    # -------------------------------------------------------------------------
+    def testIndex(self):
+
+        NAME = 'test'
+        PRED_NAMES = ['pred1', 'pred2']
+        t = Trial(NAME, PRED_NAMES, TrialTestCase.importance)
+        self.assertEqual(t.index('pred1'), 0)
+        self.assertEqual(t.index('pred2'), 1)
+        self.assertEqual(t.index('pred3'), -1)
+
+    # -------------------------------------------------------------------------
+    # testImportanceMean
+    # -------------------------------------------------------------------------
+    def testImportanceMean(self):
+
+        NAME = 'test'
+        PRED_NAMES = ['pred1', 'pred2']
+        t = Trial(NAME, PRED_NAMES, TrialTestCase.importance)
+        self.assertEqual(t.importanceMean('pred1'), 1)
+        self.assertEqual(t.importanceMean('pred2'), 2)
+        
+        with self.assertRaisesRegex(RuntimeError, 'oes not include predictor'):
+            t.importanceMean('nope')
         

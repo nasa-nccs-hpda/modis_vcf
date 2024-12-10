@@ -33,6 +33,12 @@ class MasterTraining(object):
     # ------------------------------------------------------------------------
     def __init__(self, trainingDir: Path, logger: logging.RootLogger):
     
+        if not trainingDir.exists() or not trainingDir.is_dir():
+            
+            raise RuntimeError('Training directory, ' + 
+                               str(trainingDir) + 
+                               ' is invalid.')
+            
         self._logger: logging.RootLogger = logger
         tFiles = list(trainingDir.glob('*.parq'))
         self._trainingDs: ParquetDataset = ParquetDataset(tFiles)
