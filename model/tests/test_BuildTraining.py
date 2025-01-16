@@ -66,6 +66,7 @@ class BuildTrainingTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testInit(self):
 
+        # Test all valid input.
         bt = BuildTraining(BuildTrainingTestCase._year,
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
@@ -83,6 +84,7 @@ class BuildTrainingTestCase(unittest.TestCase):
         self.assertEqual(bt._logger, BuildTrainingTestCase._logger)
         self.assertEqual(bt._trainingName, BuildTrainingTestCase._trainingName)
 
+        # Test invalid output directory.
         with self.assertRaisesRegex(RuntimeError, 'does not exist'):
 
             bt = BuildTraining(BuildTrainingTestCase._year,
@@ -96,21 +98,72 @@ class BuildTrainingTestCase(unittest.TestCase):
                                BuildTrainingTestCase._productType,
                                BuildTrainingTestCase._logger)
 
+        # Test default tids.
         bt = BuildTraining(BuildTrainingTestCase._year,
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
                            BuildTrainingTestCase._trainingDir,
-                           BuildTrainingTestCase._trainingName)
+                           BuildTrainingTestCase._trainingName,
+                           None,
+                           BuildTrainingTestCase._metNames,
+                           BuildTrainingTestCase._productType,
+                           BuildTrainingTestCase._logger)
 
+        # Test default metric names.
+        bt = BuildTraining(BuildTrainingTestCase._year,
+                           BuildTrainingTestCase._modDir,
+                           BuildTrainingTestCase._metDir,
+                           BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase._trainingDir,
+                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._tids,
+                           None,
+                           BuildTrainingTestCase._productType,
+                           BuildTrainingTestCase._logger)
+
+        # Test default product type.
+        bt = BuildTraining(BuildTrainingTestCase._year,
+                           BuildTrainingTestCase._modDir,
+                           BuildTrainingTestCase._metDir,
+                           BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase._trainingDir,
+                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._tids,
+                           BuildTrainingTestCase._metNames,
+                           None,
+                           BuildTrainingTestCase._logger)
+
+        # Test default logger.
+        bt = BuildTraining(BuildTrainingTestCase._year,
+                           BuildTrainingTestCase._modDir,
+                           BuildTrainingTestCase._metDir,
+                           BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase._trainingDir,
+                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._tids,
+                           BuildTrainingTestCase._metNames,
+                           BuildTrainingTestCase._productType)
+                           
     # -------------------------------------------------------------------------
     # testGetTileIds
     # -------------------------------------------------------------------------
     def testGetTileIds(self):
 
-        tids = BuildTraining._getTileIds()
+        bt = BuildTraining(BuildTrainingTestCase._year,
+                           BuildTrainingTestCase._modDir,
+                           BuildTrainingTestCase._metDir,
+                           BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase._trainingDir,
+                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._tids,
+                           BuildTrainingTestCase._metNames,
+                           BuildTrainingTestCase._productType,
+                           BuildTrainingTestCase._logger)
+
+        tids = bt._getTileIds()
         self.assertIsNotNone(tids)
-        self.assertIn(BuildTrainingTestCase._tid, tids)
+        self.assertIn(BuildTrainingTestCase._tids[0], tids)
 
     # -------------------------------------------------------------------------
     # testRun

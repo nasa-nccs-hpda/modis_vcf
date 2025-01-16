@@ -74,12 +74,14 @@ class BuildTraining(object):
         self._outDir: Path = outDir
         self._trainingDir: Path = trainingDir or BuildTraining.TRAINING_DIR
         self._trainingName: str = trainingName
-        self._tids: list = tileIds or self._getTileIds()
         self._metricNames: list = metricNames
         self._productType = productType or ProductTypeMod44(self._modisDir)
 
         # self._trainingFileSuffix = '.bin'  # Sometimes '.samp.bin'
         self._trainingFileSuffix = '.samp.bin'
+
+        # GetTileIds requires _trainingFileSuffix.
+        self._tids: list = tileIds or self._getTileIds()
         
         self._logger.info('Year: ' + str(self._year))
         self._logger.info('MODIS dir: ' + str(self._modisDir))

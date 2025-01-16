@@ -13,7 +13,7 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/makeMetricsCLV.py --productType MOD44 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -y 2019 -t h24v02 -m metricBandReflMin
+# modis_vcf/view/makeMetricsCLV.py --productType MOD44 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -y 2019 -t h09v05
 #
 # modis_vcf/view/makeMetricsCLV.py --productType MOD44 -o /explore/nobackup/projects/ilab/projects/MODIS-VCF/processedTiles/MOD44C -y 2019 -t h08v04 h08v05 h09v04 h09v05 h10v04 h10v05 h10v06 h11v02 h11v03 h11v04 h11v05 h11v08 h11v09 h11v10 h12v01 h12v02 h12v03 h12v04 h12v05 h12v09 h12v10 h12v12 h13v01 h13v02 h13v10 h13v11 h13v12 h16v01 h17v05 h18v03 h18v04 h18v07 
 #

@@ -257,6 +257,7 @@ class MetricsTestCase(unittest.TestCase):
         self.assertEqual(np.count_nonzero(np.isnan(band[:, eqx, eqy])), 3)
         self.assertEqual(np.count_nonzero(np.isnan(band[:, gtx, gty])), 4)
 
+        # ---
         # Now apply the threshold.
         # This is a kludgey way to change the threshold, rather than
         # implementing an accessor.
@@ -266,8 +267,12 @@ class MetricsTestCase(unittest.TestCase):
         bandThresh, bXref = threshMm.getBandCube(bandName)
         
         self.assertFalse(np.isnan(np.nanmax(bandThresh)))
-        self.assertEqual(np.count_nonzero(np.isnan(bandThresh[:, ltx, lty])), 0)
-        self.assertEqual(np.count_nonzero(np.isnan(bandThresh[:, eqx, eqy])), 3)
+        
+        self.assertEqual(np.count_nonzero( \
+            np.isnan(bandThresh[:, ltx, lty])), 0)
+        
+        self.assertEqual(np.count_nonzero( \
+            np.isnan(bandThresh[:, eqx, eqy])), 3)
         
         NUM_MOD44_SPLITS = 12
 
@@ -313,6 +318,27 @@ class MetricsTestCase(unittest.TestCase):
                 '2020017', '2020049', ]
 
         self.assertEqual(list(b5Xref.keys()), days)
+        
+    # -------------------------------------------------------------------------
+    # testGetMetricBand
+    # -------------------------------------------------------------------------
+    def testGetMetricBand(self):
+        
+        METRIC_TITLE = 'BandReflMedian'
+        METRIC_NAME = 'metric' + METRIC_TITLE
+        mm = self.mmMod44
+        b1: np.ndarray = mm.getMetricBand(METRIC_NAME, ProductTypeMod44.BAND1)
+        self.assertEqual(b1.shape, (4800, 4800))
+        
+        METRIC_TITLE = 'UnsortedMonthlyBands'
+        METRIC_NAME = 'metric' + METRIC_TITLE
+        mm = self.mmMod44
+
+        b2: np.ndarray = mm.getMetricBand(METRIC_NAME, 
+                                          ProductTypeMod44.BAND2,
+                                          day='2019193')
+                                          
+        self.assertEqual(b2.shape, (4800, 4800))
         
     # -------------------------------------------------------------------------
     # testCompositeValues
@@ -700,8 +726,6 @@ class MetricsTestCase(unittest.TestCase):
         metric: Band = mm.getMetric(METRIC_NAME)
         self.assertEqual(metric.cube.shape, (96, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
-        import pdb
-        pdb.set_trace()
         
         # Day 193, July 12, is summer and should have a decent sun angle.
         day = 193

@@ -2,10 +2,16 @@
 import logging
 from pathlib import Path
 import pickle
+import sys
 
+import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
+from osgeo import gdal
+
 from modis_vcf.model.Band import Band
+from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
 MOD44_DIR = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
@@ -59,7 +65,13 @@ class VcfProcess(object):
     # ------------------------------------------------------------------------
     # getMetrics
     # ------------------------------------------------------------------------
-    def _getMetrics(self, tid: str, year: int) -> list[Path]:
+    def _getMetrics(self, 
+                    tid: str, 
+                    year: int, 
+                    metName: str = None) -> dict:
+        
+        names = [metName] if metName else self._rf.feature_names_in_
+        self._logger.info('Retrieving metrics: ' + str(names))
         
         metrics = Metrics(tid, 
                           year, 
@@ -67,49 +79,53 @@ class VcfProcess(object):
                           self._outDir, 
                           self._logger)
         
-        # array(['UnsortedMonthlyBands-Band_1-Day_2019321',
-        # 'BandReflMedianGreenness-Band_4', 'Lowest6MeanBandRefl-Band_7',
-        # 'BandReflMedian-Band_7', 'Greenest8MeanBandRefl-Band_4',
-        # 'Lowest3MeanBandRefl-Band_4',
-        # 'UnsortedMonthlyBands-Band_3-Day_2019193',
-        # 'UnsortedMonthlyBands-Band_6-Day_2019129',
-        # 'UnsortedMonthlyBands-Band_7-Day_2019193',
-        # 'UnsortedMonthlyBands-Band_3-Day_2020033',
-        # 'Greenest3MeanBandRefl-Band_3', 'Greenest6MeanBandRefl-NDVI',
-        # 'UnsortedMonthlyBands-Band_6-Day_2019193', 'BandReflMax-Band_6',
-        # 'UnsortedMonthlyBands-Band_1-Day_2019225',
-        # 'AmpWarmestBandRefl-Band_7',
-        # 'UnsortedMonthlyBands-Band_4-Day_2019289',
-        # 'AmpWarmestBandRefl-Band_6',
-        # 'UnsortedMonthlyBands-Band_4-Day_2019129',
-        # 'BandReflMinGreenness-Band_3'], dtype=object)
-        # ndarray
-        
-        for metName:str in self._rf.feature_names_in_:
+        metrics = {n: metrics.getMetricFromRf(n).ravel() for n in names}
             
-            nameComponents = metName.split('-')
-            baseName = nameComponents[0]
-            bandName = nameComponents[1]
+        return metrics
             
-            day = nameComponents[2].split('_')[1] \
-                  if len(nameComponents) > 2 else None
-            
-            fullMetric: Band =  metrics.getMetric(baseName)
-            
-            # ---
-            # RF needs a 4800 x 4800 raster representation of metrics.  The
-            # daily metrics, those with "Day_" in their feature names, must
-            # have the day extracted from the full metric, which contains an
-            # entire year of metrics.
-            # ---
-            
-        
     # ------------------------------------------------------------------------
     # runOneTile
     # ------------------------------------------------------------------------
-    def runOneTile(self, tid: str, year: int) 
+    def runOneTile(self, tid: str, year: int) -> Path:
                  
         # Get the metrics, as images, for the top n predictors.
+        metrics: dict = self._getMetrics(tid, year)
 
+        # Prepare X.
+        X: pd.DataFrame = pd.DataFrame.from_dict(metrics)
+        X = X.where(X != -10001, 10001)
+        
+        # Run Random Forest.
+        prediction = self._rf.predict(X).reshape(Band.ROWS, Band.COLS)
 
-    
+        # Write the prediction as an image.
+        outFile: Path = self.writePrediction(prediction, tid, year)
+
+    # ------------------------------------------------------------------------
+    # writePrediction
+    # ------------------------------------------------------------------------
+    def writePrediction(self, 
+                        prediction: np.ndarray, 
+                        tid: str, 
+                        year: int) -> Path:
+                        
+        fName: Path = self._outDir / \
+                      (tid + '-' + str(year) + '-predictions.tif')
+                      
+        ds = gdal.GetDriverByName('GTiff').Create(
+            str(fName),
+            prediction.shape[0],
+            prediction.shape[1],
+            1,
+            gdal.GDT_Int16,
+            options=['BIGTIFF=YES'])
+
+        ds.SetSpatialRef(Band.modisSinusoidal)
+        
+        ds.WriteRaster(0, 
+                       0, 
+                       prediction.shape[0], 
+                       prediction.shape[1], 
+                       prediction)
+                       
+        self._logger.info('Wrote ' + str(fName))

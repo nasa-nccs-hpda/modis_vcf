@@ -259,7 +259,7 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def run(self) -> RandomForestClassifier:
 
-        rf = self._finalModel()
+        rf: RandomForestClassifier = self._finalModel()
         return rf
         
     # ------------------------------------------------------------------------

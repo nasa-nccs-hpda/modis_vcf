@@ -1,8 +1,11 @@
 
+from pathlib import Path
 import logging
 
 from cuml import RandomForestClassifier
 
+from modis_vcf.model.MonteCarloSim import DEFAULT_TOP_N
+from modis_vcf.model.MonteCarloSim import DEFAULT_VALUE
 from modis_vcf.model.MonteCarloSim import MonteCarloSim
 
 
@@ -32,12 +35,11 @@ class MonteCarloSimGpu(MonteCarloSim):
 
     # ------------------------------------------------------------------------
     # runRandomForest
-    #
-    # TODO: Define return type.
     # ------------------------------------------------------------------------
-    def _runRandomForest(self, xTrain, xTest, yTrain, yTest) -> None:
+    def _runRandomForest(self, xTrain, yTrain) -> RandomForestClassifier:
         
         rf = RandomForestClassifier(n_estimators=1)
-        rf.fit(X, y)
+        rf.fit(xTrain, yTrain)
+
         return rf
         

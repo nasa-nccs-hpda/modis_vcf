@@ -140,6 +140,9 @@ class Metrics(object):
         # ---
         self.availableMetrics = \
             {m[0]:m[1] for m in members if m[0].startswith('metric')}
+            
+        # self.availableMetrics = \
+        #     {m for m in dir(Metrics) if m.startswith('metric')
 
     # ------------------------------------------------------------------------
     # applyThreshold
@@ -257,6 +260,46 @@ class Metrics(object):
         metric.read(metricFileName)
             
         return metric
+        
+    # ------------------------------------------------------------------------
+    # getMetricBand
+    #
+    # This is a bit of a mess from doing OO half way.  There is one metric,
+    # UnsortedMonthlyBands, that is comprised of days.  When requesting that
+    # metric, day must be specified or it will fail.  For all other metrics,
+    # if day IS specified it will fail.
+    # ------------------------------------------------------------------------
+    def getMetricBand(self, 
+                      metricName: str, 
+                      bandName: str,
+                      day: str = None) -> np.ndarray:
+        
+        allBands: Band = self.getMetric(metricName)
+        bandName += '-' + day if day is not None else ''
+        soughtName = self._getBaseName(metricName) + '-' + bandName
+        
+        if soughtName not in allBands.dayXref:
+            
+            raise RuntimeError('Band ' + str(bandName) + 
+                               ' not in ' + str(metricName))
+        
+        return allBands.getDay(soughtName)
+        
+    # ------------------------------------------------------------------------
+    # getMetricFromRf
+    #
+    # This returns a specific metric, band and day based on names passed in
+    # RandomForestClassifier's format.
+    #
+    # Special case: UnsortedMonthlyBands-NDVI-Day_2020017
+    # ------------------------------------------------------------------------
+    def getMetricFromRf(self, rfMetricName: str) -> np.ndarray:
+
+        parts = rfMetricName.split('-')
+        metric = 'metric' + parts[0]
+        band = parts[1]
+        day = parts[2] if len(parts) == 3 else None
+        return self.getMetricBand(metric, band, day)
         
     # ------------------------------------------------------------------------
     # getNdvi
