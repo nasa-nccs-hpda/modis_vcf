@@ -1,12 +1,3 @@
-#FROM nasanccs/pytorch-caney:latest
-#LABEL maintainer="jordan.a.caraballo-vega@nasa.gov"
-
-#RUN pip install cuml-cu11
-
-#HEALTHCHECK NONE
-#ENTRYPOINT [""]
-
-
 # Arguments to pass to the image
 ARG VERSION_DATE=24.01
 ARG FROM_IMAGE=nvcr.io/nvidia/pytorch
