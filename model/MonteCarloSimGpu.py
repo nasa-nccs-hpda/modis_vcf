@@ -2,6 +2,7 @@
 from pathlib import Path
 import logging
 
+import cudf
 from cuml import RandomForestClassifier
 
 from modis_vcf.model.MonteCarloSim import DEFAULT_TOP_N
@@ -39,7 +40,9 @@ class MonteCarloSimGpu(MonteCarloSim):
     def _runRandomForest(self, xTrain, yTrain) -> RandomForestClassifier:
         
         rf = RandomForestClassifier(n_estimators=1)
-        rf.fit(xTrain, yTrain)
+        xt = cudf.DataFrame.from_pandas(xTrain)
+        yt = cudf.DataFrame.from_pandas(xTrain)
+        rf.fit(xt, yt)
 
         return rf
         

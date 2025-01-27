@@ -141,13 +141,8 @@ class Metrics(object):
         self.availableMetrics = \
             {m[0]:m[1] for m in members if m[0].startswith('metric')}
             
-        # self.availableMetrics = \
-        #     {m for m in dir(Metrics) if m.startswith('metric')
-
     # ------------------------------------------------------------------------
     # applyThreshold
-    #
-    # Needs V2 test
     # ------------------------------------------------------------------------
     def _applyThreshold(self, cube: np.ndarray) -> np.ndarray:
 
@@ -289,7 +284,9 @@ class Metrics(object):
     # getMetricFromRf
     #
     # This returns a specific metric, band and day based on names passed in
-    # RandomForestClassifier's format.
+    # RandomForestClassifier's format.  The requested yyyyddd can refer to
+    # a model of a different year, so replace that yyyy with these metrics'
+    # year, careful to adjust for the day wrapping to the next year.
     #
     # Special case: UnsortedMonthlyBands-NDVI-Day_2020017
     # ------------------------------------------------------------------------
@@ -299,7 +296,31 @@ class Metrics(object):
         metric = 'metric' + parts[0]
         band = parts[1]
         day = parts[2] if len(parts) == 3 else None
+
+        # day = 'Day_' + str(self._year) + parts[2][-3:] \
+        #       if len(parts) == 3 else None
+        #
+        # if len(parts) == 3:
+        #
+        #     julianDay = parts[2][-3:]
+        #     adjustedYear = self._year if julianDay in self.
+        #
+        #
+        # # ***** THIS IS A YEAR WRAPPING CASE *****
+        # if rfMetricName == 'UnsortedMonthlyBands-NDVI-Day_2020017':
+        #
+        #     import pdb
+        #     pdb.set_trace()
+            
         return self.getMetricBand(metric, band, day)
+        
+    # ------------------------------------------------------------------------
+    # getYearForDay
+    # ------------------------------------------------------------------------
+    def getYearForDay(self, day: int) -> int:
+        
+        year = [yd[0] for yd in self._daysSought if yd[1] == day][0]
+        return year
         
     # ------------------------------------------------------------------------
     # getNdvi

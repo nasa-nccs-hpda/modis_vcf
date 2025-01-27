@@ -20,8 +20,8 @@ class VcfProcessTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def setUp(self):
 
-        self._years = [2019]
-        self._tids = ['h09v05']
+        self._years = [2019, 2020]
+        self._tids = ['h09v05', 'h11v02']
         
         self._rfFile = Path('/explore/nobackup/people/rlgill/SystemTesting' +    
                             '/modis-vcf/MOD44/h09v05-2019-model.bin')
@@ -29,10 +29,7 @@ class VcfProcessTestCase(unittest.TestCase):
         self._outDir = Path('/explore/nobackup/people/rlgill/SystemTesting' +
                             '/modis-vcf/MOD44/vcfProcess')
         
-        self._vcfp = VcfProcess(self._years, 
-                                self._tids, 
-                                self._rfFile,
-                                self._outDir)
+        self._vcfp = VcfProcess(self._rfFile, self._outDir)
         
     # -------------------------------------------------------------------------
     # testInit
@@ -60,9 +57,22 @@ class VcfProcessTestCase(unittest.TestCase):
                                     
         self.assertEqual(len(met), 1)
 
+        met = self._vcfp._getMetrics(self._tids[0], 
+                                     self._years[0], 
+                                     'UnsortedMonthlyBands-Band_6-Day_2019289')
+                                    
+
     # -------------------------------------------------------------------------
-    # testRunOneTile
+    # testRunTileForYear
     # -------------------------------------------------------------------------
-    def testRunOneTile(self):
+    def testRunTileForYear(self):
         
-        self._vcfp.runOneTile(self._tids[0], self._years[0])
+        self._vcfp.runTileForYear(self._tids[0], self._years[0])
+        
+    # -------------------------------------------------------------------------
+    # testRun
+    # -------------------------------------------------------------------------
+    def testRun(self):
+        
+        self._vcfp.run(self._tids, self._years)
+        

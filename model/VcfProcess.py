@@ -13,7 +13,8 @@ from osgeo import gdal
 from modis_vcf.model.Band import Band
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
-
+from modis_water.model.Utils import Utils
+ 
 MOD44_DIR = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
 
 
@@ -26,8 +27,6 @@ class VcfProcess(object):
     # __init__
     # ------------------------------------------------------------------------
     def __init__(self, 
-                 years: list[int],
-                 tids: list[str],
                  modelFile: Path,
                  outDir: Path,
                  mod44Dir: Path = MOD44_DIR,
@@ -73,21 +72,50 @@ class VcfProcess(object):
         names = [metName] if metName else self._rf.feature_names_in_
         self._logger.info('Retrieving metrics: ' + str(names))
         
-        metrics = Metrics(tid, 
-                          year, 
-                          self._productType, 
-                          self._outDir, 
-                          self._logger)
+        mInstance = Metrics(tid, 
+                            year, 
+                            self._productType, 
+                            self._outDir, 
+                            self._logger)
         
-        metrics = {n: metrics.getMetricFromRf(n).ravel() for n in names}
+        # ---
+        # I added Juijitsu to Metrics to accommodate this method.  Move that
+        # mess here to make Metrics closer to pure.
+        # ---
+        # metrics = {n: metrics.getMetricFromRf(n).ravel() for n in names}
+
+        metrics = {}
+        
+        for name in names:
+            
+            # ---
+            # Adjust the metric name to suit metInstance's year, and account
+            # for days that wrap to the following year.
+            # ---
+            parts = name.split('-')
+            newName = parts[0] + '-' + parts[1]
+
+            if len(parts) == 3:
+                
+                modelDay = int(parts[2][-3:])
+                adjustedYear = mInstance.getYearForDay(modelDay)
+            
+                day = 'Day_' + str(adjustedYear) + parts[2][-3:] \
+                      if len(parts) == 3 else None
+                      
+                newName += '-' + day
+                
+            metrics[newName] = mInstance.getMetricFromRf(newName).ravel()
             
         return metrics
             
     # ------------------------------------------------------------------------
-    # runOneTile
+    # runTileForYear
     # ------------------------------------------------------------------------
-    def runOneTile(self, tid: str, year: int) -> Path:
+    def runTileForYear(self, tid: str, year: int) -> Path:
                  
+        self._logger.info('Running ' + tid + ' for ' + str(year))
+        
         # Get the metrics, as images, for the top n predictors.
         metrics: dict = self._getMetrics(tid, year)
 
@@ -99,33 +127,20 @@ class VcfProcess(object):
         prediction = self._rf.predict(X).reshape(Band.ROWS, Band.COLS)
 
         # Write the prediction as an image.
-        outFile: Path = self.writePrediction(prediction, tid, year)
-
-    # ------------------------------------------------------------------------
-    # writePrediction
-    # ------------------------------------------------------------------------
-    def writePrediction(self, 
-                        prediction: np.ndarray, 
-                        tid: str, 
-                        year: int) -> Path:
-                        
-        fName: Path = self._outDir / \
-                      (tid + '-' + str(year) + '-predictions.tif')
-                      
-        ds = gdal.GetDriverByName('GTiff').Create(
-            str(fName),
-            prediction.shape[0],
-            prediction.shape[1],
-            1,
-            gdal.GDT_Int16,
-            options=['BIGTIFF=YES'])
-
-        ds.SetSpatialRef(Band.modisSinusoidal)
+        fName: Path = tid + '-' + str(year) + '-predictions.tif'
         
-        ds.WriteRaster(0, 
-                       0, 
-                       prediction.shape[0], 
-                       prediction.shape[1], 
-                       prediction)
-                       
-        self._logger.info('Wrote ' + str(fName))
+        modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
+                  '+datum=WGS84 +units=m +no_defs'
+        
+        Utils.writeRaster(self._outDir, prediction, fName, projection=modSinu)
+                                          
+        return fName
+        
+    # ------------------------------------------------------------------------
+    # run
+    # ------------------------------------------------------------------------
+    def run(self, tids: list[str], years: list[int]) -> list[Path]:
+        
+        paths = [self.runTileForYear(t, y) for t in tids for y in years]
+        return paths
+        

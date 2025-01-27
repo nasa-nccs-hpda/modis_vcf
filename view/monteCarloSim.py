@@ -10,7 +10,7 @@ from modis_vcf.model.MonteCarloSim import MonteCarloSim
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/training -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44 --minVarUsage 0 --numTrials 10   # noqa: E501
+# python modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/training -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44 --minVarUsage 0 --numTrials 10   # noqa: E501
 #
 # Timing of the above command.  Training consists of h09v05 metrics.
 # ilab207: 4m26.821s, 4m28.300s

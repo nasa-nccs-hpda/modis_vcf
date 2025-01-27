@@ -395,6 +395,20 @@ class MetricsTestCase(unittest.TestCase):
         self.mmMod44.printAvailableMetrics()
         
     # -------------------------------------------------------------------------
+    # testGetYearForDay
+    # -------------------------------------------------------------------------
+    def testGetYearForDay(self):
+        
+        year = self.mmMod44.getYearForDay(65)
+        self.assertEqual(year, self.mmMod44._year)
+
+        year = self.mmMod44.getYearForDay(289)
+        self.assertEqual(year, self.mmMod44._year)
+
+        year = self.mmMod44.getYearForDay(17)
+        self.assertEqual(year, self.mmMod44._year + 1)
+
+    # -------------------------------------------------------------------------
     # testGetNdvi
     # -------------------------------------------------------------------------
     def testGetNdvi(self):

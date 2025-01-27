@@ -27,8 +27,8 @@ DEFAULT_TOP_N = 20
 #
 # Use random forest from scikit-learn.
 #
-# You should be able to use default settings for the hyperparameters but please
-# do take note of them.  I usually use
+# You should be able to use default settings for the hyperparameters but
+# please do take note of them.  I usually use
 #
 # Number of trees == 100
 # Square root for the loss (or deciding) function
@@ -37,6 +37,7 @@ DEFAULT_TOP_N = 20
 # what they used with MODIS water for basic parameters if you need to.
 #
 # TODO: Validate input
+# TODO: Make the process flow more direct and easier to follow.
 # ----------------------------------------------------------------------------
 class MonteCarloSim(object):
     
@@ -235,6 +236,8 @@ class MonteCarloSim(object):
         
     # ------------------------------------------------------------------------
     # prepX
+    #
+    # TODO: convert to cudf.DataFrame, instead of pd.DataFrame
     # ------------------------------------------------------------------------
     def _prepX(self, colNames: list) -> \
         [pd.core.frame.DataFrame, 

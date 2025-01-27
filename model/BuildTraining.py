@@ -24,6 +24,9 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 #       metrics.  When a different set of metrics is requested and this class
 #       finds and existing file.  It will stop and return the file, which will
 #       not contain what the client requested.  Fix this.
+#
+# TODO: Should methods like addTrainingToDf and _initializeDataFrame only ever
+#       process one tid?
 # ----------------------------------------------------------------------------
 class BuildTraining(object):
     
@@ -77,10 +80,9 @@ class BuildTraining(object):
         self._metricNames: list = metricNames
         self._productType = productType or ProductTypeMod44(self._modisDir)
 
-        # self._trainingFileSuffix = '.bin'  # Sometimes '.samp.bin'
-        self._trainingFileSuffix = '.samp.bin'
-
         # GetTileIds requires _trainingFileSuffix.
+        self._trainingFileSuffix = '.samp.bin'  # Sometimes '.bin'
+
         self._tids: list = tileIds or self._getTileIds()
         
         self._logger.info('Year: ' + str(self._year))
@@ -124,12 +126,10 @@ class BuildTraining(object):
                          tid: str = None) -> pd.DataFrame:
         
         allTraining = []
-        
         tids = [tid] or self._tids
         
         for tid in tids:
             
-            # tFileName = BuildTraining.TRAINING_DIR / (tid + '.samp.bin')
             tFileName = self.getTrainingFileName(tid)
             samples: np.ndarray = np.fromfile(tFileName, np.uint8)
             
