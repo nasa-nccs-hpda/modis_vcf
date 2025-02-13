@@ -79,6 +79,18 @@ class MasterTraining(object):
         return self._trainingDs
 
     # ------------------------------------------------------------------------
+    # numRows
+    # ------------------------------------------------------------------------
+    def numRows(self) -> int:
+        return sum(p.count_rows() for p in self.dataset.fragments)
+        
+    # ------------------------------------------------------------------------
+    # numVars
+    # ------------------------------------------------------------------------
+    def numVars(self) -> int:
+        return len(self._colNames)
+        
+    # ------------------------------------------------------------------------
     # toPandas
     #
     # This convenience method could lead to memory-crashing sized data

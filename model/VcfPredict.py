@@ -1,12 +1,13 @@
 
+# import asyncio
+import joblib
 import logging
 from pathlib import Path
-import pickle
 import sys
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestRegressor
 
 from osgeo import gdal
 
@@ -19,9 +20,11 @@ MOD44_DIR = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
 
 
 # ----------------------------------------------------------------------------
-# VcfProcess
+# VcfPredict
+#
+# TODO: Should MOD44_DIR be refactored and shared among VCF applications?
 # ----------------------------------------------------------------------------
-class VcfProcess(object):
+class VcfPredict(object):
     
     # ------------------------------------------------------------------------
     # __init__
@@ -29,6 +32,7 @@ class VcfProcess(object):
     def __init__(self, 
                  modelFile: Path,
                  outDir: Path,
+                 metricsDir: Path,
                  mod44Dir: Path = MOD44_DIR,
                  logger: logging.RootLogger = None):
                  
@@ -42,10 +46,11 @@ class VcfProcess(object):
         self._rf: RandomForestClassifier = None
         
         with open(modelFile, 'rb') as f:
-            self._rf: RandomForestClassifier = pickle.load(f)
+            self._rf: RandomForestRegressor = joblib.load(f)
             
         # Instantiate the product type for the metrics.
         self._productType = ProductTypeMod44(mod44Dir)
+        self._metricsDir: Path = metricsDir
         
         # Instantiate the logger.
         if not logger:
@@ -67,7 +72,7 @@ class VcfProcess(object):
     def _getMetrics(self, 
                     tid: str, 
                     year: int, 
-                    metName: str = None) -> dict:
+                    metName: str = None) -> np.ndarray:
         
         names = [metName] if metName else self._rf.feature_names_in_
         self._logger.info('Retrieving metrics: ' + str(names))
@@ -75,40 +80,23 @@ class VcfProcess(object):
         mInstance = Metrics(tid, 
                             year, 
                             self._productType, 
-                            self._outDir, 
+                            self._metricsDir, 
                             self._logger)
         
         # ---
         # I added Juijitsu to Metrics to accommodate this method.  Move that
         # mess here to make Metrics closer to pure.
+        #
+        # Each metric is an ndarray that is 4800 x 4800.
         # ---
-        # metrics = {n: metrics.getMetricFromRf(n).ravel() for n in names}
-
-        metrics = {}
-        
-        for name in names:
-            
-            # ---
-            # Adjust the metric name to suit metInstance's year, and account
-            # for days that wrap to the following year.
-            # ---
-            parts = name.split('-')
-            newName = parts[0] + '-' + parts[1]
-
-            if len(parts) == 3:
-                
-                modelDay = int(parts[2][-3:])
-                adjustedYear = mInstance.getYearForDay(modelDay)
-            
-                day = 'Day_' + str(adjustedYear) + parts[2][-3:] \
-                      if len(parts) == 3 else None
-                      
-                newName += '-' + day
-                
-            metrics[newName] = mInstance.getMetricFromRf(newName).ravel()
-            
+        # import pdb
+        # pdb.set_trace()
+        # metrics = {n: mInstance.getMetricFromRf(n).ravel() for n in names}
+        # metrics = {n: mInstance.getMetricFromRf(n) for n in names}
+        metrics = {n: mInstance.getMetricFromRf(n).tolist() for n in names}
+        # metrics = [mInstance.getMetricFromRf(n).ravel() for n in names]
         return metrics
-            
+        
     # ------------------------------------------------------------------------
     # runTileForYear
     # ------------------------------------------------------------------------
@@ -117,17 +105,25 @@ class VcfProcess(object):
         self._logger.info('Running ' + tid + ' for ' + str(year))
         
         # Get the metrics, as images, for the top n predictors.
-        metrics: dict = self._getMetrics(tid, year)
+        metrics = self._getMetrics(tid, year)
 
+        # ---
         # Prepare X.
+        # self._rf.n_features_in_ = 20
+        # ---
         X: pd.DataFrame = pd.DataFrame.from_dict(metrics)
+        import pdb
+        pdb.set_trace()
         X = X.where(X != -10001, 10001)
         
+        # ---
         # Run Random Forest.
+        # "X {array-like, sparse matrix} of shape (n_samples, n_features)"
+        # ---
         prediction = self._rf.predict(X).reshape(Band.ROWS, Band.COLS)
 
         # Write the prediction as an image.
-        fName: Path = tid + '-' + str(year) + '-predictions.tif'
+        fName: Path = tid + '-' + str(year) + '-predictions'
         
         modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
                   '+datum=WGS84 +units=m +no_defs'

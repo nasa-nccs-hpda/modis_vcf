@@ -2,18 +2,18 @@
 from pathlib import Path
 import unittest
 
-from modis_vcf.model.VcfProcess import VcfProcess
+from modis_vcf.model.VcfPredict import VcfPredict
 
 
 # -----------------------------------------------------------------------------
-# class VcfProcessTestCase
+# class VcfPredictTestCase
 # -----------------------------------------------------------------------------
 #
 # python -m unittest discover modis_vcf/model/tests/
-# python -m unittest modis_vcf.model.tests.test_VcfProcess
-# python -m unittest modis_vcf.model.tests.test_VcfProcess.VcfProcessTestCase.testInit
+# python -m unittest modis_vcf.model.tests.test_VcfPredict
+# python -m unittest modis_vcf.model.tests.test_VcfPredict.VcfPredictTestCase.testInit
 # -----------------------------------------------------------------------------
-class VcfProcessTestCase(unittest.TestCase):
+class VcfPredictTestCase(unittest.TestCase):
 
     # -------------------------------------------------------------------------
     # setUp
@@ -23,20 +23,23 @@ class VcfProcessTestCase(unittest.TestCase):
         self._years = [2019, 2020]
         self._tids = ['h09v05', 'h11v02']
         
-        self._rfFile = Path('/explore/nobackup/people/rlgill/SystemTesting' +    
-                            '/modis-vcf/MOD44/h09v05-2019-model.bin')
+        self._rfFile = Path('/explore/nobackup/people/rlgill/SystemTesting' + 
+                            '/modis-vcf/MOD44-save/Test-MC-model.bin')
         
         self._outDir = Path('/explore/nobackup/people/rlgill/SystemTesting' +
-                            '/modis-vcf/MOD44/vcfProcess')
+                            '/modis-vcf/MOD44-save/vcfProcess')
         
-        self._vcfp = VcfProcess(self._rfFile, self._outDir)
+        self._metricsDir = Path('/explore/nobackup/people/rlgill/' +
+                                'SystemTesting/modis-vcf/MOD44-save')
+        
+        self._vcfp = VcfPredict(self._rfFile, self._outDir, self._metricsDir)
         
     # -------------------------------------------------------------------------
     # testInit
     # -------------------------------------------------------------------------
     def testInit(self):
 
-        vcfp = VcfProcess(self._years, self._tids, self._rfFile, self._outDir)
+        vcfp = VcfPredict(self._rfFile, self._outDir, self._metricsDir)
         self.assertEqual(vcfp._outDir, self._outDir)
         
     # -------------------------------------------------------------------------

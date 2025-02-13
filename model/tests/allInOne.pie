@@ -1,0 +1,48 @@
+#!/usr/bin/python
+
+import sys
+
+import dask
+import cudf
+from cuml.dask.ensemble import RandomForestClassifier
+from cuml.dask.common import utils as dask_utils
+from dask_cuda import LocalCUDACluster
+import dask_cudf
+import dask.dataframe as dd
+from dask.distributed import Client
+   
+
+def main():        
+    cluster = LocalCUDACluster()
+    # client = Client(cluster)
+    # workers = client.has_what().keys()
+    # numWorkers = len(workers)
+    #
+    # trainingDir = Path('/explore/nobackup/projects/ilab/projects/' \
+    #                    'MODIS-VCF/processedTiles/MOD44C/training-V5.0.3')
+    #
+    # colNames = ['BandReflMax-NDVI',
+    #             'UnsortedMonthlyBands-Band_5-Day-2019321',
+    #             'Lowest3MeanBandRefl-Band_5',
+    #             'BandReflMin-Band_2',
+    #             'BandReflMax-Band_7',
+    #             'UnsortedMonthlyBands-Band_7-Day-2019353',
+    #             'BandReflMaxTemp-Band_2',
+    #             'UnsortedMonthlyBands-Band_3-Day-2019321',
+    #             'BandReflMin-NDVI',
+    #             'AmpBandRefl-Band_6']
+    #
+    # X: dd.DataFrame = dd.read_parquet(trainingDir, colNames)
+    # y: dd.Series = dd.read_parquet(trainingDir, 'PercentTree')
+    #
+    # rf = RandomForestClassifier(n_estimators=numWorkers,
+    #                             client=client,
+    #                             verbose=True)
+    #
+    # rf.fit(X, y)
+
+# -----------------------------------------------------------------------------
+# Invoke the main
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    sys.exit(main())

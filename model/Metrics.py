@@ -1,4 +1,5 @@
 
+import asyncio
 import inspect
 import logging
 from collections import namedtuple
@@ -270,7 +271,7 @@ class Metrics(object):
                       day: str = None) -> np.ndarray:
         
         allBands: Band = self.getMetric(metricName)
-        bandName += '-' + day if day is not None else ''
+        bandName += '-Day_' + day if day is not None else ''
         soughtName = self._getBaseName(metricName) + '-' + bandName
         
         if soughtName not in allBands.dayXref:
@@ -288,30 +289,26 @@ class Metrics(object):
     # a model of a different year, so replace that yyyy with these metrics'
     # year, careful to adjust for the day wrapping to the next year.
     #
-    # Special case: UnsortedMonthlyBands-NDVI-Day_2020017
+    # Special cases: 
+    # UnsortedMonthlyBands-NDVI-Day_2020017
+    # UnsortedMonthlyBands-Band_6-Day_2019289
     # ------------------------------------------------------------------------
-    def getMetricFromRf(self, rfMetricName: str) -> np.ndarray:
+    async def getMetricFromRf(self, rfMetricName: str) -> np.ndarray:
 
         parts = rfMetricName.split('-')
         metric = 'metric' + parts[0]
         band = parts[1]
-        day = parts[2] if len(parts) == 3 else None
 
-        # day = 'Day_' + str(self._year) + parts[2][-3:] \
-        #       if len(parts) == 3 else None
-        #
-        # if len(parts) == 3:
-        #
-        #     julianDay = parts[2][-3:]
-        #     adjustedYear = self._year if julianDay in self.
-        #
-        #
-        # # ***** THIS IS A YEAR WRAPPING CASE *****
-        # if rfMetricName == 'UnsortedMonthlyBands-NDVI-Day_2020017':
-        #
-        #     import pdb
-        #     pdb.set_trace()
+        # ---
+        # Old metrics have a different format. Cope with it, instead of
+        # running the metrics again, because we are in a rush.
+        # UnsortedMonthlyBands-Band_3-Day-2019289
+        # ---
+        if len(parts) == 4:
+            parts[2] = '_'.join([parts[2], parts.pop()])
             
+        day = parts[2].split('_')[1] if len(parts) == 3 else None
+        
         return self.getMetricBand(metric, band, day)
         
     # ------------------------------------------------------------------------

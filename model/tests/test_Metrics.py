@@ -340,6 +340,29 @@ class MetricsTestCase(unittest.TestCase):
                                           
         self.assertEqual(b2.shape, (4800, 4800))
         
+        b3: np.ndarray = mm.getMetricBand(METRIC_NAME, 
+                                          ProductTypeMod44.NDVI,
+                                          day='2019193')
+                                          
+        self.assertEqual(b3.shape, (4800, 4800))
+        
+    # -------------------------------------------------------------------------
+    # testGetMetricFromRf
+    # -------------------------------------------------------------------------
+    def testGetMetricFromRf(self):
+        
+        mm = self.mmMod44
+        b = mm.getMetricFromRf('UnsortedMonthlyBands-Band_6-Day_2019289')
+        self.assertEqual(b.shape, (4800, 4800))
+        b = mm.getMetricFromRf('UnsortedMonthlyBands-NDVI-Day_2020017')
+        self.assertEqual(b.shape, (4800, 4800))
+        
+        # ---
+        # Old metrics have a different format. Cope with it, instead of
+        # running the metrics again, because we are in a rush.
+        # ---
+        mm.getMetricFromRf('UnsortedMonthlyBands-Band_3-Day-2019289')
+        
     # -------------------------------------------------------------------------
     # testCompositeValues
     # -------------------------------------------------------------------------
@@ -744,7 +767,7 @@ class MetricsTestCase(unittest.TestCase):
         # Day 193, July 12, is summer and should have a decent sun angle.
         day = 193
         
-        xrefKey = METRIC_TITLE + '-' + ProductTypeMod09A.BAND1 + '-Day-' + \
+        xrefKey = METRIC_TITLE + '-' + ProductTypeMod09A.BAND1 + '-Day_' + \
                   str(self.year2019) + str(day).zfill(3)
 
         index = metric.dayXref[xrefKey]
@@ -786,7 +809,7 @@ class MetricsTestCase(unittest.TestCase):
         tid = 'h12v02'
         day = 289
         
-        xrefKey = METRIC_TITLE + '-' + ProductTypeMod09A.BAND1 + '-Day-' + \
+        xrefKey = METRIC_TITLE + '-' + ProductTypeMod09A.BAND1 + '-Day_' + \
                   str(self.year2019) + str(day).zfill(3)
 
         mm = Metrics(tid, 

@@ -1,8 +1,11 @@
 #!/usr/bin/python
 
 import argparse
+import multiprocessing
 from pathlib import Path
 import sys
+
+from sklearn.ensemble import RandomForestRegressor
 
 from modis_vcf.model.MonteCarloSim import MonteCarloSim
 
@@ -10,14 +13,7 @@ from modis_vcf.model.MonteCarloSim import MonteCarloSim
 # -----------------------------------------------------------------------------
 # main
 #
-# python modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/training -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44 --minVarUsage 0 --numTrials 10   # noqa: E501
-#
-# Timing of the above command.  Training consists of h09v05 metrics.
-# ilab207: 4m26.821s, 4m28.300s
-# ilab213: 3m15.151s, 3m13.851s
-#
-# python modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/training -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44 --minVarUsage 0 --numTrials 10 --gpu  # noqa: E501
-# GPU: 1m2.741s
+# TODO: Should --gpu and --numCpus be mutually exclusive?
 # -----------------------------------------------------------------------------
 def main():
     
@@ -32,6 +28,12 @@ def main():
                         type=int,
                         help='The minimum times each variable ' +
                              'must be used in a trial')
+
+    parser.add_argument('--numCpus',
+                        type=int,
+                        default=1,
+                        help='The number of CPUs to use.  Set to a high \
+                              number to use all available CPUs.')
 
     parser.add_argument('--numPredsPerTrial',
                         type=int,
@@ -78,13 +80,17 @@ def main():
 
     else:
         
+        numCpus = min(args.numCpus, multiprocessing.cpu_count())
+        
         mcs = MonteCarloSim(args.trainingDir, 
                             args.numTrials, 
                             args.numPredsPerTrial,
                             args.numVarsForFinalModel,
-                            args.minVarUsage)
+                            args.minVarUsage,
+                            numCpus)
 
-    mcs.saveFinalModel(args.o)
+    finalModel: RandomForestRegressor = mcs.run()
+    mcs.saveFinalModel(args.o, finalModel)
 
 
 # -----------------------------------------------------------------------------
