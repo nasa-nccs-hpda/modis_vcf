@@ -1,4 +1,6 @@
 
+from pathlib import Path
+import pickle
 
 
 # ----------------------------------------------------------------------------
@@ -10,9 +12,9 @@ class Trial(object):
     # init
     # ------------------------------------------------------------------------
     def __init__(self, 
-                 name: str, 
-                 predictorNames: list[str],
-                 permImportances: dict):
+                 name: str = None, 
+                 predictorNames: list[str] = None,
+                 permImportances: dict = None):
         
         self._name: str = name
         self._permImportances: dict = permImportances
@@ -68,5 +70,26 @@ class Trial(object):
     @property
     def predictorNames(self) -> list[str]:
         return self._predictorNames
+
+    # ------------------------------------------------------------------------
+    # save
+    # ------------------------------------------------------------------------
+    def save(self, outDir: Path) -> Path:
         
+        outFile = outDir / (self._name + '.bin')
+        
+        with open(outFile, 'wb') as f:
+            pickle.dump(self, f)
+
+        return outFile
+        
+    # ------------------------------------------------------------------------
+    # load
+    # ------------------------------------------------------------------------
+    def load(self, trialFile: Path):
+        
+        with open(trialFile, 'rb') as f:
+            self = pickle.load(f)
+            
+        return self
         

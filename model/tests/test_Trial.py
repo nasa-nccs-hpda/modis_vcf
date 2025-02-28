@@ -1,4 +1,5 @@
 
+from pathlib import Path
 import random
 import unittest
 
@@ -72,4 +73,21 @@ class TrialTestCase(unittest.TestCase):
         
         with self.assertRaisesRegex(RuntimeError, 'oes not include predictor'):
             t.importanceMean('nope')
-        
+
+    # -------------------------------------------------------------------------
+    # testPersistence
+    # -------------------------------------------------------------------------
+    def testPersistence(self):
+    
+        NAME = 'test'
+        PRED_NAMES = ['pred1', 'pred2']
+        outTrial = Trial(NAME, PRED_NAMES, TrialTestCase.importance)
+        outPath = Path(__file__).parent 
+        outFile = outTrial.save(outPath)
+        self.assertTrue(outFile.exists())
+
+        inTrial = Trial().load(outFile)
+        self.assertEqual(outTrial._name, inTrial._name)
+        self.assertEqual(outTrial._permImportances, inTrial._permImportances)
+        self.assertEqual(outTrial._predictorNames, inTrial._predictorNames)
+    

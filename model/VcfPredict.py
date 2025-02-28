@@ -1,5 +1,4 @@
 
-# import asyncio
 import joblib
 import logging
 from pathlib import Path
@@ -23,6 +22,7 @@ MOD44_DIR = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
 # VcfPredict
 #
 # TODO: Should MOD44_DIR be refactored and shared among VCF applications?
+# TODO: One more thing.  The answer to "predict" should NEVER be "NoData" if it is then either there is a problem with the metrics or there is a problem with the model.  I say this because I am seeing NoData in the predict results I am looking at from the Notebook and hoping that you aren't seeing any in your results.  Specifically I am looking at tile h16v01 which has the Greenland ice sheets as all NoData.
 # ----------------------------------------------------------------------------
 class VcfPredict(object):
     
@@ -84,17 +84,14 @@ class VcfPredict(object):
                             self._logger)
         
         # ---
-        # I added Juijitsu to Metrics to accommodate this method.  Move that
-        # mess here to make Metrics closer to pure.
-        #
-        # Each metric is an ndarray that is 4800 x 4800.
+        # I added Juijitsu to Metrics to accommodate getMetricFromRf.  Move
+        # that mess here to make Metrics closer to pure.
         # ---
-        # import pdb
-        # pdb.set_trace()
-        # metrics = {n: mInstance.getMetricFromRf(n).ravel() for n in names}
-        # metrics = {n: mInstance.getMetricFromRf(n) for n in names}
-        metrics = {n: mInstance.getMetricFromRf(n).tolist() for n in names}
-        # metrics = [mInstance.getMetricFromRf(n).ravel() for n in names]
+        metrics = pd.DataFrame()
+        
+        for i in range(len(names)):
+            metrics[names[i]] = mInstance.getMetricFromRf(names[i]).ravel()
+
         return metrics
         
     # ------------------------------------------------------------------------
@@ -105,22 +102,13 @@ class VcfPredict(object):
         self._logger.info('Running ' + tid + ' for ' + str(year))
         
         # Get the metrics, as images, for the top n predictors.
-        metrics = self._getMetrics(tid, year)
-
-        # ---
-        # Prepare X.
-        # self._rf.n_features_in_ = 20
-        # ---
-        X: pd.DataFrame = pd.DataFrame.from_dict(metrics)
-        import pdb
-        pdb.set_trace()
-        X = X.where(X != -10001, 10001)
+        X = self._getMetrics(tid, year)
+        X = X.replace(-10001, 10001)
         
-        # ---
         # Run Random Forest.
-        # "X {array-like, sparse matrix} of shape (n_samples, n_features)"
-        # ---
-        prediction = self._rf.predict(X).reshape(Band.ROWS, Band.COLS)
+        prediction = self._rf.predict(X). \
+                     astype(np.int16). \
+                     reshape(Band.ROWS, Band.COLS)
 
         # Write the prediction as an image.
         fName: Path = tid + '-' + str(year) + '-predictions'

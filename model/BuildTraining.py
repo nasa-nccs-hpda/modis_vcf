@@ -80,8 +80,11 @@ class BuildTraining(object):
         self._metricNames: list = metricNames
         self._productType = productType or ProductTypeMod44(self._modisDir)
 
-        # GetTileIds requires _trainingFileSuffix.
-        self._trainingFileSuffix = '.samp.bin'  # Sometimes '.bin'
+        # ---
+        # GetTileIds requires _trainingFileSuffix. Sometimes .bin, .out,
+        # .samp.bin
+        # ---
+        self._trainingFileSuffix = '.out'
 
         self._tids: list = tileIds or self._getTileIds()
         
@@ -292,21 +295,3 @@ class BuildTraining(object):
         self._logger.warning('Failed tids: ' + str(failedTids))
         
         return tidFiles
-
-    # ------------------------------------------------------------------------
-    # statistics
-    #
-    # This is a convenience method for development and testing.
-    # ------------------------------------------------------------------------
-    def statistics(self) -> None:
-        
-        # Rows that are not full of no-data values.
-        print('Total rows:', self.training.shape[0])
-        
-        numAllNoData = \
-            self.training.value_counts( \
-                subset=self.training.columns[4:].to_list()) \
-                    [Band.NO_DATA].to_list()[-1]
-        
-        print('Num rows that are full of no-data values:', numAllNoData)
-            

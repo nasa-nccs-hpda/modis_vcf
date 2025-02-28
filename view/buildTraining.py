@@ -47,11 +47,6 @@ def main():
                         default='.',
                         help='Output directory for writing training files')
 
-    parser.add_argument('--stats',
-                        default=False,
-                        action='store_true',
-                        help='Print statistics about the Parquet file')
-
     parser.add_argument('-t',
                         type=str,
                         nargs='*',
@@ -89,9 +84,6 @@ def main():
                        metricNames)
 
     bt.run()
-    
-    if args.stats:
-        bt.statistics()
         
 
 # -----------------------------------------------------------------------------

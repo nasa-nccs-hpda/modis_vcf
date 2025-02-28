@@ -1,5 +1,4 @@
 
-import asyncio
 import inspect
 import logging
 from collections import namedtuple
@@ -293,7 +292,7 @@ class Metrics(object):
     # UnsortedMonthlyBands-NDVI-Day_2020017
     # UnsortedMonthlyBands-Band_6-Day_2019289
     # ------------------------------------------------------------------------
-    async def getMetricFromRf(self, rfMetricName: str) -> np.ndarray:
+    def getMetricFromRf(self, rfMetricName: str) -> np.ndarray:
 
         parts = rfMetricName.split('-')
         metric = 'metric' + parts[0]

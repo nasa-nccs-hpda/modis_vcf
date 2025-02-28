@@ -1,13 +1,16 @@
 
 import logging
+import multiprocessing
 from pathlib import Path
 import pickle
 import sys
+import tempfile
 import unittest
+import warnings
 
 import numpy as np
-
-from sklearn.ensemble import RandomForestClassifier
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
 
 from modis_vcf.model.MasterTraining import MasterTraining
 from modis_vcf.model.MonteCarloSim import MonteCarloSim
@@ -34,95 +37,101 @@ class MonteCarloSimTestCase(unittest.TestCase):
         ch.setLevel(logging.INFO)
         cls.logger.addHandler(ch)
 
-        cls.base = Path(__file__).parent
+        cls.trainingDir = Path(__file__).parent
+        cls.outDir = Path(tempfile.mkdtemp())
+        cls.outDir.mkdir(exist_ok=True)
 
     # -------------------------------------------------------------------------
     # testInit
     # -------------------------------------------------------------------------
     def testInit(self):
 
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
+                            procInputTrainFilesIndependently = False,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs.masterTraining.dataset.fragments), 2)
-        self.assertEqual(mcs.numTrials, 10)
-        self.assertEqual(mcs.predictorsPerTrial, 10)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
+        self.assertEqual(mcs._predictorsPerTrial, 10)
         self.assertEqual(mcs.numVarsForFinalModel, 20)
         self.assertEqual(mcs._minTimesEachVarUsed, 10)
+        self.assertEqual(mcs._numCpus, 1)
+        self.assertIsInstance(mcs._X, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._xTrain, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._xTest, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._yTrain, pd.Series)
+        self.assertIsInstance(mcs._yTest, pd.Series)
+        self.assertIsInstance(mcs._y, pd.Series)
+        self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
+        self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
+        self.assertEqual(mcs._X.shape, (2000, 258))
+        self.assertEqual(mcs._y.shape, (2000,))
         
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
-                            numTrials = 1, 
+        # The number of trials and number of CPUs should be adjusted.
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 2, 
                             numVarsForFinalModel = 3,
                             minTimesEachVarUsed = 4,
+                            numCpus = 2112,
+                            procInputTrainFilesIndependently = False,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs.masterTraining.dataset.fragments), 2)
-        self.assertEqual(mcs.numTrials, 1)
-        self.assertEqual(mcs.predictorsPerTrial, 2)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
+        self.assertEqual(mcs._predictorsPerTrial, 2)
         self.assertEqual(mcs.numVarsForFinalModel, 3)
         self.assertEqual(mcs._minTimesEachVarUsed, 4)
+        self.assertEqual(mcs._numCpus, multiprocessing.cpu_count())
+        self.assertIsInstance(mcs._X, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._xTrain, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._xTest, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._yTrain, pd.Series)
+        self.assertIsInstance(mcs._yTest, pd.Series)
+        self.assertIsInstance(mcs._y, pd.Series)
+        self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
+        self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
+        self.assertEqual(mcs._X.shape, (2000, 258))
+        self.assertEqual(mcs._y.shape, (2000,))
 
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             numVarsForFinalModel = 3,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs.masterTraining.dataset.fragments), 2)
-        self.assertEqual(mcs.numTrials, 10)
-        self.assertEqual(mcs.predictorsPerTrial, 10)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
+        self.assertEqual(mcs._predictorsPerTrial, 10)
         self.assertEqual(mcs.numVarsForFinalModel, 3)
         self.assertEqual(mcs._minTimesEachVarUsed, 10)
+        self.assertEqual(mcs._numCpus, 1)
+        self.assertIsInstance(mcs._X, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._xTrain, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._xTest, pd.core.frame.DataFrame)
+        self.assertIsInstance(mcs._yTrain, pd.Series)
+        self.assertIsInstance(mcs._yTest, pd.Series)
+        self.assertIsInstance(mcs._y, pd.Series)
+        self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
+        self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
+        self.assertEqual(mcs._X.shape, (2000, 258))
+        self.assertEqual(mcs._y.shape, (2000,))
 
     # -------------------------------------------------------------------------
     # testAllVars
     # -------------------------------------------------------------------------
     def testAllVars(self):
         
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs.allVars), 255)
+        self.assertEqual(len(mcs._allVars), 255)
         
-    # -------------------------------------------------------------------------
-    # testAverages
-    # -------------------------------------------------------------------------
-    def testAverages(self):
-        
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
-                            predictorsPerTrial = 4,
-                            minTimesEachVarUsed = 1,
-                            logger = MonteCarloSimTestCase.logger)
-
-        trials: list = mcs._runTrials()
-        averages: dict = mcs._computeAverages(trials)
-        
-        # Ensure all variables are represented in averages.
-        self.assertEqual(len(mcs.allVars), len(averages))
-        
-        # ---
-        # Ensure the variables used in the trials are exactly the ones reported
-        # in the averages.
-        # ---
-        nonZeroAvgs: dict = {k:v for k, v in averages.items() if v != 0}
-        usedVars = set([n for t in trials for n in t.predictorNames])
-        self.assertEqual(nonZeroAvgs.keys(), usedVars)
-
-        # Double check the non-zero averages in the trials.
-        for predName in nonZeroAvgs:
-
-            ims = [t.importanceMean(predName) 
-                   for t in trials if t.includesPredictor(predName)]
-            
-            sumIm = sum(ims)
-            avg = sumIm / len(ims)
-            self.assertEqual(avg, averages[predName])
-                 
     # -------------------------------------------------------------------------
     # testChooseColumns
     # -------------------------------------------------------------------------
     def testChooseColumns(self):
         
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             logger = MonteCarloSimTestCase.logger)
 
@@ -141,143 +150,216 @@ class MonteCarloSimTestCase(unittest.TestCase):
         return True
         
     # -------------------------------------------------------------------------
-    # testPollVarUsage
+    # testComputeAverages
     # -------------------------------------------------------------------------
-    def testPollVarUsage(self):
+    def testComputeAverages(self):
         
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
+                            predictorsPerTrial = 4,
+                            minTimesEachVarUsed = 0,
+                            logger = MonteCarloSimTestCase.logger)
+
+        mcs.run()
+        averages: dict = mcs.computeAverages()
+        
+        # Ensure all variables are represented in averages.
+        self.assertEqual(len(averages), len(mcs._allVars))
+        self.assertEqual(set(list(averages.keys())), set(mcs._allVars))
+        
+        # ---
+        # Check a specific average.  First, find a predictor with a non-zero
+        # average.
+        # ---
+        nonZeroVar: str = None
+        
+        for var, avg in averages.items():
+            
+            if avg != 0:
+                
+                nonZeroVar = var
+                break
+                
+        self.assertIsNotNone(nonZeroVar)
+        
+        # Collect the permutation importance for that variable.
+        nonZeroVarPermImports = []
+        
+        for trial in mcs._trials:
+                
+            if var in trial.predictorNames:
+                
+                index = trial.predictorNames.index(var)
+                
+                pImport = \
+                    trial.permImportances['importances_mean'][index]
+
+                if pImport != 0:
+                    nonZeroVarPermImports.append(pImport)
+                    
+        # Compute its average.
+        avg = sum(nonZeroVarPermImports) / len(nonZeroVarPermImports)
+        self.assertEqual(avg, averages[nonZeroVar])
+
+    # -------------------------------------------------------------------------
+    # testGetTopN1
+    # -------------------------------------------------------------------------
+    def testGetTopN1(self):
+
+        # ---
+        # This case covers the scenario where the number of predictors
+        # specified per trial (1) and the number of trials (10) do not 
+        # involve enough predictors to satisfy the number of predictors for
+        # the final model (20).  MCS warns and adjusts until it satisfied the
+        # conditions.
+        # ---
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
+                            predictorsPerTrial = 1,
+                            numVarsForFinalModel = 20,
+                            minTimesEachVarUsed = 0,
+                            logger = MonteCarloSimTestCase.logger)
+
+        mcs.run()
+
+    # -------------------------------------------------------------------------
+    # testGetTopN2
+    # -------------------------------------------------------------------------
+    def testGetTopN2(self):
+
+        with warnings.catch_warnings():
+            
+            # warnings.simplefilter('ignore')
+
+            mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                                MonteCarloSimTestCase.outDir,
+                                minTimesEachVarUsed = 1,
+                                logger = MonteCarloSimTestCase.logger)
+
+            try:
+                mcs.run()
+
+            except RuntimeError as e:
+
+                # This should not happen because minTimesEachVarUsed is 1.
+                if str(e).startswith('Some top-n columns were not used in'):
+                    
+                    assert False, 'Some top-n cols. were not used in trials.'
+                    
+                else:
+                    raise e
+                    
+    # -------------------------------------------------------------------------
+    # testMinVarUsageAchieved
+    # -------------------------------------------------------------------------
+    def testMinVarUsageAchieved(self):
+        
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             logger=MonteCarloSimTestCase.logger)
 
-        # Simulate the usage count.
-        varUsageCount = dict.fromkeys(mcs.allVars, 0) 
-        self.assertEqual(len(varUsageCount), 255)
-        self.assertTrue(all(v == 0 for v in varUsageCount.values()))
-        self.assertFalse(mcs._pollVarUsage(varUsageCount))
+        self.assertFalse(mcs.minVarUsageAchieved())
         
-        # Fill all variables with the minimum value.
-        keys = list(varUsageCount.keys())
-        firstKey = keys[0]
-        
-        varUsageCount = {k: varUsageCount[k] + mcs._minTimesEachVarUsed \
-                         for k in keys}
-                         
-        self.assertTrue(mcs._pollVarUsage(varUsageCount))
+        # Verify minTimesEachVarUsed = 1. 
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
+                            predictorsPerTrial = 4,
+                            minTimesEachVarUsed = 1,
+                            logger = MonteCarloSimTestCase.logger)
 
-        # Make one variable insuffcient.
-        varUsageCount[firstKey] = mcs._minTimesEachVarUsed - 1
-        self.assertFalse(mcs._pollVarUsage(varUsageCount))
-        
-        # Test too few variables.
-        varUsageCount[firstKey] = mcs._minTimesEachVarUsed
-        self.assertTrue(mcs._pollVarUsage(varUsageCount))
-        varUsageCount[firstKey] = 0
-        self.assertFalse(mcs._pollVarUsage(varUsageCount))
-                         
-    # -------------------------------------------------------------------------
-    # testProperties
-    # -------------------------------------------------------------------------
-    def testProperties(self):
-        
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
-                            logger=MonteCarloSimTestCase.logger)
-        
-        self.assertEqual(len(mcs.masterTraining.dataset.fragments), 2)
-        self.assertEqual(mcs.numTrials, 10)
-        self.assertEqual(mcs.predictorsPerTrial, 10)
+        mcs.run()
+
+        usedVars = set([n for t in mcs._trials for n in t.predictorNames])
+        self.assertEqual(len(usedVars), len(mcs._allVars))
         
     # -------------------------------------------------------------------------
     # testRun
     # -------------------------------------------------------------------------
     def testRun(self):
 
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 0,
                             logger = MonteCarloSimTestCase.logger)
                  
-        mcs.run()
-        self.assertEqual(len(mcs.topN), mcs.numVarsForFinalModel)
+        rf: RandomForestRegressor = mcs.run()
+        
+        # Minimum usage achieved.
+        self.assertTrue(mcs.minVarUsageAchieved())
 
+        # Non-zero permutation importance sufficient for top-N.
+        averages: dict = mcs.computeAverages()
+        
+        self.assertLessEqual( \
+            mcs.numVarsForFinalModel,
+            sum(1 if a != 0 else 0 for a in averages.values()))
+            
+        # The top-N validity tests are satisfied before the final model run.
+        self.assertEqual(len(rf.feature_names_in_), mcs.numVarsForFinalModel)
+        
     # -------------------------------------------------------------------------
     # testRunTrials
     # -------------------------------------------------------------------------
     def testRunTrials(self):
 
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             logger = MonteCarloSimTestCase.logger)
                             
-        trials: list[Trial] = mcs._runTrials()
-        self.assertGreaterEqual(len(trials), mcs.numTrials)
-        
-        usedVars = set([n for t in trials for n in t.predictorNames])
-        self.assertEqual(set(mcs.allVars), usedVars)
-        
-        # Ensure each trial has a different set of variables.
-        allTrialPreds = np.asarray([t.predictorNames for t in trials])
-        numUnique = np.unique(allTrialPreds, axis=0).shape[0]
-        self.assertEqual(allTrialPreds.shape[0], numUnique)
+        numCompleted = 0
+        trials, numCompleted = mcs._runTrials(numCompleted)
         
     # -------------------------------------------------------------------------
     # testRunOneTrial
     # -------------------------------------------------------------------------
     def testRunOneTrial(self):
 
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             logger = MonteCarloSimTestCase.logger)
                 
         sampName = \
-            mcs.masterTraining.dataset.schema.names[MasterTraining.SAMPLE_COL]
+            mcs._masterTraining.dataset.schema.names[MasterTraining.SAMPLE_COL]
                         
         y: pd.DataFrame = \
-             mcs.masterTraining.dataset.read([sampName]). \
+             mcs._masterTraining.dataset.read([sampName]). \
              to_pandas().to_numpy().ravel()
 
-        trial = mcs._runOneTrial(1)
+        trial = mcs._runOneTrial()
 
     # -------------------------------------------------------------------------
     # testSaveFinalModel
     # -------------------------------------------------------------------------
     def testSaveFinalModel(self):
         
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
+        mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 0,
                             logger = MonteCarloSimTestCase.logger)
              
-        rf1 = mcs.run()
+        rf1: RandomForestRegressor = mcs.run()
                        
-        finalPath: Path = mcs.saveFinalModel(MonteCarloSimTestCase.base)
+        finalPath: Path = mcs.saveFinalModel(rf1)
         print('Model File:', finalPath)
         
         with open(finalPath, 'rb') as f:
             rf2: RandomForestClassifier = pickle.load(f)
 
     # -------------------------------------------------------------------------
-    # testTopN
+    # debugPermutationImportances
     # -------------------------------------------------------------------------
-    def testTopN(self):
-        
-        mcs = MonteCarloSim(MonteCarloSimTestCase.base,
-                            predictorsPerTrial = 4,
-                            minTimesEachVarUsed = 0,
-                            logger = MonteCarloSimTestCase.logger)
+    def debugPermutationImportances(self):
 
-        trials: list = mcs._runTrials()
-        self.assertEqual(len(mcs.topN), mcs._numVarsForFinalModel)
+        trainingDir = Path('/explore/nobackup/projects/ilab/scratch/mcarrol2/'
+                           'notebooks/vcf_clustering/new_parq')
+                           
+        mcs = MonteCarloSim(MonteCarloSimTestCase.base / 'training',
+                            MonteCarloSimTestCase.base,
+                            logger=MonteCarloSimTestCase.logger)
         
-        # ---
-        # Ensure the top 1 has no average contribution greater than it.
-        # Ensure the 2nd from top has only 1 contribution greater than it.
-        # Etc.
-        # ---
-        averages: dict = mcs._computeAverages(trials)
-        
-        for i in range(mcs._numVarsForFinalModel - 1):
-            
-            curVal = mcs.topN[i][1]
-            nextVal = mcs.topN[i+1][1]
-            self.assertGreater(curVal, nextVal)
-            
-        
+        trial: Trial = mcs._runOneTrial()
+        print('PIs: ' + str(trial.permImportances))

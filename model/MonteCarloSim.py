@@ -6,25 +6,23 @@ from concurrent.futures import wait
 import glob
 import joblib
 import logging
+import math
 import multiprocessing
 from pathlib import Path
 import random
 import sys
+import warnings
 
 import numpy as np
 import pandas as pd
-
+from pyarrow.parquet import ParquetDataset
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
-from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
 
 from modis_vcf.model.MasterTraining import MasterTraining
 from modis_vcf.model.Trial import Trial
 
-DEFAULT_VALUE = 10
-DEFAULT_TOP_N = 20
-    
 
 # ----------------------------------------------------------------------------
 # MonteCarloSim
@@ -41,10 +39,7 @@ DEFAULT_TOP_N = 20
 # what they used with MODIS water for basic parameters if you need to.
 #
 # TODO: Validate input
-# TODO: Make the process flow more direct and easier to follow.
-#       saveFinalModel -> finalModel -> topN -> averages -> self.trials ->
-#       trials -> runTrials
-# TODO:  Important note: the output from the regressor should be "integer" as the input variables are also integers.  We do not need the output to be "float" because we don't care about the decimals and we don't have enough information in the input data to reliably predict decimals anyway. 
+# TODO: Important note: the output from the regressor should be "integer" as the input variables are also integers.  We do not need the output to be "float" because we don't care about the decimals and we don't have enough information in the input data to reliably predict decimals anyway. 
 # ----------------------------------------------------------------------------
 class MonteCarloSim(object):
     
@@ -52,11 +47,12 @@ class MonteCarloSim(object):
     # __init__
     # ------------------------------------------------------------------------
     def __init__(self, 
-                 trainingDir: Path, 
-                 numTrials: int = DEFAULT_VALUE, 
-                 predictorsPerTrial: int = DEFAULT_VALUE, 
-                 numVarsForFinalModel: int = DEFAULT_TOP_N,
-                 minTimesEachVarUsed: int = DEFAULT_VALUE,
+                 trainingDir: Path,
+                 outDir: Path, 
+                 predictorsPerTrial: int = 10, 
+                 numVarsForFinalModel: int = 20,
+                 minTimesEachVarUsed: int = 10,
+                 procInputTrainFilesIndependently: bool = True,
                  numCpus: int = 1,
                  logger: logging.RootLogger = None):
         
@@ -72,53 +68,39 @@ class MonteCarloSim(object):
                 logger.addHandler(ch)
 
         self._logger: logging.RootLogger = logger
-
-        # None could be passed, overriding the default value, so ...
-        self._numTrials: int = numTrials or DEFAULT_VALUE
-        self._predictorsPerTrial: int = predictorsPerTrial or DEFAULT_VALUE
         
-        # This is only for an experiment with MonteCarloSimGpu.
+        # Output directory
+        if not outDir or not outDir.exists() or not outDir.is_dir():
+            raise ValueError('A valid output directory must be provided.')
+            
+        self._outDir: Path = outDir
+        
+        self._trialDir: Path = outDir / 'trials'
+        self._trialDir.mkdir(exist_ok=True)
+
+        # Consolidate training-related initialization.
         self._trainingDir: Path = trainingDir
-        
-        self._masterTraining = MasterTraining(trainingDir, logger)
-        
-        self._allVars: list = self.masterTraining.dataset.schema.names \
-                              [MasterTraining.START_COL:]
+        self._masterTraining: MasterTraining = None
+        self._allVars: list = None
+        self._X: pd.DataFrame = None
+        self._xTrain: pd.DataFrame = None
+        self._xTest: pd.DataFrame = None
+        self._yTrain: np.ndarray = None
+        self._yTest: np.ndarray = None
+        self._y: pd.DataFrame = None
+            
+        self._initTraining(procInputTrainFilesIndependently)
 
-        self._numCpus: int = numCpus or 1
+        self._numVarsForFinalModel: int = numVarsForFinalModel
+        self._predictorsPerTrial: int = predictorsPerTrial
+        self._trials: list[Trial] = []
+        self._numCpus = min(numCpus, multiprocessing.cpu_count())
         
-        # ---
-        # This is the number of highest-performing variables to select for
-        # the final model.  In other words, the top ten (top
-        # numVarsForFinalModel).
-        # ---
-        self._numVarsForFinalModel: int = numVarsForFinalModel or DEFAULT_TOP_N
-        
-        # ---
-        # Each variable must be randomly selected at least minTimesEachVarUsed
-        # times before the accumulation of trials may stop.  This overrides
-        # self._numTrials, if self._numTrials is reached before
-        # minTimesEachVarUsed is satisfied.
-        # ---
         self._minTimesEachVarUsed: int = \
-            minTimesEachVarUsed if minTimesEachVarUsed is not None else \
-            DEFAULT_VALUE
+            minTimesEachVarUsed if minTimesEachVarUsed is not None else 10
         
-        # ---
-        # Prepare y.
-        # ---
-        sampName = self.masterTraining.dataset.schema.names \
-                   [MasterTraining.SAMPLE_COL]
-                        
-        y: pd.DataFrame = \
-             self.masterTraining.dataset.read([sampName]). \
-             to_pandas().to_numpy().ravel()
-
-        self._y = np.where(y == -10001, 10001, y)
-
         # Print configuration.
         logger.info('Training dir: ' + str(trainingDir))
-        logger.info('Num trials: ' + str(self._numTrials))
         logger.info('Predictors per trial: ' + str(self._predictorsPerTrial))
         logger.info('Num rows: ' + str(self._masterTraining.numRows()))
 
@@ -126,7 +108,9 @@ class MonteCarloSim(object):
         logger.info('Num vars: ' + str(numVars))
         
         if numVars < 263:
-            logger.warn('There are fewer available variables than expected.')
+            
+            warnings.warn('There are fewer available variables than '
+                          'expected.')
         
         logger.info('Num vars for final model: ' + 
                     str(self._numVarsForFinalModel))
@@ -135,12 +119,69 @@ class MonteCarloSim(object):
         logger.info('CPUs in use: ' + str(self._numCpus))
 
     # ------------------------------------------------------------------------
-    # allVars
+    # initTraining
+    #
+    # Normally, all input training Parquet files are treated as a single
+    # Parquet dataset.  The procInputTrainFilesIndependently option 
+    # performs the test/train split on each training file in the training
+    # directory, and combines all those into composite test/train data.
+    # 
+    # y: pd.DataFrame = \
+    #      self._masterTraining.dataset.read([sampName]). \
+    #      to_pandas().to_numpy().ravel()
+    #
+    # self._y = np.where(y == -10001, 10001, y)
     # ------------------------------------------------------------------------
-    @property
-    def allVars(self) -> list:
-        return self._allVars
+    def _initTraining(self, procTFilesIndependently) -> None:
         
+        self._masterTraining = MasterTraining(self._trainingDir, self._logger)
+
+        self._allVars: list = self._masterTraining.dataset.schema.names \
+                              [MasterTraining.START_COL:]
+                              
+        sampName = self._masterTraining.dataset.schema.names \
+                   [MasterTraining.SAMPLE_COL]
+
+        if procTFilesIndependently:
+
+            xList = []
+            yList = []
+            xnList = []
+            xtList = []
+            ynList = []
+            ytList = []
+            
+            for fName in self._masterTraining.dataset.files:
+                
+                x = ParquetDataset(fName).read().to_pandas()
+                x = x.replace(-10001, 10001)
+                y = x[sampName]
+                yList.append(y)
+                xList.append(x.drop(sampName, axis=1))
+
+                xn, xt, yn, yt = train_test_split(x, y)
+                xnList.append(xn)
+                xtList.append(xt)
+                ynList.append(yn)
+                ytList.append(yt)
+                
+            self._X = pd.concat(xList)
+            self._y = pd.concat(yList)
+            self._xTrain = pd.concat(xnList)
+            self._xTest = pd.concat(xtList)
+            self._yTrain = pd.concat(ynList)
+            self._yTest = pd.concat(ytList)
+
+        else:
+
+            X = self._masterTraining.dataset.read().to_pandas()
+            self._X = X.replace(-10001, 10001)
+            self._y = self._X[sampName]
+            self._X.drop(sampName, axis=1, inplace=True)
+            
+            self._xTrain, self._xTest, self._yTrain, self._yTest = \
+                train_test_split(self._X, self._y)
+
     # ------------------------------------------------------------------------
     # chooseColumns
     #
@@ -149,21 +190,21 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def _chooseColumns(self) -> list[str]:
         
-        colNames = random.sample(self.allVars, self.predictorsPerTrial)
+        colNames = random.sample(self._allVars, self._predictorsPerTrial)
         return colNames
         
     # ------------------------------------------------------------------------
     # computeAverages
     # ------------------------------------------------------------------------
-    def _computeAverages(self, trials) -> dict:
+    def computeAverages(self) -> dict:
         
         # ---
         # Collate permutation importance for each variable.
         # permImports = {var1: [imp1, imp2, ...], var2: [imp1, imp2, ...]}
         # ---
-        permImports = {k: [] for k in self.allVars}
+        permImports = {k: [] for k in self._allVars}
 
-        for trial in trials:
+        for trial in self._trials:
             
             impMeans = trial.permImportances['importances_mean']
         
@@ -173,23 +214,52 @@ class MonteCarloSim(object):
                 permImports[varName].append(impMeans[i])
                 
         # Compute the average for each 
-        averages = dict.fromkeys(self.allVars, 0.0)
+        averages = dict.fromkeys(self._allVars, 0.0)
         
         for var in permImports:
-            
             if permImports[var]:
-                
-                sumI = sum(permImports[var])
-                averages[var] = sumI / len(permImports[var])
+                averages[var] = sum(permImports[var]) / len(permImports[var])
                 
         return averages
 
     # ------------------------------------------------------------------------
-    # masterTraining
+    # getTopN
     # ------------------------------------------------------------------------
-    @property
-    def masterTraining(self) -> MasterTraining:
-        return self._masterTraining
+    def _getTopN(self, averages: dict) -> list:
+        
+        topN: list[Tuple] = \
+            sorted(averages.items(), key=lambda x: x[1], reverse=True) \
+            [:self._numVarsForFinalModel]
+
+        topN = [tup[0] for tup in topN]
+        
+        # Ensure the top-N variables were actually used in trials.
+        usedVars = set(np.array([t.predictorNames for t in self._trials]). \
+            flatten().tolist())
+            
+        diff = set(topN).difference(usedVars)
+        
+        if len(diff) > 0:
+
+            warnings.warn('Some top-n columns were not used in any trial.')
+            return []
+                               
+        # ---
+        # Ensure the top-N variables have an average permutation importance
+        # different from zero.
+        # ---
+        for var in topN:
+            
+            if averages[var] == 0:
+                
+                warnings.warn('Top-n candidate variable, ' + 
+                              var +
+                              ' has an average permutation importance ' +
+                              'of zero.')
+
+                return []
+            
+        return topN
         
     # ------------------------------------------------------------------------
     # numTrials
@@ -206,126 +276,125 @@ class MonteCarloSim(object):
         return self._numVarsForFinalModel
         
     # ------------------------------------------------------------------------
-    # pollVarUsage
+    # minVarUsageAchieved
     # ------------------------------------------------------------------------
-    def _pollVarUsage(self, varUsageCount: dict) -> bool:
+    def minVarUsageAchieved(self) -> bool:
         
-        usageAchieved = True
+        varUsageCount = dict.fromkeys(self._allVars, 0)
 
-        if self._minTimesEachVarUsed == 0:
-            return usageAchieved
+        # Count variable usage in all trials.
+        for trial in self._trials:
             
-        for var in varUsageCount:
-
-            if varUsageCount[var] < self._minTimesEachVarUsed:
-
-                usageAchieved = False
-                break
+            for varName in trial.predictorNames:
                 
-        return usageAchieved
+                varUsageCount[varName] += 1
             
-    # ------------------------------------------------------------------------
-    # predictorsPerTrial
-    # ------------------------------------------------------------------------
-    @property
-    def predictorsPerTrial(self) -> int:
-        return self._predictorsPerTrial
-        
-    # ------------------------------------------------------------------------
-    # prepX
-    # ------------------------------------------------------------------------
-    def _prepX(self, colNames: list) -> \
-        [pd.core.frame.DataFrame, 
-         pd.core.frame.DataFrame, 
-         pd.core.frame.DataFrame, 
-         np.ndarray, 
-         np.ndarray]:
-        
-        # Read the columns.  Sklearn cannot use Pyarrow.Table.
-        X: pd.DataFrame = \
-            self.masterTraining.dataset.read(colNames).to_pandas()
-        
-        # No-data value, -10001, must be changed to +10001.
-        X = X.where(X == -10001, 10001)
-        
-        # Split the columns into test and training subsets.
-        xTrain, xTest, yTrain, yTest = train_test_split(X, self._y)
-        
-        return X, xTrain, xTest, yTrain, yTest
-        
+        # Test usage achievement.
+        for var in varUsageCount:
+            
+            if varUsageCount[var] < self._minTimesEachVarUsed:
+                return False
+            
+        return True
+
     # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
     def run(self) -> RandomForestRegressor:
 
-        trials: list[Trial] = self._runTrials()
-        averages: dict = self._computeAverages(trials)
+        topN = []
+        numCompleted = 0
+        varUsageCount = dict.fromkeys(self._allVars, 0)
+        rf: RandomForestRegressor = None
+        allConditionsMet = False
         
-        topN: list[Tuple] = \
-            sorted(averages.items(), key=lambda x: x[1], reverse=True) \
-            [:self._numVarsForFinalModel]
+        while not allConditionsMet:
+            
+            # ---
+            # Run a batch of trials.  The batch size depends on the number
+            # of total trials requested and the number of CPUs.
+            # ---
+            batchOfTrials, numCompleted = self._runTrials(numCompleted)
+            self._trials += batchOfTrials
+            
+            # Monitor variable usage.
+            if not self.minVarUsageAchieved():
+            
+                self._logger.info('Variable usage unsatisfied.')
+                continue
 
-        topNCols: list = [tup[0] for tup in topN]
+            # Compute average permutation importance.
+            averages: dict = self.computeAverages()
+            
+            # Monitor non-zero permutation importance.
+            if sum(1 if a != 0 else 0 for a in averages.values()) < \
+                self._numVarsForFinalModel:
 
-        X, xTrain, xTest, yTrain, yTest = self._prepX(topNCols)
-        rf: RandomForestRegressor = self._runRandomForest(xTrain, yTrain)
+                self._logger.info('Not enough non-zero permutation '
+                                  'importances to satisfy the number of '
+                                  'variables required for the final model.')
+                
+                continue
+            
+            # ---
+            # Compute top-n predictors.  The _getTopN() method monitors itself,
+            # returning an empty list when its conditions are unsatisfied.
+            # This is inconsistent with this method, run(), because the other
+            # conditions are monitored here.
+            # ---
+            topN = self._getTopN(averages)
+
+            # Monitor top-n.
+            if len(topN):
+            
+                topnMet = True
+            
+            else:
+                
+                if not topnMet:
+                    self._logger.info('Top-n unsatified.')
+                    
+            allConditionsMet = True
+                        
+        # Run the final model.
+        if allConditionsMet:
+            
+            rf = self._runRandomForest(self._xTrain[topN],
+                                       self._yTrain)
 
         return rf
         
     # ------------------------------------------------------------------------
     # runTrials
     # ------------------------------------------------------------------------
-    def _runTrials(self) -> list:
+    def _runTrials(self, numCompleted: int) -> (list, int):
         
         with ProcessPoolExecutor(max_workers=self._numCpus) as xtor:
 
-            # Tally variable usage for self._minTimesEachVarUsed.
-            varUsageCount = dict.fromkeys(self.allVars, 0) 
-            usageAchieved = False
             completedTrials = []
-            completed = 0
-        
-            while not usageAchieved:
 
-                self._logger.info('Starting a batch of ' + 
-                                  str(self._numCpus) + 
-                                  ' trials.')
+            self._logger.info('Starting a batch of ' + 
+                              str(self._numCpus) + 
+                              ' trials.')
 
-                futures = []
+            futures = []
 
-                for count in range(self._numCpus):
-                    futures.append(xtor.submit(self._runOneTrial))
+            for count in range(self._numCpus):
+                futures.append(xtor.submit(self._runOneTrial))
 
-                self._logger.info('Awaiting batch completion.')
-                
-                comp, incomp = wait(futures, return_when=FIRST_EXCEPTION)
-                completed += len(comp)
-                
-                self._logger.info('Complete: ' + str(len(comp)))
-                self._logger.info('Incomplete: ' + str(len(incomp)))
-                self._logger.info('Total completed: ' + str(completed))
-
-                for future in comp:
-                    
-                    trial: Trial = future.result()
-                    completedTrials.append(trial)
-                    
-                    # Tally variable usage.
-                    for var in trial.predictorNames:
-                        varUsageCount[var] += 1
+            self._logger.info('Awaiting batch completion.')
             
-                # Do not bother polling usage until miniumum trials satisfied.
-                if completed >= self._numTrials:
+            comp, incomp = wait(futures, return_when=FIRST_EXCEPTION)
+            numCompleted += len(comp)
             
-                    usageAchieved = self._pollVarUsage(varUsageCount)
-                    
-                    self._logger.info('Minimum variable usage achieved: ' +
-                                      str(usageAchieved))
+            for future in comp:
                 
-        self._logger.info('Trials complete.')
-        self._logger.info('Num trials: ' + str(len(completedTrials)))
+                trial: Trial = future.result()
+                completedTrials.append(trial)
+                
+        self._logger.info('Total completed: ' + str(numCompleted))
         
-        return completedTrials
+        return completedTrials, numCompleted
 
     # ------------------------------------------------------------------------
     # runOneTrial
@@ -336,9 +405,11 @@ class MonteCarloSim(object):
     def _runOneTrial(self) -> Trial:
         
         colNames: list[str] = self._chooseColumns()
-        X, xTrain, xTest, yTrain, yTest = self._prepX(colNames)
+        X = self._X[colNames]
+        xTrain = self._xTrain[colNames]
 
-        rf: RandomForestRegressor = self._runRandomForest(xTrain, yTrain)
+        rf: RandomForestRegressor = \
+            self._runRandomForest(xTrain, self._yTrain)
 
         # ---
         # According to the user manual, permutation importance items are
@@ -346,18 +417,22 @@ class MonteCarloSim(object):
         # explicit.  For the trial object, the permutation importance values
         # correspond, in order, to the predictor names.  See
         # https://scikit-learn.org/stable/modules/permutation_importance.html#permutation-importance
+        #
+        # The permutation importances are all 0.  RFR documentation suggests
+        # using permutation_importance(), so this implies it is compatible.
         # ---
-        permImportances = dict(permutation_importance(rf, X, self._y))
+        # permImportances = dict(permutation_importance(rf, X, self._y))
+        permImportances = permutation_importance(rf, X, self._y)
         name = 'Trial-' + str(hash(''.join(colNames)))
         trial = Trial(name, colNames, permImportances)
+        trial.save(self._trialDir)
 
         return trial
         
     # ------------------------------------------------------------------------
     # runRandomForest
     #
-    # RFR can use n_jobs to send each fit() to a different CPU.  We use a
-    # unique RFR for each trial, so n_jobs does not help.
+    # This is a template method.
     # ------------------------------------------------------------------------
     def _runRandomForest(self, xTrain, yTrain) -> RandomForestRegressor:
 
@@ -368,11 +443,9 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     # saveFinalModel
     # ------------------------------------------------------------------------
-    def saveFinalModel(self, 
-                       outDir: Path, 
-                       finalModel: RandomForestRegressor) -> Path:
+    def saveFinalModel(self, finalModel: RandomForestRegressor) -> Path:
         
-        outPath: Path = outDir / ('MCS-model.bin')
+        outPath: Path = self._outDir / ('MCS-model.bin')
         
         with open(outPath, 'wb') as f:
             joblib.dump(finalModel, f)

@@ -20,9 +20,9 @@ def main():
     desc = 'Use this application to run a Monte Carlo simulation on metrics.'
     parser = argparse.ArgumentParser(description=desc)
 
-    parser.add_argument('--gpu',
-                        action='store_true',
-                        help='Use GPUs')
+    # parser.add_argument('--gpu',
+    #                     action='store_true',
+    #                     help='Use GPUs')
 
     parser.add_argument('--minVarUsage',
                         type=int,
@@ -39,9 +39,9 @@ def main():
                         type=int,
                         help='The number of predictors per trials')
 
-    parser.add_argument('--numTrials',
-                        type=int,
-                        help='The number of trials to run')
+    # parser.add_argument('--numTrials',
+    #                     type=int,
+    #                     help='The number of trials to run')
 
     parser.add_argument('--numVarsForFinalModel',
                         type=int,
@@ -73,6 +73,7 @@ def main():
         from modis_vcf.model.MonteCarloSimGpu import MonteCarloSimGpu
         
         mcs = MonteCarloSimGpu(args.trainingDir, 
+                               args.o,
                                args.numTrials, 
                                args.numPredsPerTrial,
                                args.numVarsForFinalModel,
@@ -83,6 +84,7 @@ def main():
         numCpus = min(args.numCpus, multiprocessing.cpu_count())
         
         mcs = MonteCarloSim(args.trainingDir, 
+                            args.o,
                             args.numTrials, 
                             args.numPredsPerTrial,
                             args.numVarsForFinalModel,
@@ -90,7 +92,7 @@ def main():
                             numCpus)
 
     finalModel: RandomForestRegressor = mcs.run()
-    mcs.saveFinalModel(args.o, finalModel)
+    mcs.saveFinalModel(finalModel)
 
 
 # -----------------------------------------------------------------------------
