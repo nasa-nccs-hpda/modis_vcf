@@ -82,9 +82,11 @@ class BuildTraining(object):
 
         # ---
         # GetTileIds requires _trainingFileSuffix. Sometimes .bin, .out,
-        # .samp.bin
+        # .samp.bin, .bare.4.out
         # ---
-        self._trainingFileSuffix = '.out'
+        self._trainingFileSuffix = '.samp.bin'
+        
+        self._outFileSuffix = '-training+obsForRF.parq'
 
         self._tids: list = tileIds or self._getTileIds()
         
@@ -239,7 +241,10 @@ class BuildTraining(object):
         
             parqDir = self._outDir
             parqDir.mkdir(exist_ok=True)
-            outFile = parqDir / (tid + '-' + str(self._year) + '.parq')
+            
+            outFile = parqDir / \
+                      (tid + '-' + str(self._year) + self._outFileSuffix)
+            
             tidFiles.append(outFile)
 
             if outFile.exists() and self._logger:
