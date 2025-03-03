@@ -24,9 +24,6 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 #       metrics.  When a different set of metrics is requested and this class
 #       finds and existing file.  It will stop and return the file, which will
 #       not contain what the client requested.  Fix this.
-#
-# TODO: Should methods like addTrainingToDf and _initializeDataFrame only ever
-#       process one tid?
 # ----------------------------------------------------------------------------
 class BuildTraining(object):
     
@@ -84,7 +81,7 @@ class BuildTraining(object):
         # GetTileIds requires _trainingFileSuffix. Sometimes .bin, .out,
         # .samp.bin, .bare.4.out
         # ---
-        self._trainingFileSuffix = '.samp.bin'
+        self._trainingFileSuffix = '.out'
         
         self._outFileSuffix = '-training+obsForRF.parq'
 

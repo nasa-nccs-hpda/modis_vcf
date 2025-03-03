@@ -80,6 +80,7 @@ class MonteCarloSim(object):
 
         # Consolidate training-related initialization.
         self._trainingDir: Path = trainingDir
+        self._trials: list[Trial] = []
         self._masterTraining: MasterTraining = None
         self._allVars: list = None
         self._X: pd.DataFrame = None
@@ -91,9 +92,9 @@ class MonteCarloSim(object):
             
         self._initTraining(procInputTrainFilesIndependently)
 
+        # Initialize the simulation parameters.
         self._numVarsForFinalModel: int = numVarsForFinalModel
         self._predictorsPerTrial: int = predictorsPerTrial
-        self._trials: list[Trial] = []
         self._numCpus = min(numCpus, multiprocessing.cpu_count())
         
         self._minTimesEachVarUsed: int = \
@@ -125,12 +126,6 @@ class MonteCarloSim(object):
     # Parquet dataset.  The procInputTrainFilesIndependently option 
     # performs the test/train split on each training file in the training
     # directory, and combines all those into composite test/train data.
-    # 
-    # y: pd.DataFrame = \
-    #      self._masterTraining.dataset.read([sampName]). \
-    #      to_pandas().to_numpy().ravel()
-    #
-    # self._y = np.where(y == -10001, 10001, y)
     # ------------------------------------------------------------------------
     def _initTraining(self, procTFilesIndependently) -> None:
         
