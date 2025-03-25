@@ -13,6 +13,7 @@ from modis_vcf.model.MonteCarloSim import MonteCarloSim
 # -----------------------------------------------------------------------------
 # main
 #
+# TODO: Remove GPU junk.
 # TODO: Should --gpu and --numCpus be mutually exclusive?
 # -----------------------------------------------------------------------------
 def main():
@@ -37,6 +38,7 @@ def main():
 
     parser.add_argument('--numPredsPerTrial',
                         type=int,
+                        default=10,
                         help='The number of predictors per trials')
 
     # parser.add_argument('--numTrials',
@@ -45,6 +47,7 @@ def main():
 
     parser.add_argument('--numVarsForFinalModel',
                         type=int,
+                        default=20,
                         help='The number of top predictors ' +
                              'to use in the final model')
 
@@ -64,32 +67,32 @@ def main():
     # ---
     # Monte Carlo Simulation
     # ---
-    if args.gpu:
-        
-        # ---
-        # Import here to avoid potential errors when MonteCarloSimGpu attempts
-        # to import CUML on systems that do not have it installed.
-        # ---
-        from modis_vcf.model.MonteCarloSimGpu import MonteCarloSimGpu
-        
-        mcs = MonteCarloSimGpu(args.trainingDir, 
-                               args.o,
-                               args.numTrials, 
-                               args.numPredsPerTrial,
-                               args.numVarsForFinalModel,
-                               args.minVarUsage)
+    # if args.gpu:
+    #
+    #     # ---
+    #     # Import here to avoid potential errors when MonteCarloSimGpu attempts
+    #     # to import CUML on systems that do not have it installed.
+    #     # ---
+    #     from modis_vcf.model.MonteCarloSimGpu import MonteCarloSimGpu
+    #
+    #     mcs = MonteCarloSimGpu(args.trainingDir,
+    #                            args.o,
+    #                            args.numTrials,
+    #                            args.numPredsPerTrial,
+    #                            args.numVarsForFinalModel,
+    #                            args.minVarUsage)
+    #
+    # else:
 
-    else:
-        
-        numCpus = min(args.numCpus, multiprocessing.cpu_count())
-        
-        mcs = MonteCarloSim(args.trainingDir, 
-                            args.o,
-                            args.numTrials, 
-                            args.numPredsPerTrial,
-                            args.numVarsForFinalModel,
-                            args.minVarUsage,
-                            numCpus)
+    numCpus = min(args.numCpus, multiprocessing.cpu_count())
+    
+    mcs = MonteCarloSim(args.trainingDir, 
+                        args.o,
+                        # args.numTrials,
+                        args.numPredsPerTrial,
+                        args.numVarsForFinalModel,
+                        args.minVarUsage,
+                        numCpus=args.numCpus)
 
     finalModel: RandomForestRegressor = mcs.run()
     mcs.saveFinalModel(finalModel)

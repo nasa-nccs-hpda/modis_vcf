@@ -27,40 +27,27 @@ class BuildTrainingTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
 
-        cls._samplesFile = Path(__file__).parent / 'h09v05.samp.bin'
-        cls._testDfFile = Path(__file__).parent / 'test.parquet'
-        cls._tids = ['h09v05']
-        cls._trainingName = 'PercentTree'
-
         cls._logger = logging.getLogger()
         cls._logger.setLevel(logging.INFO)
         ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(logging.INFO)
         cls._logger.addHandler(ch)
 
-        cls._metDir = \
-            Path('/explore/nobackup/people/rlgill/SystemTesting' +
-                 '/modis-vcf/MOD44')
-                 
+        cls._modDir = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
         cls._metNames = ['metricTempMeanGreenest3']
-        cls._modDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
-
         cls._productType = ProductTypeMod44(cls._modDir)
-
-        cls._trainingDir = \
-            Path('/explore/nobackup/projects/ilab/data/MODIS/MODIS_VCF' +
-                 '/Mark_training/VCF_training_adjusted/' +
-                 'tile_adjustment/v5.0.3samp')
-                 
+        cls._tids = ['h09v05']
+        cls._trainingName = 'PercentTree'
         cls._year = 2019
-        
-        # ---
-        # This caches the bands and metric files, so subsequent tests run
-        # much faster.  Certainly use your own directory.
-        # ---
-        cls._outDir = Path('/explore/nobackup/people/rlgill' +      
-                           '/SystemTesting/modis-vcf')
-        
+
+        # Directories
+        baseDir = Path('/explore/nobackup/people/rlgill/SystemTesting' +
+                       '/modis-vcf/UnitTests')
+                 
+        cls._metDir = baseDir / '1-Metrics'
+        cls._outDir = baseDir / '2-Training'
+        cls._trainingDir = BuildTraining.TRAINING_DIR
+                 
     # -------------------------------------------------------------------------
     # testInit
     # -------------------------------------------------------------------------

@@ -53,9 +53,10 @@ class DayFile(ABC):
         if not productType:
             raise ValueError('A product type must be specified.')
             
-        if not bandName or \
-            bandName not in ProductType.BANDS + [ProductType.BAND31]:
-            
+        # if not bandName or \
+        #     bandName not in ProductType.BANDS + [ProductType.BAND31]:
+
+        if not bandName or bandName not in productType.bandXref.keys():
             raise ValueError('A valid band name must be specified.')
             
         if not tid:
@@ -176,8 +177,7 @@ class DayFile(ABC):
     # ------------------------------------------------------------------------
     # raster
     # ------------------------------------------------------------------------
-    @property
-    def raster(self) -> np.ndarray:
+    def raster(self, applyQa: bool = True) -> np.ndarray:
 
         if not type(self._raster) is np.ndarray:
 
@@ -201,7 +201,7 @@ class DayFile(ABC):
                               str(self._year) + 
                               str(self._day).zfill(3))
             
-            self._raster = self._getRaster()
+            self._raster = self._getRaster(applyQa)
 
         return self._raster
         
@@ -229,16 +229,16 @@ class DayFile(ABC):
             '+datum=WGS84 +units=m +no_defs')
 
         dataType = \
-            gdal_array.NumericTypeCodeToGDALTypeCode(self.raster.dtype)
+            gdal_array.NumericTypeCodeToGDALTypeCode(self.raster().dtype)
     
         bands = bands or {}
-        bands[self.bandName] = self.raster
+        bands[self.bandName] = self.raster()
         numBands = len(bands)
 
         ds = gdal.GetDriverByName('GTiff').Create(
             str(outName),
-            self.raster.shape[0],
-            self.raster.shape[1],
+            self.raster().shape[0],
+            self.raster().shape[1],
             numBands,
             dataType,
             options=['COMPRESS=LZW', 'BIGTIFF=YES'])

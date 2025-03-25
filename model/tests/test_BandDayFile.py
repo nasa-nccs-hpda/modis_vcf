@@ -231,12 +231,12 @@ class BandDayFileTestCase(unittest.TestCase):
                                            day,
                                            self._mod44OutDir)
 
-        raster = bdf.raster
+        raster = bdf.raster()
         self.assertEqual(raster.shape, (4800, 4800))
         self.assertEqual(raster.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
-        raster2 = bdf.raster
+        raster2 = bdf.raster()
         self.assertTrue((raster == raster2).all())
         self.assertEqual(raster2.shape, (4800, 4800))
         self.assertEqual(raster2.dtype, np.int16)
@@ -246,12 +246,12 @@ class BandDayFileTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testMod09B1(self):
         
-        raster = self.bdfMod09A.raster
+        raster = self.bdfMod09A.raster()
         self.assertEqual(raster.shape, (4800, 4800))
         self.assertEqual(raster.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
-        raster2 = self.bdfMod09A.raster
+        raster2 = self.bdfMod09A.raster()
         self.assertTrue((raster == raster2).all())
         self.assertEqual(raster2.shape, (4800, 4800))
         self.assertEqual(raster2.dtype, np.int16)
@@ -272,13 +272,13 @@ class BandDayFileTestCase(unittest.TestCase):
                                            self._mod09OutDir)
 
         bdf.outName.unlink(missing_ok=True)
-        raster = bdf.raster
+        raster = bdf.raster()
         self.assertEqual(raster.shape, (4800, 4800))
         self.assertEqual(raster.dtype, np.int32)
         self.assertEqual(raster.max(), 31883)
 
         # Call it again to test Numpy fromfile.
-        raster2 = bdf.raster
+        raster2 = bdf.raster()
         self.assertTrue((raster == raster2).all())
         self.assertEqual(raster2.shape, (4800, 4800))
         self.assertEqual(raster2.dtype, np.int32)
@@ -389,7 +389,7 @@ class BandDayFileTestCase(unittest.TestCase):
 
         # Band 5 proper, with QA
         bdf.outName.unlink()  # Delete, so non-qa version is not read.
-        b5 = bdf.raster
+        b5 = bdf.raster()
         self.assertEqual(b5.shape, (4800, 4800))
         self.assertEqual(b5.dtype, np.int16)
         self.assertEqual(np.min(b5), -28672)
@@ -438,7 +438,7 @@ class BandDayFileTestCase(unittest.TestCase):
         print('QA[', x, ',', y, '] =', qa[x, y])
 
         bdf.outName.unlink()  # Delete, so non-qa version is not read.
-        band = bdf.raster
+        band = bdf.raster()
         print('Band[', x, ',', y, '] =', band[x, y])
 
     # -------------------------------------------------------------------------
@@ -446,12 +446,12 @@ class BandDayFileTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testRead(self):
  
-        r1 = self.bdfMod09A.raster
+        r1 = self.bdfMod09A.raster()
         self.assertEqual(r1.shape, (4800, 4800))
         self.assertEqual(r1.dtype, np.int16)
-        r2 = self.bdfMod09A.raster
+        r2 = self.bdfMod09A.raster()
         self.assertTrue(np.array_equal(r1, r2, equal_nan=True))
         self.bdfMod09A._raster = None
-        r3 = self.bdfMod09A.raster
+        r3 = self.bdfMod09A.raster()
         self.assertTrue(np.array_equal(r1, r3, equal_nan=True))
             

@@ -195,7 +195,7 @@ class Metrics(object):
                                                     logger=self._logger,
                                                     dayDir=self._dayDir)
 
-            raster = cdf.raster.astype(np.float64)
+            raster = cdf.raster().astype(np.float64)
             cube[cubeIndex] = raster
             key = str(year) + str(day).zfill(3)
             xref[key] = cubeIndex

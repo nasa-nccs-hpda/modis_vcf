@@ -81,10 +81,9 @@ class BuildTraining(object):
         # GetTileIds requires _trainingFileSuffix. Sometimes .bin, .out,
         # .samp.bin, .bare.4.out
         # ---
-        self._trainingFileSuffix = '.out'
+        self._trainingFileSuffix = '.samp.bin'
         
         self._outFileSuffix = '-training+obsForRF.parq'
-
         self._tids: list = tileIds or self._getTileIds()
         
         self._logger.info('Year: ' + str(self._year))

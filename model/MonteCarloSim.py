@@ -54,6 +54,7 @@ class MonteCarloSim(object):
                  minTimesEachVarUsed: int = 10,
                  procInputTrainFilesIndependently: bool = True,
                  numCpus: int = 1,
+                 maxTrials: int = 20000,
                  logger: logging.RootLogger = None):
         
         if not logger:
@@ -93,9 +94,10 @@ class MonteCarloSim(object):
         self._initTraining(procInputTrainFilesIndependently)
 
         # Initialize the simulation parameters.
-        self._numVarsForFinalModel: int = numVarsForFinalModel
-        self._predictorsPerTrial: int = predictorsPerTrial
+        self._numVarsForFinalModel: int = numVarsForFinalModel or 20
+        self._predictorsPerTrial: int = predictorsPerTrial or 10
         self._numCpus = min(numCpus, multiprocessing.cpu_count())
+        self._maxTrials = maxTrials
         
         self._minTimesEachVarUsed: int = \
             minTimesEachVarUsed if minTimesEachVarUsed is not None else 10
@@ -118,6 +120,7 @@ class MonteCarloSim(object):
         
         logger.info('Min var usage: ' + str(self._minTimesEachVarUsed))
         logger.info('CPUs in use: ' + str(self._numCpus))
+        logger.info('Max trials: ' + str(self._maxTrials))
 
     # ------------------------------------------------------------------------
     # initTraining
@@ -305,6 +308,18 @@ class MonteCarloSim(object):
         
         while not allConditionsMet:
             
+            # This is mostly for testing, so test complete quickly.
+            if numCompleted >= self._maxTrials:
+                
+                self._logger.warn('Insufficient trials were run because ' + 
+                                  'the maximum trials is too low. ' +
+                                  'Selecting a bogus set of variables ' +
+                                  'for the final model.')
+                                  
+                allConditionsMet = True
+                topN = self._allVars[0:self._numVarsForFinalModel]
+                break
+                
             # ---
             # Run a batch of trials.  The batch size depends on the number
             # of total trials requested and the number of CPUs.

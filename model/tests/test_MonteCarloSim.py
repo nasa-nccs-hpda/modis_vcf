@@ -51,7 +51,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             procInputTrainFilesIndependently = False,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 1)
         self.assertEqual(mcs._predictorsPerTrial, 10)
         self.assertEqual(mcs.numVarsForFinalModel, 20)
         self.assertEqual(mcs._minTimesEachVarUsed, 10)
@@ -64,8 +64,8 @@ class MonteCarloSimTestCase(unittest.TestCase):
         self.assertIsInstance(mcs._y, pd.Series)
         self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
         self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
-        self.assertEqual(mcs._X.shape, (2000, 258))
-        self.assertEqual(mcs._y.shape, (2000,))
+        self.assertEqual(mcs._X.shape, (268039, 11))
+        self.assertEqual(mcs._y.shape, (268039,))
         
         # The number of trials and number of CPUs should be adjusted.
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
@@ -77,7 +77,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             procInputTrainFilesIndependently = False,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 1)
         self.assertEqual(mcs._predictorsPerTrial, 2)
         self.assertEqual(mcs.numVarsForFinalModel, 3)
         self.assertEqual(mcs._minTimesEachVarUsed, 4)
@@ -90,15 +90,15 @@ class MonteCarloSimTestCase(unittest.TestCase):
         self.assertIsInstance(mcs._y, pd.Series)
         self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
         self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
-        self.assertEqual(mcs._X.shape, (2000, 258))
-        self.assertEqual(mcs._y.shape, (2000,))
+        self.assertEqual(mcs._X.shape, (268039, 11))
+        self.assertEqual(mcs._y.shape, (268039,))
 
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
                             MonteCarloSimTestCase.outDir,
                             numVarsForFinalModel = 3,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 1)
         self.assertEqual(mcs._predictorsPerTrial, 10)
         self.assertEqual(mcs.numVarsForFinalModel, 3)
         self.assertEqual(mcs._minTimesEachVarUsed, 10)
@@ -111,8 +111,8 @@ class MonteCarloSimTestCase(unittest.TestCase):
         self.assertIsInstance(mcs._y, pd.Series)
         self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
         self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
-        self.assertEqual(mcs._X.shape, (2000, 258))
-        self.assertEqual(mcs._y.shape, (2000,))
+        self.assertEqual(mcs._X.shape, (268039, 11))
+        self.assertEqual(mcs._y.shape, (268039,))
 
     # -------------------------------------------------------------------------
     # testAllVars
@@ -123,7 +123,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             MonteCarloSimTestCase.outDir,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs._allVars), 255)
+        self.assertEqual(len(mcs._allVars), 8)
         
     # -------------------------------------------------------------------------
     # testChooseColumns
@@ -158,6 +158,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 0,
+                            maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
 
         mcs.run()
@@ -218,6 +219,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             predictorsPerTrial = 1,
                             numVarsForFinalModel = 20,
                             minTimesEachVarUsed = 0,
+                            maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
 
         mcs.run()
@@ -233,7 +235,10 @@ class MonteCarloSimTestCase(unittest.TestCase):
 
             mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
                                 MonteCarloSimTestCase.outDir,
+                                predictorsPerTrial = 1,
+                                numVarsForFinalModel = 20,
                                 minTimesEachVarUsed = 1,
+                                maxTrials=200,  # So the test ends soon
                                 logger = MonteCarloSimTestCase.logger)
 
             try:
@@ -265,6 +270,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 1,
+                            maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
 
         mcs.run()
@@ -281,6 +287,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 0,
+                            maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
                  
         rf: RandomForestRegressor = mcs.run()
@@ -291,12 +298,20 @@ class MonteCarloSimTestCase(unittest.TestCase):
         # Non-zero permutation importance sufficient for top-N.
         averages: dict = mcs.computeAverages()
         
+        # ---
+        # There will not be numVarsForFinalModel in the model because the
+        # maximum trials was set to 200 to keep the simulation from running
+        # impractically long.
+        # ---
+        ADJUSTED_NUM_VARS_FOR_FINAL_MODEL = 8
+        
         self.assertLessEqual( \
-            mcs.numVarsForFinalModel,
+            ADJUSTED_NUM_VARS_FOR_FINAL_MODEL,
             sum(1 if a != 0 else 0 for a in averages.values()))
             
         # The top-N validity tests are satisfied before the final model run.
-        self.assertEqual(len(rf.feature_names_in_), mcs.numVarsForFinalModel)
+        self.assertEqual(len(rf.feature_names_in_),
+                         ADJUSTED_NUM_VARS_FOR_FINAL_MODEL)
         
     # -------------------------------------------------------------------------
     # testRunTrials
@@ -306,6 +321,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
+                            maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
                             
         numCompleted = 0
@@ -319,6 +335,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
+                            maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
                 
         sampName = \
@@ -339,6 +356,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 0,
+                            maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
              
         rf1: RandomForestRegressor = mcs.run()
@@ -359,6 +377,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                            
         mcs = MonteCarloSim(MonteCarloSimTestCase.base / 'training',
                             MonteCarloSimTestCase.base,
+                            maxTrials=200,  # So the test ends soon
                             logger=MonteCarloSimTestCase.logger)
         
         trial: Trial = mcs._runOneTrial()

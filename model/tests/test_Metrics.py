@@ -52,12 +52,12 @@ class MetricsTestCase(unittest.TestCase):
         self.year2019 = 2019
         
         self._mod44InDir = \
-            Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+            Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
 
         self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
-                                 '/SystemTesting/modis-vcf/MOD44') 
+                                 '/SystemTesting/modis-vcf/UnitTest') 
 
         self.mmMod44 = Metrics(self.h09v05,
                                self.year2019,
@@ -791,7 +791,7 @@ class MetricsTestCase(unittest.TestCase):
                                                 logger=None,
                                                 dayDir=dayDir)
 
-        raster = cdf.raster
+        raster = cdf.raster()
         raster = np.where(np.isnan(raster), -10001, raster).astype(int)
         self.assertTrue(np.array_equal(metric.cube[index], raster))
         
@@ -843,7 +843,7 @@ class MetricsTestCase(unittest.TestCase):
                                                 logger=None,
                                                 dayDir=dayDir)
 
-        raster = cdf.raster
+        raster = cdf.raster()
         raster = np.where(np.isnan(raster), -10001, raster).astype(int)
 
         x = 2888
@@ -2036,7 +2036,7 @@ class MetricsTestCase(unittest.TestCase):
 
                 cdf._logger.setLevel(logging.WARNING)
                 cdfs.append(cdf)
-                cdfValues.append(cdf.raster[x, y])
+                cdfValues.append(cdf.raster()[x, y])
 
         print('All CDFs no-data?', (np.array(cdfValues) == pt.NO_DATA).all())
         
@@ -2053,7 +2053,7 @@ class MetricsTestCase(unittest.TestCase):
                                                mm._dayDir)
 
             bdf._logger.setLevel(logging.WARNING)
-            print(bdf.raster[x, y])
+            print(bdf.raster()[x, y])
         
         
         
@@ -2079,7 +2079,7 @@ class MetricsTestCase(unittest.TestCase):
         #         band, xref = mm.getBandCube(bandName)
         #         # b31, b31X = mm.getBandCube(pt.BAND31)
         #
-        #         print(year, day, bandName, cdf.raster[x, y], band[:, x, y])
+        #         print(year, day, bandName, cdf.raster()[x, y], band[:, x, y])
         #         # print('B31', b31[:, x, y])
         #
         #         daysInComp = cdf._getDaysToFind()

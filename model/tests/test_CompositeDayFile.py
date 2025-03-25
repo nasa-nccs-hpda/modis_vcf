@@ -211,12 +211,12 @@ class CompositeDayFileTestCase(unittest.TestCase):
                                                 dayDir=self._dayDirMod44)
                             
         cdf.outName.unlink(missing_ok=True)                    
-        composite = cdf.raster
+        composite = cdf.raster()
         self.assertEqual(composite.shape, (4800, 4800))
         self.assertEqual(composite.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
-        composite2 = cdf.raster
+        composite2 = cdf.raster()
         self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
         self.assertEqual(composite2.shape, (4800, 4800))
         self.assertEqual(composite2.dtype, np.int16)
@@ -227,12 +227,12 @@ class CompositeDayFileTestCase(unittest.TestCase):
     def testMod09B1(self):
         
         self.cdfMod09.outName.unlink(missing_ok=True)                    
-        composite = self.cdfMod09.raster
+        composite = self.cdfMod09.raster()
         self.assertEqual(composite.shape, (4800, 4800))
         self.assertEqual(composite.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
-        composite2 = self.cdfMod09.raster
+        composite2 = self.cdfMod09.raster()
         self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
         self.assertEqual(composite2.shape, (4800, 4800))
         self.assertEqual(composite2.dtype, np.int16)
@@ -251,13 +251,15 @@ class CompositeDayFileTestCase(unittest.TestCase):
                                                 logger=None,
                                                 dayDir=self._dayDirMod09)
                                                 
-        cdf.outName.unlink(missing_ok=True)                    
-        composite = cdf.raster
-        self.assertEqual(composite.shape, (4800, 4800))
+        cdf.outName.unlink(missing_ok=True)   
+        
+        # Band 31 is of type uint16.  This will fail.                 
+        composite = cdf.raster()
         self.assertEqual(composite.dtype, np.int16)
+        self.assertEqual(composite.shape, (4800, 4800))
         
         # Call it again to test Numpy fromfile.
-        composite2 = cdf.raster
+        composite2 = cdf.raster()
         self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
         self.assertEqual(composite2.shape, (4800, 4800))
         self.assertEqual(composite2.dtype, np.int16)
@@ -277,7 +279,7 @@ class CompositeDayFileTestCase(unittest.TestCase):
                                                 dayDir=self._dayDirMod09)
 
         cdf.outName.unlink(missing_ok=True)                    
-        composite = cdf.raster
+        composite = cdf.raster()
         self.assertEqual(composite.shape, (4800, 4800))
         self.assertEqual(composite.dtype, np.int16)
 
@@ -301,12 +303,12 @@ class CompositeDayFileTestCase(unittest.TestCase):
         # 2020049 is the last day of the 32-day composites starting in 2019.
         # For MOD09 this should be comprised of two day files, 49 and 57.
         # ---
-        composite = cdf.raster
+        composite = cdf.raster()
         self.assertEqual(composite.shape, (4800, 4800))
         self.assertEqual(composite.dtype, np.int16)
         
         # Call it again to test Numpy fromfile.
-        composite2 = cdf.raster
+        composite2 = cdf.raster()
         self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
         self.assertEqual(composite2.shape, (4800, 4800))
         self.assertEqual(composite2.dtype, np.int16)
@@ -406,7 +408,7 @@ class CompositeDayFileTestCase(unittest.TestCase):
         cdf.outName.unlink(missing_ok=True)                    
         expDays = [(2019, 65), (2019, 81)]
         self.assertEqual(cdf._getDaysToFind(), expDays)
-        comp = cdf.raster   
+        comp = cdf.raster()   
         self.assertEqual(comp.dtype, np.int16)     
         testDays = []
         
@@ -469,7 +471,7 @@ class CompositeDayFileTestCase(unittest.TestCase):
                                                 logger=None,
                                                 dayDir=self._dayDirMod44)
 
-        cdf.raster
+        cdf.raster()
 
     # -------------------------------------------------------------------------
     # testRead
@@ -485,12 +487,12 @@ class CompositeDayFileTestCase(unittest.TestCase):
                                                 logger=None,
                                                 dayDir=self._dayDirMod44)
 
-        r1 = cdf.raster
+        r1 = cdf.raster()
         self.assertEqual(r1.shape, (4800, 4800))
         self.assertEqual(r1.dtype, np.int16)
-        r2 = cdf.raster
+        r2 = cdf.raster()
         self.assertTrue(np.array_equal(r1, r2, equal_nan=True))
         cdf._raster = None
-        r3 = cdf.raster
+        r3 = cdf.raster()
         self.assertTrue(np.array_equal(r1, r3, equal_nan=True))
         

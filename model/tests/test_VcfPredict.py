@@ -2,6 +2,9 @@
 from pathlib import Path
 import unittest
 
+import numpy as np
+
+from modis_vcf.model.Band import Band
 from modis_vcf.model.VcfPredict import VcfPredict
 
 
@@ -23,48 +26,125 @@ class VcfPredictTestCase(unittest.TestCase):
         self._years = [2019, 2020]
         self._tids = ['h09v05', 'h11v02']
         
-        self._rfFile = Path('/explore/nobackup/people/rlgill/SystemTesting' + 
-                            '/modis-vcf/MOD44-save/Test-MC-model.bin')
+        self._treeCoverRfFile = \
+            Path(__file__).parent / 'Percent_Tree_Cover.bin'
+        
+        self._nonvegRfFile = \
+            Path(__file__).parent / 'Percent_NonVegetated.bin'
         
         self._outDir = Path('/explore/nobackup/people/rlgill/SystemTesting' +
-                            '/modis-vcf/MOD44-save/vcfProcess')
-        
+                            '/modis-vcf/UnitTests/vcfProcess')
+
         self._metricsDir = Path('/explore/nobackup/people/rlgill/' +
-                                'SystemTesting/modis-vcf/MOD44-save')
-        
-        self._vcfp = VcfPredict(self._rfFile, self._outDir, self._metricsDir)
+                                'SystemTesting/modis-vcf/UnitTests')
+
+        self._vcfp = VcfPredict(self._treeCoverRfFile, 
+                                self._nonvegRfFile,
+                                self._outDir, 
+                                self._metricsDir)
         
     # -------------------------------------------------------------------------
     # testInit
     # -------------------------------------------------------------------------
     def testInit(self):
 
-        vcfp = VcfPredict(self._rfFile, self._outDir, self._metricsDir)
+        vcfp = VcfPredict(self._treeCoverRfFile, 
+                          self._nonvegRfFile,
+                          self._outDir, 
+                          self._metricsDir)
+                          
         self.assertEqual(vcfp._outDir, self._outDir)
         
+    # -------------------------------------------------------------------------
+    # testGetMask
+    # -------------------------------------------------------------------------
+    def testGetMask(self):
+        
+        mask = self._vcfp._getMask(self._tids[0], self._years[0])
+        self.assertEqual(mask.dtype, np.int16)
+        self.assertEqual(mask.shape, (4800, 4800))
+
     # -------------------------------------------------------------------------
     # testGetMetrics
     # -------------------------------------------------------------------------
     def testGetMetrics(self):
         
-        self._vcfp._getMetrics(self._tids[0], self._years[0])
+        self._vcfp._getMetrics(self._tids[0], 
+                               self._years[0], 
+                               self._vcfp._treeCoverRf)
 
     # -------------------------------------------------------------------------
     # testGetUnsortedMonthlyBands
     # -------------------------------------------------------------------------
     def testGetUnsortedMonthlyBands(self):
         
-        met = self._vcfp._getMetrics(self._tids[0], 
-                                     self._years[0], 
-                                     'UnsortedMonthlyBands-NDVI-Day_2020017')
+        met: pd.DataFrame = \
+            self._vcfp._getMetrics(self._tids[0], 
+                                   self._years[0], 
+                                   'UnsortedMonthlyBands-NDVI-Day_2020017')
                                     
-        self.assertEqual(len(met), 1)
+        self.assertEqual(met.shape, (23040000, 1))
 
-        met = self._vcfp._getMetrics(self._tids[0], 
-                                     self._years[0], 
-                                     'UnsortedMonthlyBands-Band_6-Day_2019289')
+        met: pd.DataFrame = \
+            self._vcfp._getMetrics(self._tids[0], 
+                                   self._years[0], 
+                                   'UnsortedMonthlyBands-Band_6-Day_2019289')
                                     
+    # -------------------------------------------------------------------------
+    # testMaskPrediction
+    # -------------------------------------------------------------------------
+    def testMaskPrediction(self):
+        
+        X = self._vcfp._getMetrics(self._tids[0], self._years[0])
+        X = X.replace(-10001, 10001)
 
+        # Run Random Forest.
+        prediction: np.ndarray = self._vcfp._treeCoverRf.predict(X). \
+                                 astype(np.int16). \
+                                 reshape(Band.ROWS, Band.COLS)
+
+        maskedPred: np.ndarray = self._vcfp._maskPrediction(self._tids[1],
+                                                            self._years[1],
+                                                            prediction)
+                                                            
+        # Get mask.
+        mask: np.ndarray = self._vcfp._getMask(self._tids[1], self._years[1])
+        
+        # Check water mask.
+        self.assertTrue((mask == VcfPredict.MASK_WATER).any())
+        self.assertTrue((maskedPred == VcfPredict.PRED_WATER).any())
+        
+        waterIndexes = np.nonzero(mask == VcfPredict.MASK_WATER)
+        maskedPredAtWaterIndexes = maskedPred[waterIndexes]
+
+        self.assertTrue((maskedPredAtWaterIndexes == \
+                         VcfPredict.PRED_WATER).all())
+        
+        # Check out-of-projection mask.
+        self.assertTrue((mask == VcfPredict.MASK_OUT_OF_PROJ).any())
+        self.assertTrue((maskedPred == VcfPredict.PRED_OUT_OF_PROJ).any())
+        
+        oopIndexes = np.nonzero(mask == VcfPredict.MASK_OUT_OF_PROJ)
+        maskedPredAtOopIndexes = maskedPred[oopIndexes]
+
+        self.assertTrue((maskedPredAtOopIndexes == \
+                         VcfPredict.PRED_OUT_OF_PROJ).all())
+        
+        # Ensure predictions are untouched where there is no mask.
+        self.assertTrue((mask != VcfPredict.MASK_WATER).any())
+        self.assertTrue((maskedPred != VcfPredict.PRED_WATER).any())
+        self.assertTrue((mask != VcfPredict.MASK_OUT_OF_PROJ).any())
+        self.assertTrue((maskedPred != VcfPredict.PRED_OUT_OF_PROJ).any())
+ 
+        okIndexes = np.nonzero((mask != VcfPredict.MASK_WATER) & \
+                               (mask != VcfPredict.MASK_OUT_OF_PROJ))
+        
+        maskedPredAtOkIndexes = maskedPred[okIndexes]
+        
+        self.assertTrue( \
+            ((maskedPredAtOkIndexes != VcfPredict.PRED_WATER) &
+             (maskedPredAtOkIndexes != VcfPredict.PRED_OUT_OF_PROJ)).all())
+        
     # -------------------------------------------------------------------------
     # testRunTileForYear
     # -------------------------------------------------------------------------
@@ -76,6 +156,11 @@ class VcfPredictTestCase(unittest.TestCase):
     # testRun
     # -------------------------------------------------------------------------
     def testRun(self):
-        
+
+        # Tile h11v02 is missing files, causing VCFP to fail. 
+        import pdb
+        pdb.set_trace()
+        self._vcfp.run([self._tids[1]], [self._years[1]])
+
         self._vcfp.run(self._tids, self._years)
         

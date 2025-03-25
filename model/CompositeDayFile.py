@@ -81,7 +81,7 @@ class CompositeDayFile(DayFile):
     # ------------------------------------------------------------------------
     # getRaster
     # ------------------------------------------------------------------------
-    def _getRaster(self) -> np.ndarray:
+    def _getRaster(self, applyQa=True) -> np.ndarray:
         
         # ---
         # Determine the julian days the product type is expected to have
@@ -109,7 +109,7 @@ class CompositeDayFile(DayFile):
             try:
                 
                 # Use float because of the forthcoming mean operation.
-                dayNoData = bdf.raster.astype(np.float64)
+                dayNoData = bdf.raster().astype(np.float64)
                           
                 if not self._geoTransform: 
                     self._geoTransform = bdf._geoTransform
