@@ -9,6 +9,7 @@ import pandas as pd
 
 from modis_vcf.model.Band import Band
 from modis_vcf.model.BuildTraining import BuildTraining
+from modis_vcf.model.BuildTraining import TrainingType
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
@@ -37,7 +38,7 @@ class BuildTrainingTestCase(unittest.TestCase):
         cls._metNames = ['metricTempMeanGreenest3']
         cls._productType = ProductTypeMod44(cls._modDir)
         cls._tids = ['h09v05']
-        cls._trainingName = 'PercentTree'
+        cls._trainingType = TrainingType.PCT_TREE
         cls._year = 2019
 
         # Directories
@@ -46,7 +47,6 @@ class BuildTrainingTestCase(unittest.TestCase):
                  
         cls._metDir = baseDir / '1-Metrics'
         cls._outDir = baseDir / '2-Training'
-        cls._trainingDir = BuildTraining.TRAINING_DIR
                  
     # -------------------------------------------------------------------------
     # testInit
@@ -58,8 +58,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
-                           BuildTrainingTestCase._trainingDir,
-                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            BuildTrainingTestCase._metNames,
                            BuildTrainingTestCase._productType,
@@ -69,7 +68,7 @@ class BuildTrainingTestCase(unittest.TestCase):
         self.assertEqual(bt._modisDir, BuildTrainingTestCase._modDir)
         self.assertEqual(bt._outDir, BuildTrainingTestCase._outDir)
         self.assertEqual(bt._logger, BuildTrainingTestCase._logger)
-        self.assertEqual(bt._trainingName, BuildTrainingTestCase._trainingName)
+        self.assertEqual(bt._trainingType, BuildTrainingTestCase._trainingType)
 
         # Test invalid output directory.
         with self.assertRaisesRegex(RuntimeError, 'does not exist'):
@@ -78,8 +77,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                                BuildTrainingTestCase._modDir,
                                BuildTrainingTestCase._metDir,
                                Path('bogus'),
-                               BuildTrainingTestCase._trainingDir,
-                               BuildTrainingTestCase._trainingName,
+                               BuildTrainingTestCase._trainingType,
                                BuildTrainingTestCase._tids,
                                BuildTrainingTestCase._metNames,
                                BuildTrainingTestCase._productType,
@@ -90,8 +88,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
-                           BuildTrainingTestCase._trainingDir,
-                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._trainingType,
                            None,
                            BuildTrainingTestCase._metNames,
                            BuildTrainingTestCase._productType,
@@ -102,8 +99,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
-                           BuildTrainingTestCase._trainingDir,
-                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            None,
                            BuildTrainingTestCase._productType,
@@ -114,8 +110,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
-                           BuildTrainingTestCase._trainingDir,
-                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            BuildTrainingTestCase._metNames,
                            None,
@@ -126,8 +121,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
-                           BuildTrainingTestCase._trainingDir,
-                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            BuildTrainingTestCase._metNames,
                            BuildTrainingTestCase._productType)
@@ -141,8 +135,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
-                           BuildTrainingTestCase._trainingDir,
-                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            BuildTrainingTestCase._metNames,
                            BuildTrainingTestCase._productType,
@@ -161,8 +154,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
-                           BuildTrainingTestCase._trainingDir,
-                           BuildTrainingTestCase._trainingName,
+                           BuildTrainingTestCase._trainingType,
                            tileIds = ['h09v05'],
                            metricNames = ['metricAmpBandRefl'])
 

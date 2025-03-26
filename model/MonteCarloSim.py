@@ -3,6 +3,7 @@ from concurrent.futures import FIRST_EXCEPTION
 from concurrent.futures import Future
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import wait
+import datetime as datetime
 import glob
 import joblib
 import logging
@@ -296,6 +297,22 @@ class MonteCarloSim(object):
         return True
 
     # ------------------------------------------------------------------------
+    # printSortedPredictors
+    # ------------------------------------------------------------------------
+    def _printSortedPredictors(self, averages: dict) -> list:
+        
+        sortedPreds: list[Tuple] = \
+            sorted(averages.items(), key=lambda x: x[1], reverse=True)
+            
+        sortedPreds = [x[0] for x in sortedPreds]
+        
+        timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
+        outPath: Path = self._outDir / ('SortedMetrics-' + timeStamp + '.txt')
+        
+        with open(outPath, 'w') as f:
+           f.write('\n'.join(str(i) for i in sortedPreds)) 
+
+    # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
     def run(self) -> RandomForestRegressor:
@@ -305,6 +322,7 @@ class MonteCarloSim(object):
         varUsageCount = dict.fromkeys(self._allVars, 0)
         rf: RandomForestRegressor = None
         allConditionsMet = False
+        averages = {}
         
         while not allConditionsMet:
             
@@ -334,7 +352,7 @@ class MonteCarloSim(object):
                 continue
 
             # Compute average permutation importance.
-            averages: dict = self.computeAverages()
+            averages = self.computeAverages()
             
             # Monitor non-zero permutation importance.
             if sum(1 if a != 0 else 0 for a in averages.values()) < \
@@ -369,9 +387,9 @@ class MonteCarloSim(object):
         # Run the final model.
         if allConditionsMet:
             
-            rf = self._runRandomForest(self._xTrain[topN],
-                                       self._yTrain)
-
+            rf = self._runRandomForest(self._xTrain[topN], self._yTrain)
+            self._printSortedPredictors(averages)
+            
         return rf
         
     # ------------------------------------------------------------------------
@@ -455,7 +473,7 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def saveFinalModel(self, finalModel: RandomForestRegressor) -> Path:
         
-        outPath: Path = self._outDir / ('MCS-model.bin')
+        outPath: Path = self._outDir / ('Percent_Tree_Cover.bin')
         
         with open(outPath, 'wb') as f:
             joblib.dump(finalModel, f)

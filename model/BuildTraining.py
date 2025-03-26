@@ -1,4 +1,5 @@
 
+from enum import Enum
 import logging
 from pathlib import Path
 import sys
@@ -11,6 +12,10 @@ from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductType import ProductType
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
+
+class TrainingType(Enum):
+    PCT_TREE = 'pcttree'
+    PCT_BARE = 'pctbare'
 
 # ----------------------------------------------------------------------------
 # BuildTraining
@@ -27,9 +32,7 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # ----------------------------------------------------------------------------
 class BuildTraining(object):
     
-    TRAINING_DIR = Path('/explore/nobackup/projects/ilab/data/' +
-                        'MODIS/MODIS_VCF/Mark_training/' +
-                        'VCF_training_adjusted/tile_adjustment/v5.0.3samp/')
+    TRAINING_DIR = Path(__file__).parent.parent / 'data' / 'training'
     
     # ------------------------------------------------------------------------
     # __init__
@@ -39,8 +42,7 @@ class BuildTraining(object):
                  modisDir: Path,
                  metricsDir: Path,
                  outDir: Path,
-                 trainingDir: Path,
-                 trainingName: str,
+                 trainingType: TrainingType=None,
                  tileIds: list = None, 
                  metricNames: list = None,
                  productType: ProductType = None,
@@ -72,26 +74,25 @@ class BuildTraining(object):
         self._modisDir: Path = modisDir
         self._metricsDir: Path = metricsDir
         self._outDir: Path = outDir
-        self._trainingDir: Path = trainingDir or BuildTraining.TRAINING_DIR
-        self._trainingName: str = trainingName
         self._metricNames: list = metricNames
         self._productType = productType or ProductTypeMod44(self._modisDir)
-
-        # ---
-        # GetTileIds requires _trainingFileSuffix. Sometimes .bin, .out,
-        # .samp.bin, .bare.4.out
-        # ---
-        self._trainingFileSuffix = '.samp.bin'
-        
         self._outFileSuffix = '-training+obsForRF.parq'
-        self._tids: list = tileIds or self._getTileIds()
         
+        self._trainingType: TrainingType = \
+            trainingType or TrainingType.PCT_TREE
+        
+        self._trainingFilePrefix = \
+            'VCF_training_' + self._trainingType.value + '_'
+        
+        self._trainingFileSuffix = '.7.0.0.out'
+        
+        self._tids: list = tileIds or self._getTileIds()
+
         self._logger.info('Year: ' + str(self._year))
         self._logger.info('MODIS dir: ' + str(self._modisDir))
         self._logger.info('Metrics dir: ' + str(self._metricsDir))
         self._logger.info('Output dir: ' + str(self._outDir))
-        self._logger.info('Training dir: ' + str(self._trainingDir))
-        self._logger.info('Training name: ' + self._trainingName)
+        self._logger.info('Training type: ' + self._trainingType.value)
         self._logger.info('TIDs: ' + str(self._tids))
         self._logger.info('Metric names: ' + str(self._metricNames))
         
@@ -139,7 +140,7 @@ class BuildTraining(object):
             allTraining = np.append(allTraining, samples).astype(np.int16)
 
         # Add the training to the data frame as one big column.
-        df[self._trainingName] = allTraining
+        df[self._trainingType.value] = allTraining
         
         return df
         
@@ -148,16 +149,21 @@ class BuildTraining(object):
     # ------------------------------------------------------------------------
     def _getTileIds(self) -> list:
 
-        sampleFiles = self._trainingDir.glob('*' + self._trainingFileSuffix)
+        sampleFiles = \
+            BuildTraining.TRAINING_DIR.glob('*' + self._trainingFileSuffix)
+        
         tids = [f.name.split('.')[0] for f in sampleFiles]
+        tids = [tid.split('_')[-1] for tid in tids]
         return tids
         
     # ------------------------------------------------------------------------
     # getTrainingFileName
     # ------------------------------------------------------------------------
-    def getTrainingFileName(self, tid) -> Path:
+    def getTrainingFileName(self, tid:str) -> Path:
         
-        tFileName = self._trainingDir / (tid + self._trainingFileSuffix)
+        baseName = self._trainingFilePrefix + tid + self._trainingFileSuffix
+        tFileName = BuildTraining.TRAINING_DIR / baseName
+            
         return tFileName
         
     # ------------------------------------------------------------------------
@@ -188,8 +194,7 @@ class BuildTraining(object):
         df = pd.DataFrame.from_dict( \
             dfRows,
             orient='index',
-            columns=['tid-year', 'x', 'y'])  #,
-            # dtype=np.int16)
+            columns=['tid-year', 'x', 'y'])
 
         return df
         
@@ -281,7 +286,7 @@ class BuildTraining(object):
                 self._logger.error('Failed tid ' + str(tid))
                 
             # Remove rows that do not have training data.
-            df: pd.DataFrame = df[df[self._trainingName] != Band.NO_DATA]
+            df: pd.DataFrame = df[df[self._trainingType.value] != Band.NO_DATA]
 
             # Data frame to Parquet.
             self._logger.info('Writing ' + str(outFile))

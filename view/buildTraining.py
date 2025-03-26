@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 
 from modis_vcf.model.BuildTraining import BuildTraining
+from modis_vcf.model.BuildTraining import TrainingType
 
 # -----------------------------------------------------------------------------
 # main
@@ -37,10 +38,10 @@ def main():
                         nargs='*',
                         help='A space-separated list of metric names')
 
-    parser.add_argument('-n',
-                        type=str,
-                        default='PercentTree',
-                        help='Name of the training data')
+    # parser.add_argument('-n',
+    #                     type=str,
+    #                     default='PercentTree',
+    #                     help='Name of the training data')
 
     parser.add_argument('-o',
                         type=Path,
@@ -53,9 +54,15 @@ def main():
                         help='A space-separated list of tile IDs in ' +
                              'the form h##v## h##v##')
 
-    parser.add_argument('--trainingDir',
-                        type=Path,
-                        help='Directory containing raw training data')
+    # parser.add_argument('--trainingDir',
+    #                     type=Path,
+    #                     help='Directory into which Parquet training ' +
+    #                          'files are written')
+
+    parser.add_argument('--trainingType',
+                        choices=[TrainingType.PCT_TREE, 
+                                 TrainingType.PCT_BARE],
+                        help='Choose the training. type to run.')
 
     parser.add_argument('-y',
                         type=int,
@@ -69,19 +76,17 @@ def main():
     modisDir = args.modisDir
     metricsDir = args.metricsDir
     outDir = args.o
-    trainingDir = args.trainingDir
-    trainingName = args.n
+    trainingType = args.trainingType
     tids = args.t
     metricNames = args.m
     
-    bt = BuildTraining(year, 
-                       modisDir,
-                       metricsDir, 
-                       outDir, 
-                       trainingDir,
-                       trainingName, 
-                       tids, 
-                       metricNames)
+    bt = BuildTraining(year=year, 
+                       modisDir=modisDir,
+                       metricsDir=metricsDir, 
+                       outDir=outDir, 
+                       trainingType=trainingType, 
+                       tileIds=tids, 
+                       metricNames=metricNames)
 
     bt.run()
         
