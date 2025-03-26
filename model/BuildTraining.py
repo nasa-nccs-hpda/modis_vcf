@@ -13,7 +13,7 @@ from modis_vcf.model.ProductType import ProductType
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
 
-class TrainingType(Enum):
+class TrainingType(str, Enum):
     PCT_TREE = 'pcttree'
     PCT_BARE = 'pctbare'
 
@@ -244,8 +244,11 @@ class BuildTraining(object):
             parqDir.mkdir(exist_ok=True)
             
             outFile = parqDir / \
-                      (tid + '-' + str(self._year) + self._outFileSuffix)
-            
+                      (tid + '-' + 
+                       str(self._year) + '-' +
+                       self._trainingType +
+                       self._outFileSuffix)
+                      
             tidFiles.append(outFile)
 
             if outFile.exists() and self._logger:

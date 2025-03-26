@@ -38,11 +38,6 @@ def main():
                         nargs='*',
                         help='A space-separated list of metric names')
 
-    # parser.add_argument('-n',
-    #                     type=str,
-    #                     default='PercentTree',
-    #                     help='Name of the training data')
-
     parser.add_argument('-o',
                         type=Path,
                         default='.',
@@ -54,15 +49,10 @@ def main():
                         help='A space-separated list of tile IDs in ' +
                              'the form h##v## h##v##')
 
-    # parser.add_argument('--trainingDir',
-    #                     type=Path,
-    #                     help='Directory into which Parquet training ' +
-    #                          'files are written')
-
     parser.add_argument('--trainingType',
-                        choices=[TrainingType.PCT_TREE, 
-                                 TrainingType.PCT_BARE],
-                        help='Choose the training. type to run.')
+                        type=TrainingType,
+                        choices=[t.value for t in TrainingType],
+                        help='Choose the training type to run.')
 
     parser.add_argument('-y',
                         type=int,
