@@ -22,6 +22,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.model_selection import train_test_split
 
 from modis_vcf.model.MasterTraining import MasterTraining
+from modis_vcf.model.TrainingType import TrainingType
 from modis_vcf.model.Trial import Trial
 
 
@@ -49,6 +50,7 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def __init__(self, 
                  trainingDir: Path,
+                 trainingType: TrainingType, 
                  outDir: Path, 
                  predictorsPerTrial: int = 10, 
                  numVarsForFinalModel: int = 20,
@@ -92,7 +94,7 @@ class MonteCarloSim(object):
         self._yTest: np.ndarray = None
         self._y: pd.DataFrame = None
             
-        self._initTraining(procInputTrainFilesIndependently)
+        self._initTraining(procInputTrainFilesIndependently, trainingType)
 
         # Initialize the simulation parameters.
         self._numVarsForFinalModel: int = numVarsForFinalModel or 20
@@ -131,9 +133,12 @@ class MonteCarloSim(object):
     # performs the test/train split on each training file in the training
     # directory, and combines all those into composite test/train data.
     # ------------------------------------------------------------------------
-    def _initTraining(self, procTFilesIndependently) -> None:
+    def _initTraining(self, 
+                      procTFilesIndependently: bool, 
+                      trainingType: TrainingType) -> None:
         
-        self._masterTraining = MasterTraining(self._trainingDir, self._logger)
+        self._masterTraining = \
+            MasterTraining(self._trainingDir, trainingType, self._logger)
 
         self._allVars: list = self._masterTraining.dataset.schema.names \
                               [MasterTraining.START_COL:]

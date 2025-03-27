@@ -7,6 +7,8 @@ import pyarrow as pa
 from pyarrow.parquet import ParquetDataset
 from pyarrow.parquet import ParquetSchema
 
+from modis_vcf.model.TrainingType import TrainingType
+
 
 # ----------------------------------------------------------------------------
 # MasterTraining
@@ -31,7 +33,10 @@ class MasterTraining(object):
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
-    def __init__(self, trainingDir: Path, logger: logging.RootLogger):
+    def __init__(self, 
+                 trainingDir: Path, 
+                 trainingType: TrainingType, 
+                 logger: logging.RootLogger):
     
         if not trainingDir.exists() or not trainingDir.is_dir():
             
@@ -40,7 +45,7 @@ class MasterTraining(object):
                                ' is invalid.')
             
         self._logger: logging.RootLogger = logger
-        tFiles = list(trainingDir.glob('*.parq'))
+        tFiles = list(trainingDir.glob('*' + trainingType.value + '*.parq'))
         self._trainingDs: ParquetDataset = ParquetDataset(tFiles)
 
         # ---

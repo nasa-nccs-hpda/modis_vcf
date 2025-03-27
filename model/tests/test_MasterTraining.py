@@ -6,6 +6,7 @@ import tempfile
 import unittest
 
 from modis_vcf.model.MasterTraining import MasterTraining
+from modis_vcf.model.TrainingType import TrainingType
 
 
 # -----------------------------------------------------------------------------
@@ -29,9 +30,15 @@ class MasterTrainingTestCase(unittest.TestCase):
         cls.logger.addHandler(ch)
 
         cls.base = Path(__file__).parent
-        cls.h08v04 = MasterTrainingTestCase.base / 'h08v04-2019.parq.skip'
-        cls.h09v04: Path = MasterTrainingTestCase.base / 'h09v04-2019.parq'
-        cls.h09v05: Path = MasterTrainingTestCase.base / 'h09v05-2019.parq'
+        
+        cls.h08v04: Path = MasterTrainingTestCase.base / \
+                           'h08v04-2019-pcttree-training+obsForRF.parq.skip'
+        
+        cls.h09v04: Path = MasterTrainingTestCase.base / \
+                           'h09v04-2019-pcttree-training+obsForRF.parq'
+        
+        cls.h09v05: Path = MasterTrainingTestCase.base / \
+                           'h09v05-2019-pcttree-training+obsForRF.parq'
 
         cls.validFragPaths = [MasterTrainingTestCase.h09v04,
                               MasterTrainingTestCase.h09v05]
@@ -42,6 +49,7 @@ class MasterTrainingTestCase(unittest.TestCase):
     def testInit(self):
 
         tm = MasterTraining(MasterTrainingTestCase.base,
+                            TrainingType.PCT_TREE,
                             MasterTrainingTestCase.logger)
                             
         # Ensure the expected fragments exist.
@@ -57,16 +65,19 @@ class MasterTrainingTestCase(unittest.TestCase):
         # Ensure the number of rows and columns are correct.
         # 259 columns - MasterTraining.startCol for each of 2 fragments.
         # ---
-        self.assertEqual(len(tm._colNames), 255)
+        self.assertEqual(len(tm._colNames), 8)
         self.assertEqual(len(tm._trainingDs.files), 2)
 
         # Test detection of a Parquet file with a mismatching schema.
-        doNotSkipName = MasterTrainingTestCase.base / 'h08v04-2019.parq'
+        doNotSkipName = MasterTrainingTestCase.base / \
+                        'h08v04-2019-pcttree-training+obsForRF.parq'
+                        
         MasterTrainingTestCase.h08v04.rename(doNotSkipName)
         
         with self.assertRaisesRegex(RuntimeError, 'differs from the primary'):
 
             tm = MasterTraining(MasterTrainingTestCase.base,
+                                TrainingType.PCT_TREE,
                                 MasterTrainingTestCase.logger)
                                 
         doNotSkipName.rename(MasterTrainingTestCase.h08v04)
@@ -75,10 +86,14 @@ class MasterTrainingTestCase(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, ' is invalid'):
 
             tm = MasterTraining(Path('invalid/dir'),
+                                TrainingType.PCT_TREE,
                                 MasterTrainingTestCase.logger)
         
         with self.assertRaisesRegex(RuntimeError, ' is invalid'):
-            tm = MasterTraining(Path(__file__),  MasterTrainingTestCase.logger)
+            
+            tm = MasterTraining(Path(__file__),  
+                                TrainingType.PCT_TREE,
+                                MasterTrainingTestCase.logger)
             
     # -------------------------------------------------------------------------
     # testDataset
@@ -86,6 +101,7 @@ class MasterTrainingTestCase(unittest.TestCase):
     def testDataset(self):
         
         tm = MasterTraining(MasterTrainingTestCase.base,
+                            TrainingType.PCT_TREE,
                             MasterTrainingTestCase.logger)
 
         self.assertEqual(len(tm.dataset.fragments), 2)
@@ -102,11 +118,12 @@ class MasterTrainingTestCase(unittest.TestCase):
     def testToPandas(self):
         
         tm = MasterTraining(MasterTrainingTestCase.base,
+                            TrainingType.PCT_TREE,
                             MasterTrainingTestCase.logger)
 
         df = tm.toPandas()
-        self.assertEqual(df.shape[0], 2000)
-        self.assertEqual(df.shape[1], 259)
+        self.assertEqual(df.shape[0], 536078)
+        self.assertEqual(df.shape[1], 12)
 
     # -------------------------------------------------------------------------
     # testToCsv
@@ -114,6 +131,7 @@ class MasterTrainingTestCase(unittest.TestCase):
     def testToCsv(self):
         
         tm = MasterTraining(MasterTrainingTestCase.base,
+                            TrainingType.PCT_TREE,
                             MasterTrainingTestCase.logger)  
                             
         outDir = Path(tempfile.mkdtemp())

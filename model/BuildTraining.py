@@ -1,5 +1,4 @@
 
-from enum import Enum
 import logging
 from pathlib import Path
 import sys
@@ -11,11 +10,8 @@ from modis_vcf.model.Band import Band
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductType import ProductType
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
+from modis_vcf.model.TrainingType import TrainingType
 
-
-class TrainingType(str, Enum):
-    PCT_TREE = 'pcttree'
-    PCT_BARE = 'pctbare'
 
 # ----------------------------------------------------------------------------
 # BuildTraining
