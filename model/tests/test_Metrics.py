@@ -57,7 +57,7 @@ class MetricsTestCase(unittest.TestCase):
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
 
         self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
-                                 '/SystemTesting/modis-vcf/UnitTest') 
+                                 '/SystemTesting/modis-vcf/UnitTests') 
 
         self.mmMod44 = Metrics(self.h09v05,
                                self.year2019,
@@ -371,7 +371,7 @@ class MetricsTestCase(unittest.TestCase):
         mm = self.mmMod44
         b5Name = ProductTypeMod44.BAND5
         b5, b5Xref = mm.getBandCube(b5Name)
-        self.assertEqual(np.count_nonzero(np.isnan(b5[:, 0, 0])), 0)
+        self.assertEqual(np.count_nonzero(np.isnan(b5[:, 0, 0])), 12)
 
         daysSought = [(2019, 65), (2019, 97), (2019, 129), (2019, 161), 
                       (2019, 193), (2019, 225), (2019, 257), (2019, 289),

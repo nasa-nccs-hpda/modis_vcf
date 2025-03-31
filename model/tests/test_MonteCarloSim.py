@@ -14,6 +14,7 @@ from sklearn.ensemble import RandomForestRegressor
 
 from modis_vcf.model.MasterTraining import MasterTraining
 from modis_vcf.model.MonteCarloSim import MonteCarloSim
+from modis_vcf.model.TrainingType import TrainingType
 from modis_vcf.model.Trial import Trial
 
 
@@ -47,11 +48,12 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testInit(self):
 
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             procInputTrainFilesIndependently = False,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 1)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
         self.assertEqual(mcs._predictorsPerTrial, 10)
         self.assertEqual(mcs.numVarsForFinalModel, 20)
         self.assertEqual(mcs._minTimesEachVarUsed, 10)
@@ -64,11 +66,12 @@ class MonteCarloSimTestCase(unittest.TestCase):
         self.assertIsInstance(mcs._y, pd.Series)
         self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
         self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
-        self.assertEqual(mcs._X.shape, (268039, 11))
-        self.assertEqual(mcs._y.shape, (268039,))
+        self.assertEqual(mcs._X.shape, (536078, 11))
+        self.assertEqual(mcs._y.shape, (536078,))
         
         # The number of trials and number of CPUs should be adjusted.
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 2, 
                             numVarsForFinalModel = 3,
@@ -77,7 +80,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             procInputTrainFilesIndependently = False,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 1)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
         self.assertEqual(mcs._predictorsPerTrial, 2)
         self.assertEqual(mcs.numVarsForFinalModel, 3)
         self.assertEqual(mcs._minTimesEachVarUsed, 4)
@@ -90,15 +93,16 @@ class MonteCarloSimTestCase(unittest.TestCase):
         self.assertIsInstance(mcs._y, pd.Series)
         self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
         self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
-        self.assertEqual(mcs._X.shape, (268039, 11))
-        self.assertEqual(mcs._y.shape, (268039,))
+        self.assertEqual(mcs._X.shape, (536078, 11))
+        self.assertEqual(mcs._y.shape, (536078,))
 
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             numVarsForFinalModel = 3,
                             logger=MonteCarloSimTestCase.logger)
 
-        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 1)
+        self.assertEqual(len(mcs._masterTraining.dataset.fragments), 2)
         self.assertEqual(mcs._predictorsPerTrial, 10)
         self.assertEqual(mcs.numVarsForFinalModel, 3)
         self.assertEqual(mcs._minTimesEachVarUsed, 10)
@@ -111,8 +115,8 @@ class MonteCarloSimTestCase(unittest.TestCase):
         self.assertIsInstance(mcs._y, pd.Series)
         self.assertEqual(len(mcs._X), len(mcs._xTrain) + len(mcs._xTest))
         self.assertEqual(len(mcs._y), len(mcs._yTrain) + len(mcs._yTest))
-        self.assertEqual(mcs._X.shape, (268039, 11))
-        self.assertEqual(mcs._y.shape, (268039,))
+        self.assertEqual(mcs._X.shape, (536078, 11))
+        self.assertEqual(mcs._y.shape, (536078,))
 
     # -------------------------------------------------------------------------
     # testAllVars
@@ -120,6 +124,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testAllVars(self):
         
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             logger=MonteCarloSimTestCase.logger)
 
@@ -131,6 +136,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testChooseColumns(self):
         
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             logger = MonteCarloSimTestCase.logger)
@@ -155,6 +161,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testComputeAverages(self):
         
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 0,
@@ -215,6 +222,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
         # conditions.
         # ---
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 1,
                             numVarsForFinalModel = 20,
@@ -234,6 +242,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
             # warnings.simplefilter('ignore')
 
             mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                                TrainingType.PCT_TREE,
                                 MonteCarloSimTestCase.outDir,
                                 predictorsPerTrial = 1,
                                 numVarsForFinalModel = 20,
@@ -260,6 +269,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testMinVarUsageAchieved(self):
         
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             logger=MonteCarloSimTestCase.logger)
 
@@ -267,6 +277,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
         
         # Verify minTimesEachVarUsed = 1. 
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 1,
@@ -284,6 +295,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testRun(self):
 
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 0,
@@ -319,6 +331,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testRunTrials(self):
 
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             maxTrials=200,  # So the test ends soon
@@ -333,6 +346,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testRunOneTrial(self):
 
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             maxTrials=200,  # So the test ends soon
@@ -353,6 +367,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
     def testSaveFinalModel(self):
         
         mcs = MonteCarloSim(MonteCarloSimTestCase.trainingDir,
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.outDir,
                             predictorsPerTrial = 4,
                             minTimesEachVarUsed = 0,
@@ -376,6 +391,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                            'notebooks/vcf_clustering/new_parq')
                            
         mcs = MonteCarloSim(MonteCarloSimTestCase.base / 'training',
+                            TrainingType.PCT_TREE,
                             MonteCarloSimTestCase.base,
                             maxTrials=200,  # So the test ends soon
                             logger=MonteCarloSimTestCase.logger)

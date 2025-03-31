@@ -11,7 +11,7 @@ from modis_vcf.model.VcfPredict import VcfPredict
 # -----------------------------------------------------------------------------
 # main
 #
-# python modis_vcf/view/vcfPredict.py -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44/vcfProcess --modelFile /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44-save/Test-MC-model.bin --metricsDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/MOD44 -t h09v05 -y 2019
+# modis_vcf/view/vcfPredict.py --tc /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/3-Models/pcttree.bin --nv /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/3-Models/pctbare.bin -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/4-VcfProcess --metricsDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/1-Metrics -t h09v05 h11v02 -y 2019
 # -----------------------------------------------------------------------------
 def main():
     
@@ -27,21 +27,26 @@ def main():
                         type=Path,
                         help='Path to existing metrics.')
 
-    parser.add_argument('--modelFile',
-                        required=True,
-                        type=Path,
-                        help='Path to trained model.')
-
     parser.add_argument('--modisDir',
                         type=Path,
                         default=MOD44_DIR,
                         help='Path to MODIS image directory.')
+
+    parser.add_argument('--nv',
+                        required=True,
+                        type=Path,
+                        help='Path to non-vegetated model.')
 
     parser.add_argument('-t',
                         type=str,
                         nargs='*',
                         help='A space-separated list of tile IDs in ' +
                              'the form h##v## h##v##')
+
+    parser.add_argument('--tc',
+                        required=True,
+                        type=Path,
+                        help='Path to tree-cover model.')
 
     parser.add_argument('-y',
                         type=int,
@@ -50,7 +55,8 @@ def main():
 
     args = parser.parse_args()
     
-    vcfp = VcfPredict(args.modelFile, 
+    vcfp = VcfPredict(args.tc,
+                      args.nv,
                       args.o, 
                       args.metricsDir,
                       args.modisDir)

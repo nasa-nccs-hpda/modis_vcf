@@ -84,6 +84,7 @@ class MonteCarloSim(object):
 
         # Consolidate training-related initialization.
         self._trainingDir: Path = trainingDir
+        self._trainingType: TrainingType = trainingType
         self._trials: list[Trial] = []
         self._masterTraining: MasterTraining = None
         self._allVars: list = None
@@ -94,7 +95,7 @@ class MonteCarloSim(object):
         self._yTest: np.ndarray = None
         self._y: pd.DataFrame = None
             
-        self._initTraining(procInputTrainFilesIndependently, trainingType)
+        self._initTraining(procInputTrainFilesIndependently)
 
         # Initialize the simulation parameters.
         self._numVarsForFinalModel: int = numVarsForFinalModel or 20
@@ -133,12 +134,11 @@ class MonteCarloSim(object):
     # performs the test/train split on each training file in the training
     # directory, and combines all those into composite test/train data.
     # ------------------------------------------------------------------------
-    def _initTraining(self, 
-                      procTFilesIndependently: bool, 
-                      trainingType: TrainingType) -> None:
+    def _initTraining(self, procTFilesIndependently: bool) -> None:
         
-        self._masterTraining = \
-            MasterTraining(self._trainingDir, trainingType, self._logger)
+        self._masterTraining = MasterTraining(self._trainingDir,
+                                              self._trainingType, 
+                                              self._logger)
 
         self._allVars: list = self._masterTraining.dataset.schema.names \
                               [MasterTraining.START_COL:]
@@ -312,7 +312,13 @@ class MonteCarloSim(object):
         sortedPreds = [x[0] for x in sortedPreds]
         
         timeStamp = datetime.datetime.now().strftime('%Y-%m-%d-%H:%M:%S')
-        outPath: Path = self._outDir / ('SortedMetrics-' + timeStamp + '.txt')
+        
+        outName = 'SortedMetrics-' + \
+                  self._trainingType.value + \
+                  timeStamp + \
+                  '.txt'
+                  
+        outPath: Path = self._outDir / outName
         
         with open(outPath, 'w') as f:
            f.write('\n'.join(str(i) for i in sortedPreds)) 
@@ -478,7 +484,7 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def saveFinalModel(self, finalModel: RandomForestRegressor) -> Path:
         
-        outPath: Path = self._outDir / ('Percent_Tree_Cover.bin')
+        outPath: Path = self._outDir / (self._trainingType.value + '.bin')
         
         with open(outPath, 'wb') as f:
             joblib.dump(finalModel, f)

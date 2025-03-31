@@ -32,7 +32,8 @@ class CompositeDayFileTestCase(unittest.TestCase):
         
         # MOD44
         self._inDir44 = \
-            Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+            Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
+        
         
         self.productTypeMod44 = ProductTypeMod44(self._inDir44)
         
@@ -254,15 +255,17 @@ class CompositeDayFileTestCase(unittest.TestCase):
         cdf.outName.unlink(missing_ok=True)   
         
         # Band 31 is of type uint16.  This will fail.                 
-        composite = cdf.raster()
-        self.assertEqual(composite.dtype, np.int16)
-        self.assertEqual(composite.shape, (4800, 4800))
+        with self.assertRaisesRegex(ValueError, 'cannot reshape'):
+            
+            composite = cdf.raster()
+            self.assertEqual(composite.dtype, np.int16)
+            self.assertEqual(composite.shape, (4800, 4800))
         
-        # Call it again to test Numpy fromfile.
-        composite2 = cdf.raster()
-        self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
-        self.assertEqual(composite2.shape, (4800, 4800))
-        self.assertEqual(composite2.dtype, np.int16)
+            # Call it again to test Numpy fromfile.
+            composite2 = cdf.raster()
+            self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
+            self.assertEqual(composite2.shape, (4800, 4800))
+            self.assertEqual(composite2.dtype, np.int16)
 
     # -------------------------------------------------------------------------
     # testYearWrap

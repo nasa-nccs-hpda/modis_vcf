@@ -5,6 +5,7 @@ import unittest
 import numpy as np
 
 from modis_vcf.model.Band import Band
+from modis_vcf.model.TrainingType import TrainingType
 from modis_vcf.model.VcfPredict import VcfPredict
 
 
@@ -26,17 +27,17 @@ class VcfPredictTestCase(unittest.TestCase):
         self._years = [2019, 2020]
         self._tids = ['h09v05', 'h11v02']
         
+        basePath = Path('/explore/nobackup/people/rlgill/SystemTesting' +
+                        '/modis-vcf/UnitTests/')
+                            
         self._treeCoverRfFile = \
-            Path(__file__).parent / 'Percent_Tree_Cover.bin'
+            basePath / '3-Models' / 'pcttree.bin'
         
         self._nonvegRfFile = \
-            Path(__file__).parent / 'Percent_NonVegetated.bin'
+            basePath / '3-Models' / 'pctbare.bin'
         
-        self._outDir = Path('/explore/nobackup/people/rlgill/SystemTesting' +
-                            '/modis-vcf/UnitTests/vcfProcess')
-
-        self._metricsDir = Path('/explore/nobackup/people/rlgill/' +
-                                'SystemTesting/modis-vcf/UnitTests')
+        self._outDir = basePath / '4-VcfProcess'
+        self._metricsDir = basePath / '1-Metrics'
 
         self._vcfp = VcfPredict(self._treeCoverRfFile, 
                                 self._nonvegRfFile,
@@ -71,7 +72,7 @@ class VcfPredictTestCase(unittest.TestCase):
         
         self._vcfp._getMetrics(self._tids[0], 
                                self._years[0], 
-                               self._vcfp._treeCoverRf)
+                               self._vcfp._treeCoverRf.feature_names_in_)
 
     # -------------------------------------------------------------------------
     # testGetUnsortedMonthlyBands
@@ -81,21 +82,24 @@ class VcfPredictTestCase(unittest.TestCase):
         met: pd.DataFrame = \
             self._vcfp._getMetrics(self._tids[0], 
                                    self._years[0], 
-                                   'UnsortedMonthlyBands-NDVI-Day_2020017')
+                                   ['UnsortedMonthlyBands-NDVI-Day_2020017'])
                                     
         self.assertEqual(met.shape, (23040000, 1))
 
         met: pd.DataFrame = \
             self._vcfp._getMetrics(self._tids[0], 
                                    self._years[0], 
-                                   'UnsortedMonthlyBands-Band_6-Day_2019289')
+                                   ['UnsortedMonthlyBands-Band_6-Day_2019289'])
                                     
     # -------------------------------------------------------------------------
     # testMaskPrediction
     # -------------------------------------------------------------------------
     def testMaskPrediction(self):
         
-        X = self._vcfp._getMetrics(self._tids[0], self._years[0])
+        X = self._vcfp._getMetrics(self._tids[0], 
+                                   self._years[0],
+                                   self._vcfp._treeCoverRf.feature_names_in_)
+                                   
         X = X.replace(-10001, 10001)
 
         # Run Random Forest.
@@ -150,6 +154,7 @@ class VcfPredictTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testRunTileForYear(self):
         
+        self._vcfp.runTileForYear(self._tids[1], self._years[1])
         self._vcfp.runTileForYear(self._tids[0], self._years[0])
         
     # -------------------------------------------------------------------------
@@ -157,9 +162,9 @@ class VcfPredictTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testRun(self):
 
+        self._vcfp.run([self._tids[0]], [self._years[0]])
+
         # Tile h11v02 is missing files, causing VCFP to fail. 
-        import pdb
-        pdb.set_trace()
         self._vcfp.run([self._tids[1]], [self._years[1]])
 
         self._vcfp.run(self._tids, self._years)

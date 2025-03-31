@@ -17,7 +17,6 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
 from modis_water.model.Utils import Utils
  
-# MOD44_DIR = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
 MOD44_DIR = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 MOD44W_DIR = Path('/css/modis/Collection6.1/L3/MOD44W-LandWaterMask')
 
@@ -114,15 +113,22 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     def _getMetrics(self, tid: str, year: int, rfNames: list) -> pd.DataFrame:
 
-        # Alter the RF's names to match the year being predicted.
+        # ---
+        # Alter the RF's names to match the year being predicted, if an
+        # unsorted monthly band is encountered.
+        # ---
         names = []
         
         for rfName in rfNames:
             
-            name, band, day = rfName.split('-')
-            prefix, jul = day.split('_')
-            newDay = prefix + '-' + str(year) + jul[-3:]
-            names.append(newDay)
+            if rfName.count('-') == 2:
+
+                name, band, day = rfName.split('-')
+                prefix, jul = day.split('_')
+                newDay = prefix + '_' + str(year) + jul[-3:]
+                rfName = name + '-' + band + '-' + newDay
+                
+            names.append(rfName)
         
         self._logger.info('Retrieving metrics: ' + str(names))
         
@@ -171,7 +177,7 @@ class VcfPredict(object):
                        year: int, 
                        rf: RandomForestRegressor) -> Path:
         
-        X = self._getMetrics(tid, year, rf.feature_names_in_)
+        X: pd.DataFrame = self._getMetrics(tid, year, rf.feature_names_in_)
         X = X.replace(-10001, 10001)
         
         # Perform the tree cover predictions.
@@ -198,29 +204,6 @@ class VcfPredict(object):
     def runTileForYear(self, tid: str, year: int) -> (Path, Path):
 
         self._logger.info('Running ' + tid + ' for ' + str(year))
-        
-        # Get the metrics, as images, for the top n predictors.
-        # X = self._getMetrics(tid, year, self._treeCoverRf)
-        # X = X.replace(-10001, 10001)
-        #
-        # # Perform the tree cover predictions.
-        # prediction: np.ndarray = self._treeCoverRf.predict(X). \
-        #                          astype(np.int16). \
-        #                          reshape(Band.ROWS, Band.COLS)
-        #
-        # # Apply the water mask.
-        # maskedPred = self._maskPrediction(tid, year, prediction)
-        #
-        # # Write the prediction as an image.
-        # tCoverPath: Path = 'Percent_Tree_Cover' + '-' + tid + '-' + str(year)
-        #
-        # modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
-        #           '+datum=WGS84 +units=m +no_defs'
-        #
-        # Utils.writeRaster(self._outDir,
-        #                   maskedPred,
-        #                   tCoverPath,
-        #                   projection=modSinu)
         
         tCoverPath: Path = self._runPrediction(tid, year, self._treeCoverRf)
         nonvegPath: Path = self._runPrediction(tid, year, self._nonvegRf)
