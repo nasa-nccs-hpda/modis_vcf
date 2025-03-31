@@ -104,3 +104,4 @@ class BandTestCase(unittest.TestCase):
         inBand.read(outName)
         
         self.assertTrue((outBand.cube == inBand.cube).all())
+        self.assertEqual(outBand.cube.dtype, inBand.cube.dtype)

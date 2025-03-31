@@ -1,0 +1,457 @@
+
+import logging
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+
+import numpy as np
+
+from modis_vcf.model.BandDayFile import BandDayFile
+from modis_vcf.model.ProductType import ProductType
+from modis_vcf.model.ProductTypeMod09A import ProductTypeMod09A
+from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
+
+
+# -----------------------------------------------------------------------------
+# class BandDayFileTestCase
+#
+# python -m unittest discover modis_vcf/model/tests/
+# python -m unittest modis_vcf.model.tests.test_BandDayFile
+# python -m unittest modis_vcf.model.tests.test_BandDayFile.BandDayFileTestCase.testInit
+# -----------------------------------------------------------------------------
+class BandDayFileTestCase(unittest.TestCase):
+
+    # -------------------------------------------------------------------------
+    # setUp
+    # -------------------------------------------------------------------------
+    def setUp(self):
+
+        # Logger
+        self._logger = logging.getLogger()
+        self._logger.setLevel(logging.INFO)
+
+        if (not self._logger.hasHandlers()):
+
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(logging.INFO)
+            self._logger.addHandler(ch)
+
+        # MOD44
+        self.h09v05 = 'h09v05'
+        self.year2019 = 2019
+        
+        self._mod44InDir = \
+            Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+
+        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' +      
+                                 '/SystemTesting/modis-vcf/MOD44') / \
+                            Path(self.h09v05) / \
+                            Path(str(self.year2019)) / \
+                            '1-Days'
+
+        self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
+
+        day = 65
+        bandName = ProductType.BAND1
+
+        self.bdfMod44 = BandDayFile().initFromParams(self.productTypeMod44,
+                                                     bandName,
+                                                     self.h09v05,
+                                                     self.year2019,
+                                                     day,
+                                                     self._mod44OutDir)
+
+        # MOD09
+        self._mod09InDir = \
+            Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
+
+        self._mod09OutDir = Path('/explore/nobackup/people/rlgill' +      
+                                 '/SystemTesting/modis-vcf/MOD09A') / \
+                            Path(self.h09v05) / \
+                            Path(str(self.year2019)) / \
+                            '1-Days'
+
+        self.productTypeMod09A = \
+            ProductTypeMod09A(self._mod09InDir, self._mod44InDir)
+
+        self.bdfMod09A = BandDayFile().initFromParams(self.productTypeMod09A,
+                                                      bandName,
+                                                      self.h09v05,
+                                                      self.year2019,
+                                                      day,
+                                                      self._mod09OutDir)
+
+        self.days = [(2019,  65), (2019,  97), (2019, 129), (2019, 161),
+                    (2019, 193), (2019, 225), (2019, 257), (2019, 289),
+                    (2019, 321), (2019, 353), (2020,  17), (2020, 49)]
+
+    # -------------------------------------------------------------------------
+    # testInit
+    # -------------------------------------------------------------------------
+    def testInit(self):
+
+        bdf = BandDayFile()
+
+    # -------------------------------------------------------------------------
+    # testInitFromParams
+    # -------------------------------------------------------------------------
+    def testInitFromParams(self):
+        
+        day = 65
+        bandName = ProductType.BAND1
+
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           self.h09v05,
+                                           self.year2019,
+                                           day,
+                                           self._mod44OutDir)
+
+        self.assertEqual(bdf.productType.productType,
+                         self.productTypeMod44.productType)
+
+        self.assertEqual(bdf.tid, self.h09v05)
+        self.assertEqual(bdf.year, self.year2019)
+        self.assertEqual(bdf.day, day)
+        self.assertEqual(bdf.bandName, bandName)
+        
+        expDir = self._mod44OutDir
+        
+        self.assertEqual(bdf._outDir, expDir)
+
+        outName: Path = self._mod44OutDir / \
+                        (self.productTypeMod44.productType +
+                         '-' +
+                         self.h09v05 +
+                         '-' +
+                         str(self.year2019) +
+                         str(day).zfill(3) +
+                         '-' +
+                         bandName +
+                         '.bin')
+
+        self.assertEqual(bdf.outName, outName)
+
+    # -------------------------------------------------------------------------
+    # testCopy
+    # -------------------------------------------------------------------------
+    def testCopy(self):
+        
+        bandName = ProductType.BAND1
+        day = 66
+        bdf = BandDayFile().copy(self.bdfMod44, self.year2019, day)
+        
+        self.assertEqual(bdf.productType.productType,
+                         self.productTypeMod44.productType)
+
+        self.assertEqual(bdf.tid, self.h09v05)
+        self.assertEqual(bdf.year, self.year2019)
+        self.assertEqual(bdf.day, day)
+        self.assertEqual(bdf.bandName, bandName)
+
+        outName: Path = self._mod44OutDir / \
+                        (self.productTypeMod44.productType +
+                         '-' +
+                         self.h09v05 +
+                         '-' +
+                         str(self.year2019) +
+                         str(day).zfill(3) +
+                         '-' +
+                         bandName +
+                         '.bin')
+
+        self.assertEqual(bdf.outName, outName)
+
+    # -------------------------------------------------------------------------
+    # testBandName
+    # -------------------------------------------------------------------------
+    def testBandName(self):
+
+        self.assertEqual(self.bdfMod44.bandName, ProductType.BAND1)
+
+    # -------------------------------------------------------------------------
+    # testDay
+    # -------------------------------------------------------------------------
+    def testDay(self):
+
+        self.assertEqual(self.bdfMod44.day, 65)
+
+    # -------------------------------------------------------------------------
+    # testOutName
+    # -------------------------------------------------------------------------
+    def testOutName(self):
+        
+        expName = self._mod44OutDir / \
+                  (self.bdfMod44.productType.productType + 
+                   '-' +
+                   self.h09v05 +
+                   '-' +
+                   str(self.year2019) +
+                   str(65).zfill(3) +
+                   '-' +
+                   ProductType.BAND1 +
+                   '.bin')
+
+        self.assertEqual(self.bdfMod44.outName, expName)
+        
+    # -------------------------------------------------------------------------
+    # testProductType
+    # -------------------------------------------------------------------------
+    def testProductType(self):
+
+        self.assertEqual(self.bdfMod44.productType, self.productTypeMod44)
+
+    # -------------------------------------------------------------------------
+    # testTid
+    # -------------------------------------------------------------------------
+    def testTid(self):
+
+        self.assertEqual(self.bdfMod44.tid, self.h09v05)
+
+    # -------------------------------------------------------------------------
+    # testYear
+    # -------------------------------------------------------------------------
+    def testYear(self):
+
+        self.assertEqual(self.bdfMod44.year, self.year2019)
+
+    # -------------------------------------------------------------------------
+    # testMod44Ch (Band 3)
+    # -------------------------------------------------------------------------
+    def testMod44Ch(self):
+        
+        day = 65
+        bandName = ProductType.BAND3
+        
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           self.h09v05,
+                                           self.year2019,
+                                           day,
+                                           self._mod44OutDir)
+
+        raster = bdf.raster()
+        self.assertEqual(raster.shape, (4800, 4800))
+        self.assertEqual(raster.dtype, np.int16)
+        
+        # Call it again to test Numpy fromfile.
+        raster2 = bdf.raster()
+        self.assertTrue((raster == raster2).all())
+        self.assertEqual(raster2.shape, (4800, 4800))
+        self.assertEqual(raster2.dtype, np.int16)
+
+    # -------------------------------------------------------------------------
+    # testMod09 (Band 1)
+    # -------------------------------------------------------------------------
+    def testMod09B1(self):
+        
+        raster = self.bdfMod09A.raster()
+        self.assertEqual(raster.shape, (4800, 4800))
+        self.assertEqual(raster.dtype, np.int16)
+        
+        # Call it again to test Numpy fromfile.
+        raster2 = self.bdfMod09A.raster()
+        self.assertTrue((raster == raster2).all())
+        self.assertEqual(raster2.shape, (4800, 4800))
+        self.assertEqual(raster2.dtype, np.int16)
+
+    # -------------------------------------------------------------------------
+    # testMod09B31
+    # -------------------------------------------------------------------------
+    def testMod09B31(self):
+        
+        day = 65
+        bandName = ProductType.BAND31
+        
+        bdf = BandDayFile().initFromParams(self.productTypeMod09A,
+                                           bandName,
+                                           'h20v06',
+                                           self.year2019,
+                                           day,
+                                           self._mod09OutDir)
+
+        bdf.outName.unlink(missing_ok=True)
+        raster = bdf.raster()
+        self.assertEqual(raster.shape, (4800, 4800))
+        self.assertEqual(raster.dtype, np.int32)
+        self.assertEqual(raster.max(), 31883)
+
+        # Call it again to test Numpy fromfile.
+        raster2 = bdf.raster()
+        self.assertTrue((raster == raster2).all())
+        self.assertEqual(raster2.shape, (4800, 4800))
+        self.assertEqual(raster2.dtype, np.int32)
+        
+    # -------------------------------------------------------------------------
+    # testToTif
+    # -------------------------------------------------------------------------
+    def testToTif(self):
+        
+        tifName = self.bdfMod09A.outName.with_suffix('.tif')        
+        tifName.unlink(missing_ok=True)
+        self.bdfMod09A.toTif()
+
+    # -------------------------------------------------------------------------
+    # testValues
+    #
+    # (gdalNgmt) [rlgill@ilab203 MOD44C]$ gdallocationinfo -valonly HDF4_EOS:EOS_GRID:"/explore/nobackup/projects/ilab/data/MODIS/MOD44C/MOD44CH.A2019065.h09v05.061.2020290183523.hdf":MOD44C_500m_GRID:Band_5 292 0
+    # 6394
+    # -------------------------------------------------------------------------
+    def testValues(self):
+        
+        day = 65
+        bandName = ProductType.BAND5
+        
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           self.h09v05,
+                                           self.year2019,
+                                           day,
+                                           self._mod44OutDir)
+
+        x = 0
+        y = 292
+        
+        # Band 5 raw
+        raw5, dataType = bdf._readSubdataset(applyNoData=False)
+        self.assertEqual(raw5.shape, (4800, 4800))
+        self.assertEqual(raw5.dtype, np.int16)
+        self.assertEqual(np.min(raw5), -28672)
+        self.assertEqual(np.max(raw5), 12812)  # 9979
+        numNoData = (raw5 == 36864).sum()  # 0
+        self.assertEqual(raw5[x, y], 6394)
+
+        raw5, dataType = bdf._readSubdataset()
+        self.assertEqual(raw5.shape, (4800, 4800))
+        self.assertEqual(raw5.dtype, np.int16)
+        self.assertEqual(np.min(raw5), -28672) 
+        self.assertEqual(np.max(raw5), 12812)  # 9979
+        self.assertEqual((raw5 == -10001).sum(), numNoData)
+        self.assertEqual(raw5[x, y], 6394)
+        
+        # Solz raw
+        solz, dType = bdf._readSubdataset(ProductType.SOLZ, applyNoData=False)
+        self.assertEqual(solz.shape, (4800, 4800))
+        self.assertEqual(solz.dtype, np.uint8)
+        self.assertEqual(np.min(solz), 30) 
+        self.assertEqual(np.max(solz), 51)  # No no-data values
+        numNoData = (solz == 255).sum()
+        self.assertEqual(solz[x, y], 43)
+        
+        solz, dType = bdf._readSubdataset(ProductType.SOLZ)
+        
+        solz = (solz * \
+                self.productTypeMod44.solarZenithScaleFactor).astype(np.int16)
+        
+        self.assertFalse((solz > 72).any())  # No zenith cut offs
+        self.assertEqual(solz.shape, (4800, 4800))
+        self.assertEqual(solz.dtype, np.int16)
+        self.assertEqual(np.min(solz), 30)  # No no-data values 
+        self.assertEqual(np.max(solz), 51)
+        self.assertEqual((solz == -10001).sum(), numNoData)
+        self.assertEqual(solz[x, y], 43)  # Not subject to zenith cut off
+        
+        # Band 5 proper, without QA
+        b5NoQa = bdf._getRaster(applyQa = False)
+        self.assertEqual(b5NoQa.shape, (4800, 4800))
+        self.assertEqual(b5NoQa.dtype, np.int16)
+        self.assertEqual(np.min(b5NoQa), -28672)
+        self.assertEqual(np.max(b5NoQa), 12812)  
+        self.assertEqual((b5NoQa == -10001).sum(), (raw5 == -10001).sum())
+        self.assertEqual(raw5[x, y], 6394)
+        
+        # State
+        state, dType = bdf._readSubdataset(ProductType.STATE, applyNoData=False)
+        self.assertEqual(state.shape, (4800, 4800))
+        self.assertEqual(state.dtype, np.uint16)
+        self.assertEqual(np.min(state), 0) 
+        self.assertEqual(np.max(state), 36800)
+        numNoData = (state == 65535).sum()
+        self.assertEqual(state[x, y], 1)
+        
+        # QA mask
+        qa: np.ndarray = self.productTypeMod44.createQaMask(state, solz, 72)
+        uniques = np.unique(qa)
+        self.assertEqual(len(uniques), 2)
+        self.assertTrue(1 in uniques)
+        self.assertTrue(-10001 in uniques)
+        self.assertEqual(qa[x, y], -10001)  # cloud = 1
+
+        # Band 5 proper, with QA
+        bdf.outName.unlink()  # Delete, so non-qa version is not read.
+        b5 = bdf._getRaster()
+        self.assertEqual(b5.shape, (4800, 4800))
+        self.assertEqual(b5.dtype, np.int16)
+        self.assertEqual(np.min(b5), -28672)
+        self.assertEqual(np.max(b5), 9214)  # unverified 
+        self.assertEqual(b5[x, y], -10001)
+
+        # Band 5 proper, with QA
+        bdf.outName.unlink()  # Delete, so non-qa version is not read.
+        b5 = bdf.raster()
+        self.assertEqual(b5.shape, (4800, 4800))
+        self.assertEqual(b5.dtype, np.int16)
+        self.assertEqual(np.min(b5), -28672)
+        self.assertEqual(np.max(b5), 9214)  # unverified 
+        self.assertEqual(b5[x, y], -10001)
+        bdf.toTif()
+        
+    # -------------------------------------------------------------------------
+    # testPrintValues
+    # -------------------------------------------------------------------------
+    def testPrintValues(self):
+        
+        year = 2020
+        day = 49
+        bandName = ProductType.BAND5
+        
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           self.h09v05,
+                                           year,
+                                           day,
+                                           self._mod44OutDir)
+
+        x = 0
+        y = 292
+        
+        rawBand = bdf._readSubdataset(applyNoData=False)[0]
+        print('Raw Band[', x, ',', y, '] w/o no-data =', rawBand[x, y])
+        
+        rawBand = bdf._readSubdataset()[0]
+        print('Raw Band[', x, ',', y, '] =', rawBand[x, y])
+
+        solz = bdf._readSubdataset(ProductType.SOLZ, applyNoData=False)[0]
+        print('Solz[', x, ',', y, '] w/o no-data =', solz[x, y])
+        
+        solz = bdf._readSubdataset(ProductType.SOLZ)[0]
+        print('Solz[', x, ',', y, '] =', solz[x, y])
+
+        bandNoQa = bdf._getRaster(applyQa = False)
+        print('Band[', x, ',', y, '] w/o QA =', bandNoQa[x, y])
+
+        state = bdf._readSubdataset(ProductType.STATE, applyNoData=False)[0]
+        print('State[', x, ',', y, '] =', state[x, y])
+
+        qa: np.ndarray = self.productTypeMod44.createQaMask(state, solz, 72)
+        print('QA[', x, ',', y, '] =', qa[x, y])
+
+        bdf.outName.unlink()  # Delete, so non-qa version is not read.
+        band = bdf.raster()
+        print('Band[', x, ',', y, '] =', band[x, y])
+
+    # -------------------------------------------------------------------------
+    # testRead
+    # -------------------------------------------------------------------------
+    def testRead(self):
+ 
+        r1 = self.bdfMod09A.raster()
+        self.assertEqual(r1.shape, (4800, 4800))
+        self.assertEqual(r1.dtype, np.int16)
+        r2 = self.bdfMod09A.raster()
+        self.assertTrue(np.array_equal(r1, r2, equal_nan=True))
+        self.bdfMod09A._raster = None
+        r3 = self.bdfMod09A.raster()
+        self.assertTrue(np.array_equal(r1, r3, equal_nan=True))
+            
