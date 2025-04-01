@@ -13,6 +13,13 @@ from core.model.GeospatialImageFile import GeospatialImageFile
 
 # ----------------------------------------------------------------------------
 # Class Band
+#
+# Possibly convert to a Generic class, so it can properly handle float and 
+# integer data types in the cubes, namely NaN (float) and no-data (integer).
+# https://medium.com/@steveYeah/using-generics-in-python-99010e5056eb
+#
+# TODO: Is dayXref really, bandXref?  This class originally represented a
+#       different abstraction, and was improperly exploited to hold metrics.
 # ----------------------------------------------------------------------------
 class Band(object):
     
@@ -38,6 +45,11 @@ class Band(object):
                  logger: logging.RootLogger = None):
         
         self._cube: np.ndarray = cube
+
+        # ---
+        # This would be better as structured array.
+        #  https://numpy.org/doc/stable/user/basics.rec.html
+        # ---
         self._dayXref: dict = dayXref or {}  # {yyyyddd: index} into the cube
         self._logger: logging.RootLogger = logger
         self._name: str = name
@@ -99,6 +111,9 @@ class Band(object):
         
     # ------------------------------------------------------------------------
     # read
+    #
+    # Treat everything as 16-bit integers.  NaN is a float, so use the 
+    # no-data value.
     # ------------------------------------------------------------------------
     def read(self, bandFileName: Path) -> None:
         
@@ -125,19 +140,16 @@ class Band(object):
             if first:
                 
                 first = False
-                dayBandDt = dayBand.DataType
-                
-                numpyType = \
-                    gdal_array.GDALTypeCodeToNumericTypeCode(dayBandDt)
-            
                 shape = (numDays, Band.ROWS, Band.COLS)
-                self._cube = np.ndarray(shape, numpyType)
+                self._cube = np.ndarray(shape, np.int16)
             
-            day = dayBand.ReadAsArray().astype(numpyType)
+            dayNan = dayBand.ReadAsArray()
+            dayNoData = np.where(np.isnan(dayNan), Band.NO_DATA, dayNan)
+            day = dayNoData.astype(np.int16)
             dayKey = dayBand.GetMetadataItem(Band.METADATA_BAND_NAME)
             self._dayXref[dayKey] = dayIndex
             self._cube[dayIndex] = day
-        
+
     # ------------------------------------------------------------------------
     # write
     # ------------------------------------------------------------------------
