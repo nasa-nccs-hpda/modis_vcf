@@ -455,7 +455,10 @@ class Metrics(object):
             gdBand.WriteArray(metric.value)
             gdBand.SetMetadataItem('Name', metric.name)
             gdBand.SetMetadataItem('Description', metric.desc)
-            gdBand.SetNoDataValue(self._productType.NO_DATA)
+            
+            # These are not no-data values; they are fill values.
+            # gdBand.SetNoDataValue(self._productType.NO_DATA)
+            
             gdBand.FlushCache()
             gdBand = None
 

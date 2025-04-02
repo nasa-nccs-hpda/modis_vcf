@@ -175,7 +175,7 @@ class VcfPredict(object):
     def _runPrediction(self, 
                        tid: str, 
                        year: int, 
-                       rf: RandomForestRegressor) -> Path:
+                       rf: RandomForestRegressor) -> np.ndarray:
         
         X: pd.DataFrame = self._getMetrics(tid, year, rf.feature_names_in_)
         X = X.replace(-10001, 10001)
@@ -189,26 +189,32 @@ class VcfPredict(object):
         maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
         
         # Write the prediction as an image.
-        fName: Path = 'Percent_Tree_Cover' + '-' + tid + '-' + str(year)
-        
-        modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
-                  '+datum=WGS84 +units=m +no_defs'
-        
-        Utils.writeRaster(self._outDir, maskedPred, fName, projection=modSinu)
-                                          
-        return fName
+        # fName: Path = outPrefix + '-' + tid + '-' + str(year)
+        #
+        # modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
+        #           '+datum=WGS84 +units=m +no_defs'
+        #
+        # Utils.writeRaster(self._outDir, maskedPred, fName, projection=modSinu)
+
+        return maskedPred
         
     # ------------------------------------------------------------------------
     # runTileForYear
     # ------------------------------------------------------------------------
-    def runTileForYear(self, tid: str, year: int) -> (Path, Path):
+    def runTileForYear(self, tid: str, year: int) -> None:
 
         self._logger.info('Running ' + tid + ' for ' + str(year))
         
-        tCoverPath: Path = self._runPrediction(tid, year, self._treeCoverRf)
-        nonvegPath: Path = self._runPrediction(tid, year, self._nonvegRf)
+        tcPred: np.ndarray = self._runPrediction(tid, year, self._treeCoverRf)
+        self._write(tid, year, 'Percent_Tree_Cover', tcPred)     
 
-        return (tCoverPath, nonvegPath)
+        nonvegPred: np.ndarray = self._runPrediction(tid, year, self._nonvegRf)
+        self._write(tid, year, 'Percent_NonVegetated', nonvegPred)     
+
+        nonTreeVeg: np.ndarray = 100 - tcPred - nonvegPred
+        self._write(tid, year, 'Percent_NonTree_Vegetation', nonTreeVeg)     
+
+        return
         
     # ------------------------------------------------------------------------
     # run
@@ -217,4 +223,20 @@ class VcfPredict(object):
         
         paths = [self.runTileForYear(t, y) for t in tids for y in years]
         return paths
+
+    # ------------------------------------------------------------------------
+    # write
+    # ------------------------------------------------------------------------
+    def _write(self, 
+               tid: str, 
+               year: int, 
+               outPrefix: str, 
+               raster: np.ndarray) -> Path:
+        
+        fName: Path = outPrefix + '-' + tid + '-' + str(year)
+        
+        modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
+                  '+datum=WGS84 +units=m +no_defs'
+        
+        Utils.writeRaster(self._outDir, raster, fName, projection=modSinu)
         
