@@ -57,7 +57,10 @@ class MetricsTestCase(unittest.TestCase):
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
 
         self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
-                                 '/SystemTesting/modis-vcf/UnitTests') 
+                                 '/SystemTesting/modis-vcf/UnitTests/' +
+                                 'Metrics') 
+
+        self._mod44OutDir.mkdir(exist_ok=True)
 
         self.mmMod44 = Metrics(self.h09v05,
                                self.year2019,
@@ -172,8 +175,6 @@ class MetricsTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testApplyThreshold(self):
 
-        mm = self.mmMod44
-        
         # Test the Numpy Jui Jitsu using a simple array.
         arr = np.array([[[     2, np.nan], [45, 78]], 
                         [[np.nan,     92], [60, 76]],
@@ -223,6 +224,7 @@ class MetricsTestCase(unittest.TestCase):
 
         # Get a band without applying the threshold
         bandName = ProductTypeMod44.BAND1
+        mm = self.mmMod44
         band, bXref = mm.getBandCube(bandName)
         threshold = 3
 

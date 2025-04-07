@@ -21,7 +21,8 @@ def main():
     desc = 'Use this application to build training data.'
     parser = argparse.ArgumentParser(description=desc)
 
-    modisDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+    # modisDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+    modisDir = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 
     parser.add_argument('--metricsDir',
                         type=Path,

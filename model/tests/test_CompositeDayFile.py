@@ -33,14 +33,14 @@ class CompositeDayFileTestCase(unittest.TestCase):
         # MOD44
         self._inDir44 = \
             Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
-        
-        
+                
         self.productTypeMod44 = ProductTypeMod44(self._inDir44)
         
-        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' +      
-                                 '/SystemTesting/modis-vcf/MOD44') / \
-                            Path(self.h09v05) / \
-                            Path(str(self.year2019))
+        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
+                                 '/SystemTesting/modis-vcf/UnitTests/' +
+                                 'CompositeDayFile') 
+
+        self._mod44OutDir.mkdir(exist_ok=True)
 
         self._dayDirMod44 = self._mod44OutDir / '1-Days'
         self._compDirMod44 = self._mod44OutDir / '2-Composites'

@@ -28,8 +28,13 @@ class VcfPredictTestCase(unittest.TestCase):
         self._tids = ['h09v05', 'h11v02']
         
         basePath = Path('/explore/nobackup/people/rlgill/SystemTesting' +
-                        '/modis-vcf/UnitTests/')
+                        '/modis-vcf/UnitTests/VcfPredict')
                             
+        basePath.mkdir(exist_ok=True)
+        
+        modelDir = basePath / '3-Models'
+        modelDir.mkdir(exist_ok=True)
+        
         self._treeCoverRfFile = \
             basePath / '3-Models' / 'pcttree.bin'
         
@@ -37,7 +42,10 @@ class VcfPredictTestCase(unittest.TestCase):
             basePath / '3-Models' / 'pctbare.bin'
         
         self._outDir = basePath / '4-VcfProcess'
+        self._outDir.mkdir(exist_ok=True)
+        
         self._metricsDir = basePath / '1-Metrics'
+        self._metricsDir.mkdir(exist_ok=True)
 
         self._vcfp = VcfPredict(self._treeCoverRfFile, 
                                 self._nonvegRfFile,

@@ -119,7 +119,18 @@ class ProductType(ABC):
                  altDir: Path = None) -> Path:
         
         searchPt: ProductType = self.getProductTypeForBand(bandName)
-        globDir = altDir or searchPt._inputDir
+        # globDir = altDir or searchPt._inputDir
+        globDir = altDir or searchPt._inputDir / str(year)
+
+        # ---
+        # The new input directory now has year subdirectories.  If the day
+        # corresponds to the following year, from wrapping, subtract one
+        # from the year.  In the new directory structure, for example,
+        # 2019 wrapped days, like 2020033, will reside in the 2019 directory.
+        # ---
+        # dirYear = year if day in self._yearOneDays else int(year - 1)
+        # globDir = altDir or searchPt._inputDir / Path(str(dirYear))
+
         prefix = searchPt._prefixXref[bandName]
         yNj = str(year) + str(day).zfill(3)
         pt = searchPt.productType
@@ -127,7 +138,11 @@ class ProductType(ABC):
         mateFiles = list(globDir.glob(mateGlob))
 
         if not mateFiles:
-            raise RuntimeError('Unable to find file for ' + mateGlob)
+            
+            raise RuntimeError('Unable to find file for ' + 
+                               mateGlob + 
+                               ' in ' +
+                               str(globDir))
             
         return mateFiles[0]
         

@@ -42,14 +42,14 @@ class BandDayFileTestCase(unittest.TestCase):
         self.year2019 = 2019
         
         self._mod44InDir = \
-            Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+            Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 
-        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' +      
-                                 '/SystemTesting/modis-vcf/MOD44') / \
-                            Path(self.h09v05) / \
-                            Path(str(self.year2019)) / \
-                            '1-Days'
+        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
+                                 '/SystemTesting/modis-vcf/UnitTests/' +
+                                 'BandDayFile') 
 
+        self._mod44OutDir.mkdir(exist_ok=True)
+        
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
 
         day = 65
@@ -415,7 +415,7 @@ class BandDayFileTestCase(unittest.TestCase):
 
         x = 0
         y = 292
-        
+     
         rawBand = bdf._readSubdataset(applyNoData=False)[0]
         print('Raw Band[', x, ',', y, '] w/o no-data =', rawBand[x, y])
         
