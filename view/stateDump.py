@@ -111,6 +111,22 @@ def main():
               'adjacency': adjacency,
               'brdf': brdf,
               'snowAlgo': snowAlgo}
+              
+    # Add VCF masking.
+    solzDs = gdal.Open(ds.GetSubDatasets()[3][0])  # Solz is the third band.
+    solz: np.ndarray = solzDs.ReadAsArray(buf_xsize=4800, buf_ysize=4800)
+    zenithCutOff = 72
+    
+    mask = np.where((cloud == 0) &
+                    (shadow == 0) &
+                    (aerosol != 3) &   
+                    (adjacency == 0) & 
+                    (solz > 0) &
+                    (solz < zenithCutOff),
+                    0,
+                    1).astype(np.uint8)
+    
+    fields['mask'] = mask
     
     # Write.
     for field in fields:
