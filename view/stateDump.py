@@ -12,10 +12,10 @@ from osgeo import gdal
 # -----------------------------------------------------------------------------
 # main
 #
-# python modis_vcf/view/stateDump.py -i /css/modis/Collection6.1/L3/MOD44B-VCF/dev/2019/MOD44CQ.A2019353.h31v11.061.2020323111251.hdf -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/stateDump
+# python modis_vcf/view/stateDump.py -i /css/modis/Collection6.1/L3/MOD44B-VCF/dev/2010/MOD44CQ.A2010209.h12v02.061.2021169001105.hdf -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/stateDump
 #
 # 1111111000000000
-# 5432109876543210            
+# 5432109876543210
 # 1000000000000000 snow algorithm
 #  100000000000000 BRDF correction
 #   10000000000000 adjacency
@@ -29,16 +29,10 @@ from osgeo import gdal
 #               11 cloud
 # -----------------------------------------------------------------------------
 def main():
-    
-    desc = 'Use this application to write a Geotiff for each MODIS \
-           state field.'
-           
-    parser = argparse.ArgumentParser(description=desc)
 
-    parser.add_argument('-i',
-                        required=True,
-                        type=Path,
-                        help='Full path to MOD44 file.')
+    desc = 'Use this application to interact with each MODIS state field.'
+
+    parser = argparse.ArgumentParser(description=desc)
 
     parser.add_argument('-o',
                         required=True,
@@ -46,26 +40,105 @@ def main():
                         default='.',
                         help='Output directory')
 
+    parser.add_argument('--write',
+                        action='store_true',
+                        default=True,
+                        help='Write state Geotiffs to output directory.')
+
+    group = parser.add_mutually_exclusive_group(required=True)
+
+    group.add_argument('-d',
+                       type=Path,
+                       help='Directory containing MOD44 file.')
+
+    group.add_argument('-i',
+                       type=Path,
+                       help='Full path to MOD44 file.')
+
     args = parser.parse_args()
-
-    # Ensure it is a CQ file.
-    inFile = Path(args.i)
-
-    if not inFile.stem.split('.')[0].endswith('CQ'):
-        raise RuntimeError('Input file must be a CQ file.')
-        
+    
     # Validate output directory.
     if not args.o.exists():
         raise RuntimeError('The output directory does not exist.')
-    
+
+    files = []
+
+    if args.i:
+        
+        # Ensure it is a CQ file.
+        inFile = Path(args.i)
+
+        if not inFile.stem.split('.')[0].endswith('CQ'):
+            raise RuntimeError('Input file must be a CQ file.')
+            
+        files.append(inFile)
+            
+    elif args.d:
+        
+        files = args.d.glob('*CQ*.hdf')
+
     # Read.
-    print('Reading', args.i)
-    ds: gdal.Dataset = gdal.Open(args.i)
-    stateDs = gdal.Open(ds.GetSubDatasets()[1][0])  # State is the first band.
-    state: np.ndarray = stateDs.ReadAsArray(buf_xsize=4800, buf_ysize=4800)
+    for f in files:
+        
+        fields = read(f)
+        rangeCheck(fields)
+
+        # Screening queries
+        query(fields)
+
+        # Write.
+        if args.write:
+            write(fields, args.o, inFile)
+
+# -----------------------------------------------------------------------------
+# query
+# -----------------------------------------------------------------------------
+def query(fields: dict) -> None:
     
+    print('          Snow set:', (fields['snow'] > 0).any())
+    print('Snow algorithm set:', (fields['snowAlgo'] > 0).any())
+    
+# -----------------------------------------------------------------------------
+# rangeCheck
+# -----------------------------------------------------------------------------
+def rangeCheck(fields: dict) -> None:
+
+    assert fields['cloud'].min() == 0
+    assert fields['cloud'].max() <= 3
+    assert fields['shadow'].min() == 0
+    assert fields['shadow'].max() <= 1
+    assert fields['land'].min() == 0
+    assert fields['land'].max() <= 7
+    assert fields['aerosol'].min() == 0
+    assert fields['aerosol'].max() <= 3
+    assert fields['cirrus'].min() == 0
+    assert fields['cirrus'].max() <= 3
+    assert fields['intCloud'].min() == 0
+    assert fields['intCloud'].max() <= 1
+    assert fields['fire'].min() == 0
+    assert fields['fire'].max() <= 1
+    assert fields['snow'].min() == 0
+    assert fields['snow'].max() <= 1
+    assert fields['adjacency'].min() == 0
+    assert fields['adjacency'].max() <= 1
+    assert fields['brdf'].min() == 0
+    assert fields['brdf'].max() <= 1
+    assert fields['snowAlgo'].min() == 0
+    assert fields['snowAlgo'].max() <= 1
+
+# -----------------------------------------------------------------------------
+# read
+# -----------------------------------------------------------------------------
+def read(inFile: Path) -> dict:
+    
+    print('Reading', inFile)
+    gdal.UseExceptions()
+    ds: gdal.Dataset = gdal.Open(str(inFile))
+    stateDs = gdal.Open(ds.GetSubDatasets()[0][0])
+    state: np.ndarray = stateDs.ReadAsArray(buf_xsize=4800, buf_ysize=4800)
+
     cloud = state & 3
-    shadow = (state & 4) >> 2 
+    shadow = (state & 4) >> 2
     land = (state & 56) >> 3
     aerosol = (state & 192) >> 6
     cirrus = (state & 768) >> 8
@@ -76,32 +149,22 @@ def main():
     brdf = (state & 16384) >> 14
     snowAlgo = (state & 32768) >> 15
 
-    # Range checking.
-    assert(cloud.min() == 0)
-    assert(cloud.max() <= 3)
-    assert(shadow.min() == 0)
-    assert(shadow.max() <= 1)
-    assert(land.min() == 0)
-    assert(land.max() <= 7)
-    assert(aerosol.min() == 0)
-    assert(aerosol.max() <= 3)
-    assert(cirrus.min() == 0)
-    assert(cirrus.max() <= 3)
-    assert(intCloud.min() == 0)
-    assert(intCloud.max() <= 1)
-    assert(fire.min() == 0)
-    assert(fire.max() <= 1)
-    assert(snow.min() == 0)
-    assert(snow.max() <= 1)
-    assert(adjacency.min() == 0)
-    assert(adjacency.max() <= 1)
-    assert(brdf.min() == 0)
-    assert(brdf.max() <= 1)
-    assert(snowAlgo.min() == 0)
-    assert(snowAlgo.max() <= 1)
+    # VCF masking
+    solzDs = gdal.Open(ds.GetSubDatasets()[2][0])
+    solz: np.ndarray = solzDs.ReadAsArray(buf_xsize=4800, buf_ysize=4800)
+    zenithCutOff = 72
+
+    mask = np.where((cloud == 0) &
+                    (shadow == 0) &
+                    (aerosol != 3) &
+                    (adjacency == 0) &
+                    (solz > 0) &
+                    (solz < zenithCutOff),
+                    0,
+                    1).astype(np.uint8)
 
     fields = {'cloud': cloud,
-              'shadow': shadow, 
+              'shadow': shadow,
               'land': land,
               'aerosol': aerosol,
               'cirrus': cirrus,
@@ -110,36 +173,28 @@ def main():
               'snow': snow,
               'adjacency': adjacency,
               'brdf': brdf,
-              'snowAlgo': snowAlgo}
+              'snowAlgo': snowAlgo,
+              'mask': mask}
               
-    # Add VCF masking.
-    solzDs = gdal.Open(ds.GetSubDatasets()[3][0])  # Solz is the third band.
-    solz: np.ndarray = solzDs.ReadAsArray(buf_xsize=4800, buf_ysize=4800)
-    zenithCutOff = 72
-    
-    mask = np.where((cloud == 0) &
-                    (shadow == 0) &
-                    (aerosol != 3) &   
-                    (adjacency == 0) & 
-                    (solz > 0) &
-                    (solz < zenithCutOff),
-                    0,
-                    1).astype(np.uint8)
-    
-    fields['mask'] = mask
-    
-    # Write.
+    return fields
+
+# -----------------------------------------------------------------------------
+# write
+# -----------------------------------------------------------------------------
+def write(fields: dict, outDir: Path, inFile: Path) -> None:
+
     for field in fields:
-        
-        outName: Path = args.o / (inFile.stem + '-' + field + '.tif')
+
+        outName: Path = outDir / (inFile.stem + '-' + field + '.tif')
         print('Writing', outName)
-        
+
         outDs = gdal.GetDriverByName('GTiff').Create(
-            str(outName), 4800, 4800, 1, options=['COMPRESS=LZW'])
-        
-        gdBand = outDs.GetRasterBand(1)
-        gdBand.WriteArray(fields[field].astype(np.uint8))
-    
+            str(outName), 
+            4800, 
+            4800, 
+            options=['COMPRESS=LZW', 'INTERLEAVE=PIXEL'])
+
+        outDs.WriteArray(fields[field])
 
 # -----------------------------------------------------------------------------
 # Invoke the main
