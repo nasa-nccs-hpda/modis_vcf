@@ -95,8 +95,15 @@ def main():
 # -----------------------------------------------------------------------------
 def query(fields: dict) -> None:
     
-    print('          Snow set:', (fields['snow'] > 0).any())
-    print('Snow algorithm set:', (fields['snowAlgo'] > 0).any())
+    print('             Cloud set:', (fields['cloud'] > 0).any())
+    print('              Snow set:', (fields['snow'] > 0).any())
+    print('    Snow algorithm set:', (fields['snowAlgo'] > 0).any())
+    
+    print('Snow and snow algo set:', 
+          np.logical_and(fields['snow'] > 0, fields['snowAlgo'] > 0).any())
+
+    print('    Snow and cloud set:', 
+          np.logical_and(fields['snow'] > 0, fields['cloud'] > 0).any())
     
 # -----------------------------------------------------------------------------
 # rangeCheck
