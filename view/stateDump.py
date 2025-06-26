@@ -14,19 +14,7 @@ from osgeo import gdal
 #
 # python modis_vcf/view/stateDump.py -i /css/modis/Collection6.1/L3/MOD44B-VCF/dev/2010/MOD44CQ.A2010209.h12v02.061.2021169001105.hdf -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/stateDump
 #
-# 1111111000000000
-# 5432109876543210
-# 1000000000000000 snow algorithm
-#  100000000000000 BRDF correction
-#   10000000000000 adjacency
-#    1000000000000 snow
-#     100000000000 fire
-#      10000000000 internal cloud
-#       1100000000 cirrus
-#         11000000 aerosol
-#           111000 land
-#              100 shadow
-#               11 cloud
+# python modis_vcf/view/stateDump.py -d /css/modis/Collection6.1/L3/MOD44B-VCF/dev/2010 -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/stateDump --noWrite
 # -----------------------------------------------------------------------------
 def main():
 
@@ -40,10 +28,10 @@ def main():
                         default='.',
                         help='Output directory')
 
-    parser.add_argument('--write',
+    parser.add_argument('--noWrite',
                         action='store_true',
-                        default=True,
-                        help='Write state Geotiffs to output directory.')
+                        default=False,
+                        help='Do not write Geotiffs to output directory.')
 
     group = parser.add_mutually_exclusive_group(required=True)
 
@@ -87,7 +75,7 @@ def main():
         query(fields)
 
         # Write.
-        if args.write:
+        if not args.noWrite:
             write(fields, args.o, inFile)
 
 # -----------------------------------------------------------------------------
@@ -144,6 +132,36 @@ def read(inFile: Path) -> dict:
     stateDs = gdal.Open(ds.GetSubDatasets()[0][0])
     state: np.ndarray = stateDs.ReadAsArray(buf_xsize=4800, buf_ysize=4800)
 
+    # ---
+    # define snow_algorithm 0x8000      32768
+    # define BRDF_correction 0x4000     16384
+    # define cloud_adjacency 0x2000      8192
+    # define snow 0x1000                 4096
+    # define fire 0x800                  2048
+    # define internal_cloud 0x400        1024
+    # define cirrus 0x300                 768
+    # define aerosol 0xC0                 192
+    # define land 0x38                     56
+    # define shadow 0x4                     4
+    # define cloud 0x3                      3
+    # define not_internal_cloud 0xFBFF  64511
+    # 
+    # 1111111000000000
+    # 5432109876543210
+    # 1000000000000000 snow algorithm
+    #  100000000000000 BRDF correction
+    #   10000000000000 adjacency
+    #    1000000000000 snow
+    #     100000000000 fire
+    #      10000000000 internal cloud
+    #       1100000000 cirrus
+    #         11000000 aerosol
+    #           111000 land
+    #              100 shadow
+    #               11 cloud
+    #
+    # 0b  100110000000
+    # ---
     cloud = state & 3
     shadow = (state & 4) >> 2
     land = (state & 56) >> 3
@@ -155,6 +173,32 @@ def read(inFile: Path) -> dict:
     adjacency = (state & 8192) >> 13
     brdf = (state & 16384) >> 14
     snowAlgo = (state & 32768) >> 15
+
+    cloud2 = state & 3
+    shadow2 = (state >> 2) & 1
+    land2 = (state >> 3) & 7
+    aerosol2 = (state >> 6) & 3
+    cirrus2 = (state >> 8) & 3
+    intCloud2 = (state >> 10) & 1
+    fire2 = (state >> 11) & 1
+    snow2 = (state >> 12) & 1
+    adjacency2 = (state >> 13) & 1
+    brdf2 = (state >> 14) & 1
+    snowAlgo2 = (state >> 15) & 1
+
+    if cloud != cloud2 or \
+        shadow != shadow2 or \
+        land != land2 or \
+        aerosol != aerosol2 or \
+        cirrus != cirrus2 or \
+        intCloud != intCloud2 or \
+        fire != fire2 or \
+        snow != snow2 or \
+        adjacency != adjacency2 or \
+        brdf != brdf2 or \
+        snowAlgo != snowAlgo2:
+        
+        raise RuntimeError('Field extractions do not match.')
 
     # VCF masking
     solzDs = gdal.Open(ds.GetSubDatasets()[2][0])

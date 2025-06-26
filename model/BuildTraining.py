@@ -6,7 +6,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from modis_vcf.model.Band import Band
+# from modis_vcf.model.Band import Band
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductType import ProductType
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
@@ -18,6 +18,10 @@ from modis_vcf.model.TrainingType import TrainingType
 #
 # Include all tiles for the given year.
 # Training data: /explore/nobackup/projects/ilab/data/MODIS/MODIS_VCF/Mark_training/VCF_training_adjusted/tile_adjustment/v5.0.3samp/
+#
+# Percent Tree Tiles:  h08v04 h08v05 h09v04 h09v05 h10v04 h10v05 h10v06 h11v02 h11v03 h11v04 h11v05 h11v08 h11v09 h11v10 h12v01 h12v02 h12v03 h12v04 h12v05 h12v09 h12v10 h12v12 h13v01 h13v10 h13v11 h13v12 h16v01 h17v05 h18v03 h18v04 h18v07 h19v04 h19v08 h19v09 h19v10 h19v11 h19v12 h20v02 h20v03 h20v06 h20v08 h20v09 h20v10 h20v11 h21v01 h21v02 h21v04 h21v05 h21v06 h21v10 h22v03 h23v02 h23v03 h24v03 h24v04 h26v06 h27v04 h27v06 h27v07 h29v11 h29v12 h30v12 h31v11
+# 
+# Percent Bare Tiles:  h08v05 h08v06 h09v05 h09v06 h10v02 h11v02 h11v08 h11v10 h12v01 h12v02 h13v01 h13v02 h16v01 h17v07 h18v07 h18v08 h19v11 h19v12 h20v06 h20v07 h20v09 h21v01 h21v06 h21v07 h21v08 h21v09 h26v03 h26v04 h27v03 h27v04 h29v11 h29v12 h30v11 h30v12 h31v09
 #
 # TODO: Validate input.
 #
@@ -38,6 +42,7 @@ class BuildTraining(object):
                  modisDir: Path,
                  metricsDir: Path,
                  outDir: Path,
+                 trainingDir: Path,
                  trainingType: TrainingType=None,
                  tileIds: list = None, 
                  metricNames: list = None,
@@ -107,7 +112,8 @@ class BuildTraining(object):
 
         for metricName in metricsToRun:
             
-            metric: Band = mets.getMetric(metricName)
+            # metric: Band = mets.getMetric(metricName)
+            metric: list[Metrics.Metric] = mets.getMetric(metricName)
             
             for bandName in metric.dayXref:
                 
@@ -177,9 +183,9 @@ class BuildTraining(object):
         
             self._logger.info('Adding tid ' + tid)
 
-            for x in range(Band.COLS):
+            for x in range(ProductType.COLS):
         
-                for y in range(Band.ROWS):
+                for y in range(ProductType.ROWS):
         
                     tidYear = tid + '-' + str(self._year)
                     key = tidYear + '-' + str(x) + '-' + str(y)
@@ -277,6 +283,8 @@ class BuildTraining(object):
 
             # tid-x-y, tid, x, y, training, metric 1, metric 2, ...
             try:
+                import pdb
+                pdb.set_trace()
                 df: pd.DataFrame = self._addOneMetricToDf(df, tid)
 
             except AttributeError:

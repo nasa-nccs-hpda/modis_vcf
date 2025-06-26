@@ -30,10 +30,11 @@ class VcfPredictTestCase(unittest.TestCase):
         basePath = Path('/explore/nobackup/people/rlgill/SystemTesting' +
                         '/modis-vcf/UnitTests/VcfPredict')
                             
-        basePath.mkdir(exist_ok=True)
-        
+        self._metricsDir = basePath / '1-Metrics'
+        self._metricsDir.mkdir(parents=True, exist_ok=True)
+
         modelDir = basePath / '3-Models'
-        modelDir.mkdir(exist_ok=True)
+        modelDir.mkdir(parents=True, exist_ok=True)
         
         self._treeCoverRfFile = \
             basePath / '3-Models' / 'pcttree.bin'
@@ -44,9 +45,6 @@ class VcfPredictTestCase(unittest.TestCase):
         self._outDir = basePath / '4-VcfProcess'
         self._outDir.mkdir(exist_ok=True)
         
-        self._metricsDir = basePath / '1-Metrics'
-        self._metricsDir.mkdir(exist_ok=True)
-
         self._vcfp = VcfPredict(self._treeCoverRfFile, 
                                 self._nonvegRfFile,
                                 self._outDir, 
@@ -162,8 +160,21 @@ class VcfPredictTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testRunTileForYear(self):
         
-        self._vcfp.runTileForYear(self._tids[1], self._years[1])
-        self._vcfp.runTileForYear(self._tids[0], self._years[0])
+        pctTree, pctNonVeg, pctNonTreeVeg = \
+            self._vcfp.runTileForYear(self._tids[1], self._years[1])
+            
+        self.assertTrue((pctTree + pctNonVeg + pctNonTreeVeg < 100).all())
+        self.assertTrue((pctTree != -10001).all())
+        self.assertTrue((pctNonVeg != -10001).all())
+        self.assertTrue((pctNonTreeVeg != -10001).all())
+
+        pctTree, pctNonVeg, pctNonTreeVeg = \
+            self._vcfp.runTileForYear(self._tids[0], self._years[0])
+
+        self.assertTrue((pctTree + pctNonVeg + pctNonTreeVeg < 100).all())
+        self.assertTrue((pctTree != -10001).all())
+        self.assertTrue((pctNonVeg != -10001).all())
+        self.assertTrue((pctNonTreeVeg != -10001).all())
         
     # -------------------------------------------------------------------------
     # testRun

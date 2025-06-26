@@ -27,7 +27,7 @@ class ProductTypeMod09ATestCase(unittest.TestCase):
     def setUpClass(cls):
 
         cls._inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
-        cls._auxDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+        cls._auxDir = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 
     # -------------------------------------------------------------------------
     # testInit
@@ -128,7 +128,7 @@ class ProductTypeMod09ATestCase(unittest.TestCase):
         bandName = ProductType.BAND31
         fileName: Path = pt.findFile(tid, year, day, bandName)
         
-        expFile = '/explore/nobackup/projects/ilab/data/MODIS/MOD44C/' + \
+        expFile = '/css/modis/Collection6.1/L3/MOD44B-VCF/dev/2019/' + \
                   'MOD44CH.A2019065.h09v05.061.2020290183523.hdf'
         
         self.assertEqual(str(fileName), expFile)

@@ -19,6 +19,8 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # python -m unittest discover modis_vcf/model/tests/
 # python -m unittest modis_vcf.model.tests.test_BandDayFile
 # python -m unittest modis_vcf.model.tests.test_BandDayFile.BandDayFileTestCase.testInit
+#
+# TODO: Test solar zenith for 16000s.
 # -----------------------------------------------------------------------------
 class BandDayFileTestCase(unittest.TestCase):
 
@@ -257,6 +259,33 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(raster2.dtype, np.int16)
 
     # -------------------------------------------------------------------------
+    # testB31
+    # -------------------------------------------------------------------------
+    def testB31(self):
+        
+        day = 65
+        bandName = ProductType.BAND31
+        
+        bdf = BandDayFile().initFromParams(self.productTypeMod44,
+                                           bandName,
+                                           'h20v06',
+                                           self.year2019,
+                                           day,
+                                           self._mod09OutDir)
+
+        bdf.outName.unlink(missing_ok=True)
+        raster = bdf.raster()
+        self.assertEqual(raster.shape, (4800, 4800))
+        self.assertEqual(raster.dtype, np.int16)
+        self.assertEqual(raster.max(), 31883)
+
+        # Call it again to test Numpy fromfile.
+        raster2 = bdf.raster()
+        self.assertTrue((raster == raster2).all())
+        self.assertEqual(raster2.shape, (4800, 4800))
+        self.assertEqual(raster2.dtype, np.int16)
+        
+    # -------------------------------------------------------------------------
     # testMod09B31
     # -------------------------------------------------------------------------
     def testMod09B31(self):
@@ -274,14 +303,14 @@ class BandDayFileTestCase(unittest.TestCase):
         bdf.outName.unlink(missing_ok=True)
         raster = bdf.raster()
         self.assertEqual(raster.shape, (4800, 4800))
-        self.assertEqual(raster.dtype, np.int32)
+        self.assertEqual(raster.dtype, np.int16)
         self.assertEqual(raster.max(), 31883)
 
         # Call it again to test Numpy fromfile.
         raster2 = bdf.raster()
         self.assertTrue((raster == raster2).all())
         self.assertEqual(raster2.shape, (4800, 4800))
-        self.assertEqual(raster2.dtype, np.int32)
+        self.assertEqual(raster2.dtype, np.int16)
         
     # -------------------------------------------------------------------------
     # testToTif
@@ -314,24 +343,23 @@ class BandDayFileTestCase(unittest.TestCase):
         y = 292
         
         # Band 5 raw
-        raw5, dataType = bdf._readSubdataset(applyNoData=False)
+        raw5 = bdf._readSubdataset(applyNoData=False)
         self.assertEqual(raw5.shape, (4800, 4800))
         self.assertEqual(raw5.dtype, np.int16)
         self.assertEqual(np.min(raw5), -28672)
-        self.assertEqual(np.max(raw5), 12812)  # 9979
+        self.assertEqual(np.max(raw5), 12812)
         numNoData = (raw5 == 36864).sum()  # 0
         self.assertEqual(raw5[x, y], 6394)
 
-        raw5, dataType = bdf._readSubdataset()
+        raw5 = bdf._readSubdataset()
         self.assertEqual(raw5.shape, (4800, 4800))
         self.assertEqual(raw5.dtype, np.int16)
         self.assertEqual(np.min(raw5), -28672) 
-        self.assertEqual(np.max(raw5), 12812)  # 9979
-        self.assertEqual((raw5 == -10001).sum(), numNoData)
+        self.assertEqual(np.max(raw5), 12812)
         self.assertEqual(raw5[x, y], 6394)
         
         # Solz raw
-        solz, dType = bdf._readSubdataset(ProductType.SOLZ, applyNoData=False)
+        solz = bdf._readSubdataset(ProductType.SOLZ, applyNoData=False)
         self.assertEqual(solz.shape, (4800, 4800))
         self.assertEqual(solz.dtype, np.uint8)
         self.assertEqual(np.min(solz), 30) 
@@ -339,7 +367,7 @@ class BandDayFileTestCase(unittest.TestCase):
         numNoData = (solz == 255).sum()
         self.assertEqual(solz[x, y], 43)
         
-        solz, dType = bdf._readSubdataset(ProductType.SOLZ)
+        solz = bdf._readSubdataset(ProductType.SOLZ)
         
         solz = (solz * \
                 self.productTypeMod44.solarZenithScaleFactor).astype(np.int16)
@@ -358,11 +386,10 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(b5NoQa.dtype, np.int16)
         self.assertEqual(np.min(b5NoQa), -28672)
         self.assertEqual(np.max(b5NoQa), 12812)  
-        self.assertEqual((b5NoQa == -10001).sum(), (raw5 == -10001).sum())
         self.assertEqual(raw5[x, y], 6394)
         
         # State
-        state, dType = bdf._readSubdataset(ProductType.STATE, applyNoData=False)
+        state = bdf._readSubdataset(ProductType.STATE, applyNoData=False)
         self.assertEqual(state.shape, (4800, 4800))
         self.assertEqual(state.dtype, np.uint16)
         self.assertEqual(np.min(state), 0) 
@@ -370,77 +397,6 @@ class BandDayFileTestCase(unittest.TestCase):
         numNoData = (state == 65535).sum()
         self.assertEqual(state[x, y], 1)
         
-        # QA mask
-        qa: np.ndarray = self.productTypeMod44.createQaMask(state, solz, 72)
-        uniques = np.unique(qa)
-        self.assertEqual(len(uniques), 2)
-        self.assertTrue(1 in uniques)
-        self.assertTrue(-10001 in uniques)
-        self.assertEqual(qa[x, y], -10001)  # cloud = 1
-
-        # Band 5 proper, with QA
-        bdf.outName.unlink()  # Delete, so non-qa version is not read.
-        b5 = bdf._getRaster()
-        self.assertEqual(b5.shape, (4800, 4800))
-        self.assertEqual(b5.dtype, np.int16)
-        self.assertEqual(np.min(b5), -28672)
-        self.assertEqual(np.max(b5), 9214)  # unverified 
-        self.assertEqual(b5[x, y], -10001)
-
-        # Band 5 proper, with QA
-        bdf.outName.unlink()  # Delete, so non-qa version is not read.
-        b5 = bdf.raster()
-        self.assertEqual(b5.shape, (4800, 4800))
-        self.assertEqual(b5.dtype, np.int16)
-        self.assertEqual(np.min(b5), -28672)
-        self.assertEqual(np.max(b5), 9214)  # unverified 
-        self.assertEqual(b5[x, y], -10001)
-        bdf.toTif()
-        
-    # -------------------------------------------------------------------------
-    # testPrintValues
-    # -------------------------------------------------------------------------
-    def testPrintValues(self):
-        
-        year = 2020
-        day = 49
-        bandName = ProductType.BAND5
-        
-        bdf = BandDayFile().initFromParams(self.productTypeMod44,
-                                           bandName,
-                                           self.h09v05,
-                                           year,
-                                           day,
-                                           self._mod44OutDir)
-
-        x = 0
-        y = 292
-     
-        rawBand = bdf._readSubdataset(applyNoData=False)[0]
-        print('Raw Band[', x, ',', y, '] w/o no-data =', rawBand[x, y])
-        
-        rawBand = bdf._readSubdataset()[0]
-        print('Raw Band[', x, ',', y, '] =', rawBand[x, y])
-
-        solz = bdf._readSubdataset(ProductType.SOLZ, applyNoData=False)[0]
-        print('Solz[', x, ',', y, '] w/o no-data =', solz[x, y])
-        
-        solz = bdf._readSubdataset(ProductType.SOLZ)[0]
-        print('Solz[', x, ',', y, '] =', solz[x, y])
-
-        bandNoQa = bdf._getRaster(applyQa = False)
-        print('Band[', x, ',', y, '] w/o QA =', bandNoQa[x, y])
-
-        state = bdf._readSubdataset(ProductType.STATE, applyNoData=False)[0]
-        print('State[', x, ',', y, '] =', state[x, y])
-
-        qa: np.ndarray = self.productTypeMod44.createQaMask(state, solz, 72)
-        print('QA[', x, ',', y, '] =', qa[x, y])
-
-        bdf.outName.unlink()  # Delete, so non-qa version is not read.
-        band = bdf.raster()
-        print('Band[', x, ',', y, '] =', band[x, y])
-
     # -------------------------------------------------------------------------
     # testRead
     # -------------------------------------------------------------------------
@@ -454,4 +410,11 @@ class BandDayFileTestCase(unittest.TestCase):
         self.bdfMod09A._raster = None
         r3 = self.bdfMod09A.raster()
         self.assertTrue(np.array_equal(r1, r3, equal_nan=True))
+        
+        r4 = self.bdfMod44.raster()
+        
+        r5 = np.fromfile(self.bdfMod44.outName,
+                         dtype=self.bdfMod44._dtype).reshape(4800, 4800)
+
+        self.assertTrue(np.array_equal(r4, r5))
             

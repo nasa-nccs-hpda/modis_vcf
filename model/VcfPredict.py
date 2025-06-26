@@ -10,7 +10,6 @@ from sklearn.ensemble import RandomForestRegressor
 
 from osgeo import gdal
 
-from modis_vcf.model.Band import Band
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
@@ -23,9 +22,6 @@ MOD44W_DIR = Path('/css/modis/Collection6.1/L3/MOD44W-LandWaterMask')
 
 # ----------------------------------------------------------------------------
 # VcfPredict
-#
-# TODO: Should MOD44_DIR be refactored and shared among VCF applications?
-# TODO: One more thing.  The answer to "predict" should NEVER be "NoData" if it is then either there is a problem with the metrics or there is a problem with the model.  I say this because I am seeing NoData in the predict results I am looking at from the Notebook and hoping that you aren't seeing any in your results.  Specifically I am looking at tile h16v01 which has the Greenland ice sheets as all NoData.
 # ----------------------------------------------------------------------------
 class VcfPredict(object):
     
@@ -138,10 +134,6 @@ class VcfPredict(object):
                             self._metricsDir, 
                             self._logger)
         
-        # ---
-        # I added Juijitsu to Metrics to accommodate getMetricFromRf.  Move
-        # that mess here to make Metrics closer to pure.
-        # ---
         metrics = pd.DataFrame()
         
         for i in range(len(names)):
@@ -180,49 +172,46 @@ class VcfPredict(object):
         X: pd.DataFrame = self._getMetrics(tid, year, rf.feature_names_in_)
         X = X.replace(-10001, 10001)
         
-        # Perform the tree cover predictions.
         prediction: np.ndarray = rf.predict(X). \
                                  astype(np.int16). \
-                                 reshape(Band.ROWS, Band.COLS)
+                                 reshape(self._productType.ROWS,
+                                         self._productType.COLS)
 
         # Apply the water mask.
         maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
         
-        # Write the prediction as an image.
-        # fName: Path = outPrefix + '-' + tid + '-' + str(year)
-        #
-        # modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
-        #           '+datum=WGS84 +units=m +no_defs'
-        #
-        # Utils.writeRaster(self._outDir, maskedPred, fName, projection=modSinu)
-
         return maskedPred
         
     # ------------------------------------------------------------------------
     # runTileForYear
     # ------------------------------------------------------------------------
-    def runTileForYear(self, tid: str, year: int) -> None:
+    def runTileForYear(self, tid: str, year: int) -> list(np.ndarray):
 
         self._logger.info('Running ' + tid + ' for ' + str(year))
         
-        tcPred: np.ndarray = self._runPrediction(tid, year, self._treeCoverRf)
-        self._write(tid, year, 'Percent_Tree_Cover', tcPred)     
+        pctTc: np.ndarray = self._runPrediction(tid, year, self._treeCoverRf)
+        self._write(tid, year, 'Percent_Tree_Cover', pctTc)     
 
-        nonvegPred: np.ndarray = self._runPrediction(tid, year, self._nonvegRf)
-        self._write(tid, year, 'Percent_NonVegetated', nonvegPred)     
+        pctNonVeg: np.ndarray = self._runPrediction(tid, year, self._nonvegRf)
+        self._write(tid, year, 'Percent_NonVegetated', pctNonVe)     
 
-        nonTreeVeg: np.ndarray = 100 - tcPred - nonvegPred
-        self._write(tid, year, 'Percent_NonTree_Vegetation', nonTreeVeg)     
-
-        return
+        # ---
+        # If 100 - pctTc - pctNonVeg < 0, that the percentages add up to 
+        # over 100.  Clamp pctNonTreeVeg to 0 in that case.
+        # ---
+        pctNonTreeVeg: np.ndarray = max(0, 100 - pctTc - pctNonVeg)
+        self._write(tid, year, 'Percent_NonTree_Vegetation', pctNonTreeVeg)
+        
+        return pctTc, pctNonVeg, pctNonTreeVeg
         
     # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
-    def run(self, tids: list[str], years: list[int]) -> list[Path]:
+    def run(self, tids: list[str], years: list[int]) -> \
+        list[list(np.ndarray)]:
         
-        paths = [self.runTileForYear(t, y) for t in tids for y in years]
-        return paths
+        results = [self.runTileForYear(t, y) for t in tids for y in years]
+        return results
 
     # ------------------------------------------------------------------------
     # write

@@ -7,18 +7,14 @@ import sys
 
 from sklearn.ensemble import RandomForestRegressor
 
-from modis_vcf.model.MonteCarloSim import MonteCarloSim
+from modis_vcf.model.MonteCarloSimGpu import MonteCarloSimGpu
 from modis_vcf.model.TrainingType import TrainingType
 
 
 # -----------------------------------------------------------------------------
 # main
 #
-# This must be separate from MonteCarloSimGpu's view, so that it can run on 
-# non-GPU nodes without causing import errors.  Instead of conditionally
-# importing, just have two views.
-#
-# modis_vcf/view/monteCarloSim.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/2-Training -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/3-Models --numCpus 2112 --trainingType pcttree
+# modis_vcf/view/monteCarloSimGpu.py --trainingDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTestsGpu/2-Training -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTestsGpu/3-Models --numCpus 1 --trainingType pcttree
 # -----------------------------------------------------------------------------
 def main():
     
@@ -65,16 +61,13 @@ def main():
 
     args = parser.parse_args()
     
-    numCpus = min(args.numCpus, multiprocessing.cpu_count())
-    
-    mcs = MonteCarloSim(args.trainingDir, 
-                        args.trainingType,
-                        args.o,
-                        args.numPredsPerTrial,
-                        args.numVarsForFinalModel,
-                        args.minVarUsage,
-                        numCpus=args.numCpus)
-        
+    mcs = MonteCarloSimGpu(args.trainingDir, 
+                           args.trainingType,
+                           args.o,
+                           args.numPredsPerTrial,
+                           args.numVarsForFinalModel,
+                           args.minVarUsage)
+
     finalModel: RandomForestRegressor = mcs.run()
     mcs.saveFinalModel(finalModel)
 

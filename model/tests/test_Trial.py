@@ -86,7 +86,7 @@ class TrialTestCase(unittest.TestCase):
         outFile = outTrial.save(outPath)
         self.assertTrue(outFile.exists())
 
-        inTrial = Trial().load(outFile)
+        inTrial = Trial.load(outFile)
         self.assertEqual(outTrial._name, inTrial._name)
         self.assertEqual(outTrial._permImportances, inTrial._permImportances)
         self.assertEqual(outTrial._predictorNames, inTrial._predictorNames)

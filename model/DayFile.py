@@ -37,6 +37,7 @@ class DayFile(ABC):
         self._logger: logging.RootLogger = None
         self._outDir: Path = None
         self._outName: Path = None
+        self._dtype = np.int16
         
     # ------------------------------------------------------------------------
     # initFromParams
@@ -53,9 +54,6 @@ class DayFile(ABC):
         if not productType:
             raise ValueError('A product type must be specified.')
             
-        # if not bandName or \
-        #     bandName not in ProductType.BANDS + [ProductType.BAND31]:
-
         if not bandName or bandName not in productType.bandXref.keys():
             raise ValueError('A valid band name must be specified.')
             
@@ -188,20 +186,22 @@ class DayFile(ABC):
                                   ' from ' + \
                                   str(self.outName))
 
-                outBand = np.fromfile(self._outName, dtype=np.int16). \
-                          reshape(ProductType.ROWS, ProductType.COLS)
+                self._raster = np.fromfile(self._outName, dtype=self._dtype). \
+                               reshape(ProductType.ROWS, ProductType.COLS)
                                                     
-                return outBand
-
-            self._logger.info('Computing ' + self._myName() + ' for ' + 
-                              self._tid + 
-                              ' ' + 
-                              self._bandName +
-                              ' ' + 
-                              str(self._year) + 
-                              str(self._day).zfill(3))
+            else:
+                
+                self._logger.info('Computing ' + self._myName() + ' for ' + 
+                                  self._tid + 
+                                  ' ' + 
+                                  self._bandName +
+                                  ' ' + 
+                                  str(self._year) + 
+                                  str(self._day).zfill(3))
             
-            self._raster = self._getRaster(applyQa)
+                self._raster = self._getRaster(applyQa)
+                self._raster = self._raster.astype(self._dtype)
+                self._raster.tofile(self.outName)
 
         return self._raster
         
@@ -231,8 +231,7 @@ class DayFile(ABC):
         dataType = \
             gdal_array.NumericTypeCodeToGDALTypeCode(self.raster().dtype)
     
-        bands = bands or {}
-        bands[self.bandName] = self.raster()
+        bands = bands or {self.bandName: self.raster()}
         numBands = len(bands)
 
         ds = gdal.GetDriverByName('GTiff').Create(
@@ -255,7 +254,6 @@ class DayFile(ABC):
             raster = bands[bandName]
             gdBand = ds.GetRasterBand(curBandNum)
             gdBand.WriteArray(raster)
-            gdBand.SetNoDataValue(self.productType.NO_DATA)
             gdBand.SetMetadata({'name': bandName})
             gdBand.FlushCache()
             gdBand = None

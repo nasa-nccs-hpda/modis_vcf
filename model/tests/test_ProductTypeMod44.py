@@ -25,7 +25,7 @@ class ProductTypeMod44TestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
 
-        cls._inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+        cls._inDir = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 
     # -------------------------------------------------------------------------
     # testInit
@@ -41,7 +41,7 @@ class ProductTypeMod44TestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testCreateQaMask(self):
         
-        cqFile = ProductTypeMod44TestCase._inDir / \
+        cqFile = ProductTypeMod44TestCase._inDir / '2019' / \
                  'MOD44CQ.A2019065.h09v05.061.2020290183523.hdf'
 
         cqDs: gdal.Dataset = gdal.Open(str(cqFile))
@@ -90,7 +90,7 @@ class ProductTypeMod44TestCase(unittest.TestCase):
         bandName = ProductType.BAND4
         fileName: Path = pt.findFile(tid, year, day, bandName)
         
-        expFile = '/explore/nobackup/projects/ilab/data/MODIS/MOD44C/' + \
+        expFile = '/css/modis/Collection6.1/L3/MOD44B-VCF/dev/2019/' + \
                   'MOD44CH.A2019065.h09v05.061.2020290183523.hdf'
                   
         self.assertEqual(str(fileName), expFile)
@@ -177,8 +177,11 @@ class ProductTypeMod44TestCase(unittest.TestCase):
 
         pt = ProductTypeMod44(ProductTypeMod44TestCase._inDir)
 
-        chName = pt.inputDir / 'MOD44CH.A2019065.h09v05.061.2020290183523.hdf'
-        cqName = pt.inputDir / 'MOD44CQ.A2019065.h09v05.061.2020290183523.hdf'
+        chName = pt.inputDir / '2019' / \
+                 'MOD44CH.A2019065.h09v05.061.2020290183523.hdf'
+                 
+        cqName = pt.inputDir / '2019' / \
+                 'MOD44CQ.A2019065.h09v05.061.2020290183523.hdf'
         
         chDs: gdal.Dataset = gdal.Open(str(chName))
         cqDs: gdal.Dataset = gdal.Open(str(cqName))

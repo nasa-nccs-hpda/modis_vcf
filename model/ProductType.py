@@ -12,6 +12,8 @@ import numpy as np
 # TODO: Complete validation in __init__().
 # TODO: Refactor QA code as appropriate.
 # TODO: Make product types register themselves.
+# TODO: Remove or rename variables referring to no-data values.  Every pixel
+#       must have some value for machine learning.
 # ----------------------------------------------------------------------------
 class ProductType(ABC):
 
@@ -23,7 +25,7 @@ class ProductType(ABC):
     BAND6 = 'Band_6'
     BAND7 = 'Band_7'
     BAND31 = 'Band31'
-    BANDS = [BAND1, BAND2, BAND3, BAND4, BAND5, BAND6, BAND7]
+    BANDS = [BAND1, BAND2, BAND3, BAND4, BAND5, BAND6, BAND7, BAND31]
     NDVI = 'NDVI'
 
     SOLZ = 'SolarZenith'
@@ -31,7 +33,6 @@ class ProductType(ABC):
 
     ROWS = 4800
     COLS = 4800
-    NO_DATA = -10001
 
     YEAR_ONE_START_DAY = 65
     YEAR_ONE_END_DAY = 365
@@ -119,7 +120,6 @@ class ProductType(ABC):
                  altDir: Path = None) -> Path:
         
         searchPt: ProductType = self.getProductTypeForBand(bandName)
-        # globDir = altDir or searchPt._inputDir
         globDir = altDir or searchPt._inputDir / str(year)
 
         # ---
