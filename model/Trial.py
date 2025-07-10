@@ -86,7 +86,18 @@ class Trial(object):
     # ------------------------------------------------------------------------
     # load
     # ------------------------------------------------------------------------
-    def load(self, trialFile: Path):
+    # def load(self, trialFile: Path):
+    #
+    #     with open(trialFile, 'rb') as f:
+    #         self = pickle.load(f)
+    #
+    #     return self
+        
+    # ------------------------------------------------------------------------
+    # load
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def load(trialFile: Path):
         
         with open(trialFile, 'rb') as f:
             self = pickle.load(f)

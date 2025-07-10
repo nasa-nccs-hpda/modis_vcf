@@ -43,10 +43,13 @@ class BuildTrainingTestCase(unittest.TestCase):
 
         # Directories
         baseDir = Path('/explore/nobackup/people/rlgill/SystemTesting' +
-                       '/modis-vcf/UnitTests')
+                       '/modis-vcf/UnitTests/BuildTraining')
                  
         cls._metDir = baseDir / '1-Metrics'
+        cls._metDir.mkdir(parents=True, exist_ok=True)
         cls._outDir = baseDir / '2-Training'
+        cls._outDir.mkdir(parents=True, exist_ok=True)
+        cls.base = Path(__file__).parent
                  
     # -------------------------------------------------------------------------
     # testInit
@@ -58,6 +61,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase.base,
                            BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            BuildTrainingTestCase._metNames,
@@ -77,6 +81,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                                BuildTrainingTestCase._modDir,
                                BuildTrainingTestCase._metDir,
                                Path('bogus'),
+                               BuildTrainingTestCase.base,
                                BuildTrainingTestCase._trainingType,
                                BuildTrainingTestCase._tids,
                                BuildTrainingTestCase._metNames,
@@ -88,6 +93,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase.base,
                            BuildTrainingTestCase._trainingType,
                            None,
                            BuildTrainingTestCase._metNames,
@@ -99,6 +105,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase.base,
                            BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            None,
@@ -110,6 +117,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase.base,
                            BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            BuildTrainingTestCase._metNames,
@@ -121,6 +129,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase.base,
                            BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            BuildTrainingTestCase._metNames,
@@ -135,6 +144,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase.base,
                            BuildTrainingTestCase._trainingType,
                            BuildTrainingTestCase._tids,
                            BuildTrainingTestCase._metNames,
@@ -154,6 +164,7 @@ class BuildTrainingTestCase(unittest.TestCase):
                            BuildTrainingTestCase._modDir,
                            BuildTrainingTestCase._metDir,
                            BuildTrainingTestCase._outDir,
+                           BuildTrainingTestCase.base,
                            BuildTrainingTestCase._trainingType,
                            tileIds = ['h09v05'],
                            metricNames = ['metricAmpBandRefl'])

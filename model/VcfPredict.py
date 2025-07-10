@@ -2,15 +2,16 @@
 import joblib
 import logging
 from pathlib import Path
+import pickle
 import sys
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+# from sklearn.ensemble import RandomForestRegressor
+from cuml.ensemble import RandomForestRegressor
 
 from osgeo import gdal
 
-from modis_vcf.model.Band import Band
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
@@ -23,9 +24,6 @@ MOD44W_DIR = Path('/css/modis/Collection6.1/L3/MOD44W-LandWaterMask')
 
 # ----------------------------------------------------------------------------
 # VcfPredict
-#
-# TODO: Should MOD44_DIR be refactored and shared among VCF applications?
-# TODO: One more thing.  The answer to "predict" should NEVER be "NoData" if it is then either there is a problem with the metrics or there is a problem with the model.  I say this because I am seeing NoData in the predict results I am looking at from the Notebook and hoping that you aren't seeing any in your results.  Specifically I am looking at tile h16v01 which has the Greenland ice sheets as all NoData.
 # ----------------------------------------------------------------------------
 class VcfPredict(object):
     
@@ -39,7 +37,9 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     def __init__(self, 
                  treeCoverModelFile: Path,
+                 treeCoverTopNFile: Path,
                  nonvegModelFile: Path,
+                 nonvegModelTopNFile: Path,
                  outDir: Path,
                  metricsDir: Path,
                  mod44Dir: Path = MOD44_DIR,
@@ -54,14 +54,22 @@ class VcfPredict(object):
         
         # Load the models.
         self._treeCoverRf: RandomForestRegressor = None
+        self._treeCoverTopN: list = None
         
         with open(treeCoverModelFile, 'rb') as f:
             self._treeCoverRf: RandomForestRegressor = joblib.load(f)
             
+        with open(treeCoverTopNFile, 'rb') as f:
+            self._treeCoverTopN = pickle.load(f)
+            
         self._nonvegRf: RandomForestRegressor = None
+        self._nonvegTopN: list = None
         
         with open(nonvegModelFile, 'rb') as f:
             self._nonvegRf: RandomForestRegressor = joblib.load(f)
+            
+        with open(nonvegModelTopNFile, 'rb') as f:
+            self._nonvegTopN = pickle.load(f)
             
         # Instantiate the product type for the metrics.
         self._productType = ProductTypeMod44(mod44Dir)
@@ -113,22 +121,7 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     def _getMetrics(self, tid: str, year: int, rfNames: list) -> pd.DataFrame:
 
-        # ---
-        # Alter the RF's names to match the year being predicted, if an
-        # unsorted monthly band is encountered.
-        # ---
-        names = []
-        
-        for rfName in rfNames:
-            
-            if rfName.count('-') == 2:
-
-                name, band, day = rfName.split('-')
-                prefix, jul = day.split('_')
-                newDay = prefix + '_' + str(year) + jul[-3:]
-                rfName = name + '-' + band + '-' + newDay
-                
-            names.append(rfName)
+        names = rfNames
         
         self._logger.info('Retrieving metrics: ' + str(names))
         
@@ -138,10 +131,6 @@ class VcfPredict(object):
                             self._metricsDir, 
                             self._logger)
         
-        # ---
-        # I added Juijitsu to Metrics to accommodate getMetricFromRf.  Move
-        # that mess here to make Metrics closer to pure.
-        # ---
         metrics = pd.DataFrame()
         
         for i in range(len(names)):
@@ -175,46 +164,83 @@ class VcfPredict(object):
     def _runPrediction(self, 
                        tid: str, 
                        year: int, 
-                       rf: RandomForestRegressor) -> Path:
+                       rf: RandomForestRegressor,
+                       topN: list) -> np.ndarray:
         
-        X: pd.DataFrame = self._getMetrics(tid, year, rf.feature_names_in_)
-        X = X.replace(-10001, 10001)
+        X: pd.DataFrame = self._getMetrics(tid, year, topN)
+        # X = X.replace(-10001, 10001)
         
-        # Perform the tree cover predictions.
+        self._logger.info('Predicting ...')
+        
         prediction: np.ndarray = rf.predict(X). \
+                                 to_numpy(). \
                                  astype(np.int16). \
-                                 reshape(Band.ROWS, Band.COLS)
+                                 reshape(self._productType.ROWS,
+                                         self._productType.COLS)
+
+        # prediction: np.ndarray = rf.predict(X). \
+        #                          astype(np.int16). \
+        #                          reshape(self._productType.ROWS,
+        #                                  self._productType.COLS)
 
         # Apply the water mask.
         maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
         
-        # Write the prediction as an image.
-        fName: Path = 'Percent_Tree_Cover' + '-' + tid + '-' + str(year)
-        
-        modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
-                  '+datum=WGS84 +units=m +no_defs'
-        
-        Utils.writeRaster(self._outDir, maskedPred, fName, projection=modSinu)
-                                          
-        return fName
+        return maskedPred
         
     # ------------------------------------------------------------------------
     # runTileForYear
     # ------------------------------------------------------------------------
-    def runTileForYear(self, tid: str, year: int) -> (Path, Path):
+    def runTileForYear(self, tid: str, year: int) -> list[np.ndarray]:
 
         self._logger.info('Running ' + tid + ' for ' + str(year))
         
-        tCoverPath: Path = self._runPrediction(tid, year, self._treeCoverRf)
-        nonvegPath: Path = self._runPrediction(tid, year, self._nonvegRf)
+        pctTc: np.ndarray = self._runPrediction(tid, 
+                                                year, 
+                                                self._treeCoverRf,
+                                                self._treeCoverTopN)
+                                                
+        self._write(tid, year, 'Percent_Tree_Cover', pctTc)     
 
-        return (tCoverPath, nonvegPath)
+        pctNonveg: np.ndarray = self._runPrediction(tid, 
+                                                    year, 
+                                                    self._nonvegRf,
+                                                    self._nonvegTopN)
+                                                    
+        self._write(tid, year, 'Percent_NonVegetated', pctNonveg)     
+
+        # ---
+        # If 100 - pctTc - pctNonVeg < 0, that the percentages add up to 
+        # over 100.  Clamp pctNonTreeVeg to 0 in that case.
+        # ---
+        zeros = np.zeros_like(pctTc)
+        pctNontreeVeg: np.ndarray = np.maximum(0, 100 - pctTc - pctNonveg)
+        self._write(tid, year, 'Percent_NonTree_Vegetation', pctNontreeVeg)
+        
+        return pctTc, pctNonveg, pctNontreeVeg
         
     # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
-    def run(self, tids: list[str], years: list[int]) -> list[Path]:
+    def run(self, tids: list[str], years: list[int]) -> \
+        list[list[np.ndarray]]:
         
-        paths = [self.runTileForYear(t, y) for t in tids for y in years]
-        return paths
+        results = [self.runTileForYear(t, y) for t in tids for y in years]
+        return results
+
+    # ------------------------------------------------------------------------
+    # write
+    # ------------------------------------------------------------------------
+    def _write(self, 
+               tid: str, 
+               year: int, 
+               outPrefix: str, 
+               raster: np.ndarray) -> Path:
+        
+        fName: Path = outPrefix + '-' + tid + '-' + str(year)
+        
+        modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
+                  '+datum=WGS84 +units=m +no_defs'
+        
+        Utils.writeRaster(self._outDir, raster, fName, projection=modSinu)
         

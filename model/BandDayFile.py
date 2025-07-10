@@ -6,13 +6,16 @@ from osgeo import gdal
 from modis_vcf.model.DayFile import DayFile
 from modis_vcf.model.ProductType import ProductType
 
+gdal.UseExceptions()
+
 
 # ----------------------------------------------------------------------------
 # Class BandDayFile
 # ----------------------------------------------------------------------------
 class BandDayFile(DayFile):
 
-    DEFAULT_ZENITH_CUTOFF = 72
+    ZENITH_CUTOFF = 70
+    ZENITH_CLAMP = 16000
 
     # ------------------------------------------------------------------------
     # __init__
@@ -22,12 +25,40 @@ class BandDayFile(DayFile):
         super(BandDayFile, self).__init__()
 
     # ------------------------------------------------------------------------
+    # getSolz
+    # ------------------------------------------------------------------------
+    def getSolz(self, productType: ProductType = None) -> np.ndarray:
+        
+        # This supports MOD09 using the thermal band from MOD44.
+        productType = productType or self._productType
+
+        solz: np.ndarray = self._readSubdataset(ProductType.SOLZ,
+                                                productType=productType)
+                                    
+        solz = (solz * self._productType.solarZenithScaleFactor). \
+               astype(np.int16)
+               
+        return solz
+        
+    # ------------------------------------------------------------------------
+    # getState
+    # ------------------------------------------------------------------------
+    def getState(self, productType: ProductType = None) -> np.ndarray:
+        
+        # This supports MOD09 using the thermal band from MOD44.
+        productType = productType or self._productType
+
+        state: np.ndarray = self._readSubdataset(ProductType.STATE, 
+                                                 productType=productType)
+
+        return state
+        
+    # ------------------------------------------------------------------------
     # readSubdataset
     # ------------------------------------------------------------------------
     def _readSubdataset(self, 
                         inBandName: str = None, 
-                        applyNoData: bool = True,
-                        productType = None) -> (np.ndarray, int):
+                        productType = None) -> np.ndarray:
         
         bandName = inBandName or self._bandName
         productType = productType or self._productType
@@ -45,20 +76,13 @@ class BandDayFile(DayFile):
         ds: gdal.Dataset = gdal.Open(str(fileName))
         subdatasetIndex: int = productType.bandXref[bandName]
         bandDs = gdal.Open(ds.GetSubDatasets()[subdatasetIndex][0])
-        bandNoData = bandDs.GetRasterBand(1).GetNoDataValue()
-        bandDataType = bandDs.GetRasterBand(1).DataType
         self._geoTransform: tuple = bandDs.GetGeoTransform()
         
         # ReadAsArray automatically resamples when necessary.
         rawBand = bandDs.ReadAsArray(buf_xsize=ProductType.COLS,
                                      buf_ysize=ProductType.ROWS)
-        
-        if applyNoData:
-            
-            rawBand = \
-                np.where(rawBand == bandNoData, ProductType.NO_DATA, rawBand)
-
-        return (rawBand, bandDataType)
+                                     
+        return rawBand
 
     # ------------------------------------------------------------------------
     # getRaster
@@ -68,7 +92,7 @@ class BandDayFile(DayFile):
         self._logger.info('Reading band from HDF')
 
         # Read the raster without QA.
-        outBand, dataType = self._readSubdataset()
+        outBand = self._readSubdataset()
         
         # Apply the QA.  It does not use ProductType.NO_DATA.
         if applyQa:
@@ -78,7 +102,7 @@ class BandDayFile(DayFile):
             # from another product type, get the QA bands from that product
             # type, too.  ReadSubDataset() calls ProductType.findFile(), 
             # which looks up the product type mapping.  We must override this.
-            # Self._productType will be PTMOD09.
+            # Self._productType will be ProductTypeMod09A (or G?).
             # ---
             productType = self._productType
             bandPt = self._productType.getProductTypeForBand(self.bandName)
@@ -86,25 +110,15 @@ class BandDayFile(DayFile):
             if bandPt != self._productType:
                 productType = bandPt
             
-            solz, dType = self._readSubdataset(ProductType.SOLZ,
-                                               productType=productType)
-        
-            solz = (solz * self._productType.solarZenithScaleFactor). \
-                   astype(np.int16)
+            solz = self.getSolz(productType=productType)
+            
+            outBand = \
+                np.where(solz <= 0, self.ZENITH_CLAMP, outBand)
                
-            state, dtype = self._readSubdataset(ProductType.STATE, 
-                                                False,
-                                                productType=productType)
-        
-            self._qaMask: np.ndarray = self._productType. \
-                createQaMask(state, 
-                             solz,
-                             BandDayFile.DEFAULT_ZENITH_CUTOFF)
-
-            outBand = np.where(self._qaMask==1, outBand, ProductType.NO_DATA)
-        
-        # outBand = outBand.astype(np.int16)
-        outBand.tofile(self.outName)
+            outBand = \
+                np.where(solz > self.ZENITH_CUTOFF, self.ZENITH_CLAMP, outBand)
+               
+        # outBand.tofile(self.outName)
     
         return outBand
 

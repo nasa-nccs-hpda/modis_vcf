@@ -45,10 +45,10 @@ def main():
                         help='Print descriptions of available metrics ' + \
                              'and exit.')
 
-    parser.add_argument('--productType',
-                        choices=[ProductTypeMod09A.PRODUCT_TYPE, 
-                                 ProductTypeMod44.PRODUCT_TYPE],
-                        help='Choose the product type to run.')
+    # parser.add_argument('--productType',
+    #                     choices=[ProductTypeMod09A.PRODUCT_TYPE,
+    #                              ProductTypeMod44.PRODUCT_TYPE],
+    #                     help='Choose the product type to run.')
 
     parser.add_argument('-t',
                         nargs='+',
@@ -77,16 +77,19 @@ def main():
     #
     # This can be accomplished with registration, instead of this hard coding.
     # ---
-    inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
-    inDir09 = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
-    prodType = None
-
-    if args.productType == ProductTypeMod09A.PRODUCT_TYPE:
-        
-        prodType = ProductTypeMod09A(inDir09, inDir)
-        
-    else:
-        prodType = ProductTypeMod44(inDir)
+    # inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
+    # inDir09 = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
+    # prodType = None
+    #
+    # if args.productType == ProductTypeMod09A.PRODUCT_TYPE:
+    #
+    #     prodType = ProductTypeMod09A(inDir09, inDir)
+    #
+    # else:
+    #     prodType = ProductTypeMod44(inDir)
+    
+    modisDir = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
+    prodType = ProductTypeMod44(modisDir)
     
     # ---
     # Make metrics

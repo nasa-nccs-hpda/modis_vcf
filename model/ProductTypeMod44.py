@@ -77,11 +77,62 @@ class ProductTypeMod44(ProductType):
 
         mask = np.where((cloud == 0) &
                         (shadow == 0) &
-                        (aerosol != 3) &   
-                        (adjacency == 0) & 
+                        (aerosol != 3) &
+                        (adjacency == 0) &
                         (solz > 0) &
                         (solz < zenithCutOff),
                         1,
-                        ProductType.NO_DATA).astype(np.int16)
+                        0).astype(np.int16)
 
         return mask
+
+    # ------------------------------------------------------------------------
+    # createCloudMask
+    # ------------------------------------------------------------------------
+    def createCloudMask(self, 
+                        state: np.ndarray,
+                        solz: np.ndarray,
+                        zenithCutOff: int) -> np.ndarray:
+        
+        cloud = state & 3
+
+        mask = np.where((cloud == 0) &
+                        (solz < zenithCutOff),
+                        1,
+                        0).astype(np.int16)
+
+        return mask
+
+    # ------------------------------------------------------------------------
+    # getCloud
+    # 
+    # This should probably be in the base class, at least as an abstract
+    # method.  Currently, it is part of an experiment related to 
+    # CompositeDayFile.  Originally, there was the prospect of using multiple
+    # types of MODIS data, necessitating ProductType.  This is evolving into
+    # just one type, MOD44.
+    # ------------------------------------------------------------------------
+    def getCloud(self, state: np.ndarray) -> int:
+
+        return state & 3
+        
+    # ------------------------------------------------------------------------
+    # getShadow
+    # ------------------------------------------------------------------------
+    def getShadow(self, state: np.ndarray) -> int:
+
+        return (state & 4) >> 2
+                
+    # ------------------------------------------------------------------------
+    # getAdjacency
+    # ------------------------------------------------------------------------
+    def getAdjacency(self, state: np.ndarray) -> int:
+
+        return (state & 8192) >> 13
+                
+    # ------------------------------------------------------------------------
+    # getAerosol
+    # ------------------------------------------------------------------------
+    def getAerosol(self, state: np.ndarray) -> int:
+
+        return (state & 192) >> 6                

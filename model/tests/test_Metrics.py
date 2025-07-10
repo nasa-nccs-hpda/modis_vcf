@@ -57,7 +57,10 @@ class MetricsTestCase(unittest.TestCase):
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
 
         self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
-                                 '/SystemTesting/modis-vcf/UnitTests') 
+                                 '/SystemTesting/modis-vcf/UnitTests/' +
+                                 'Metrics') 
+
+        self._mod44OutDir.mkdir(exist_ok=True)
 
         self.mmMod44 = Metrics(self.h09v05,
                                self.year2019,
@@ -73,7 +76,10 @@ class MetricsTestCase(unittest.TestCase):
             ProductTypeMod09A(self._mod09InDir, self._mod44InDir)
 
         self._mod09OutDir = Path('/explore/nobackup/people/rlgill' +      
-                                 '/SystemTesting/modis-vcf/MOD09A')
+                                 '/SystemTesting/modis-vcf/UnitTests/' + 
+                                 'Metrics/MOD09A')
+
+        self._mod09OutDir.mkdir(exist_ok=True)
 
         self.mmMod09A = Metrics(self.h09v05,
                                 self.year2019,
@@ -172,8 +178,6 @@ class MetricsTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testApplyThreshold(self):
 
-        mm = self.mmMod44
-        
         # Test the Numpy Jui Jitsu using a simple array.
         arr = np.array([[[     2, np.nan], [45, 78]], 
                         [[np.nan,     92], [60, 76]],
@@ -220,76 +224,79 @@ class MetricsTestCase(unittest.TestCase):
                                        threshed[:, 1, 1],
                                        equal_nan=True))
                                        
-
+        # ---
+        # Apply threshold is obsolete because there are no more NaNs.
         # Get a band without applying the threshold
-        bandName = ProductTypeMod44.BAND1
-        band, bXref = mm.getBandCube(bandName)
-        threshold = 3
-
         # ---
-        # Use MetricsTestCase.findStacksForApplyThreshold() to discover these.
-        # self.findStacksForApplyThreshold(band, threshold)
-        # ---
-        ltx = 0
-        lty = 4799
-        eqx = 0
-        eqy = 232
-        gtx = 0
-        gty = 292
-
-        # These are how many NaNs are expected at these locations.
-        self.assertEqual(np.count_nonzero(np.isnan(band[:, ltx, lty])), 0)
-
-        testDays = []
-        
-        for day in self.days:
-            
-            name = 'MOD44-' + mm._tid + '-' + str(day[0]) + \
-                   str(day[1]).zfill(3) + '-' + bandName + '.bin'
-                   
-            fName = mm._dayDir / name
-            
-            raster = np.fromfile(fName, dtype=np.int16). \
-                     reshape(ProductTypeMod44.ROWS, ProductTypeMod44.COLS)
-            
-            testDays.append(raster)
-
-        self.assertEqual(np.count_nonzero(np.isnan(band[:, eqx, eqy])), 3)
-        self.assertEqual(np.count_nonzero(np.isnan(band[:, gtx, gty])), 4)
-
-        # ---
-        # Now apply the threshold.
-        # This is a kludgey way to change the threshold, rather than
-        # implementing an accessor.
-        # ---
-        threshMm = mm
-        threshMm._nanThreshold = threshold
-        bandThresh, bXref = threshMm.getBandCube(bandName)
-        
-        self.assertFalse(np.isnan(np.nanmax(bandThresh)))
-        
-        self.assertEqual(np.count_nonzero( \
-            np.isnan(bandThresh[:, ltx, lty])), 0)
-        
-        self.assertEqual(np.count_nonzero( \
-            np.isnan(bandThresh[:, eqx, eqy])), 3)
-        
-        NUM_MOD44_SPLITS = 12
-
-        self.assertEqual(np.count_nonzero(np.isnan(bandThresh[:, gtx, gty])),
-                         NUM_MOD44_SPLITS)
-
-        self.assertTrue(np.array_equal(band[:, ltx, lty], 
-                                       bandThresh[:, ltx, lty], 
-                                       equal_nan=True))
-
-        self.assertTrue(np.array_equal(band[:, eqx, eqy], 
-                                       bandThresh[:, eqx, eqy], 
-                                       equal_nan=True))
-
-        self.assertFalse(np.array_equal(band[:, gtx, gty], 
-                                        bandThresh[:, gtx, gty], 
-                                        equal_nan=True))
+        # bandName = ProductTypeMod44.BAND1
+        # mm = self.mmMod44
+        # band, bXref = mm.getBandCube(bandName)
+        # threshold = 3
+        #
+        # # ---
+        # # Use MetricsTestCase.findStacksForApplyThreshold() to discover these.
+        # # self.findStacksForApplyThreshold(band, threshold)
+        # # ---
+        # ltx = 0
+        # lty = 4799
+        # eqx = 0
+        # eqy = 232
+        # gtx = 0
+        # gty = 292
+        #
+        # # These are how many NaNs are expected at these locations.
+        # self.assertEqual(np.count_nonzero(np.isnan(band[:, ltx, lty])), 0)
+        #
+        # testDays = []
+        #
+        # for day in self.days:
+        #
+        #     name = 'MOD44-' + mm._tid + '-' + str(day[0]) + \
+        #            str(day[1]).zfill(3) + '-' + bandName + '.bin'
+        #
+        #     fName = mm._dayDir / name
+        #
+        #     raster = np.fromfile(fName, dtype=np.int16). \
+        #              reshape(ProductTypeMod44.ROWS, ProductTypeMod44.COLS)
+        #
+        #     testDays.append(raster)
+        #
+        # self.assertEqual(np.count_nonzero(np.isnan(band[:, eqx, eqy])), 3)
+        # self.assertEqual(np.count_nonzero(np.isnan(band[:, gtx, gty])), 4)
+        #
+        # # ---
+        # # Now apply the threshold.
+        # # This is a kludgey way to change the threshold, rather than
+        # # implementing an accessor.
+        # # ---
+        # threshMm = mm
+        # threshMm._nanThreshold = threshold
+        # bandThresh, bXref = threshMm.getBandCube(bandName)
+        #
+        # self.assertFalse(np.isnan(np.nanmax(bandThresh)))
+        #
+        # self.assertEqual(np.count_nonzero( \
+        #     np.isnan(bandThresh[:, ltx, lty])), 0)
+        #
+        # self.assertEqual(np.count_nonzero( \
+        #     np.isnan(bandThresh[:, eqx, eqy])), 3)
+        #
+        # NUM_MOD44_SPLITS = 12
+        #
+        # self.assertEqual(np.count_nonzero(np.isnan(bandThresh[:, gtx, gty])),
+        #                  NUM_MOD44_SPLITS)
+        #
+        # self.assertTrue(np.array_equal(band[:, ltx, lty],
+        #                                bandThresh[:, ltx, lty],
+        #                                equal_nan=True))
+        #
+        # self.assertTrue(np.array_equal(band[:, eqx, eqy],
+        #                                bandThresh[:, eqx, eqy],
+        #                                equal_nan=True))
+        #
+        # self.assertFalse(np.array_equal(band[:, gtx, gty],
+        #                                 bandThresh[:, gtx, gty],
+        #                                 equal_nan=True))
 
     # -------------------------------------------------------------------------
     # testDirs
@@ -310,21 +317,31 @@ class MetricsTestCase(unittest.TestCase):
     def testGetBandCube(self):
 
         b5, b5Xref = self.mmMod44.getBandCube(ProductTypeMod44.BAND5)
-        self.assertEqual(b5.shape, (12, 4800, 4800))
+        self.assertEqual(b5.shape, (8, 4800, 4800))
         self.assertEqual(b5.dtype, np.float64)
 
-        days = ['2019065', '2019097', '2019129', '2019161', '2019193',
-                '2019225', '2019257', '2019289', '2019321', '2019353',
-                '2020017', '2020049', ]
+        days = ['2019065', '2019113', '2019161', '2019209', '2019257',
+                '2019305', '2019353', '2020033']
 
         self.assertEqual(list(b5Xref.keys()), days)
+        
+        # Ensure bands no longer have NaNs or no-data values.
+        mm = Metrics('h12v02',
+                     self.year2019,
+                     self.productTypeMod44,
+                     self._mod44OutDir,
+                     self._logger)
+
+        b6, b6Xref = mm.getBandCube(ProductTypeMod44.BAND6)
+        self.assertFalse(np.isnan(b6).any())
+        self.assertFalse((b6 == -10001).any())
         
     # -------------------------------------------------------------------------
     # testGetMetricBand
     # -------------------------------------------------------------------------
     def testGetMetricBand(self):
         
-        METRIC_TITLE = 'BandReflMedian'
+        METRIC_TITLE = 'BandReflMin'
         METRIC_NAME = 'metric' + METRIC_TITLE
         mm = self.mmMod44
         b1: np.ndarray = mm.getMetricBand(METRIC_NAME, ProductTypeMod44.BAND1)
@@ -336,13 +353,13 @@ class MetricsTestCase(unittest.TestCase):
 
         b2: np.ndarray = mm.getMetricBand(METRIC_NAME, 
                                           ProductTypeMod44.BAND2,
-                                          day='2019193')
+                                          day='2019161')
                                           
         self.assertEqual(b2.shape, (4800, 4800))
         
         b3: np.ndarray = mm.getMetricBand(METRIC_NAME, 
                                           ProductTypeMod44.NDVI,
-                                          day='2019193')
+                                          day='2019161')
                                           
         self.assertEqual(b3.shape, (4800, 4800))
         
@@ -352,31 +369,29 @@ class MetricsTestCase(unittest.TestCase):
     def testGetMetricFromRf(self):
         
         mm = self.mmMod44
-        b = mm.getMetricFromRf('UnsortedMonthlyBands-Band_6-Day_2019289')
+        b = mm.getMetricFromRf('UnsortedMonthlyBands-Band_6-Day_2019257')
         self.assertEqual(b.shape, (4800, 4800))
-        b = mm.getMetricFromRf('UnsortedMonthlyBands-NDVI-Day_2020017')
+        b = mm.getMetricFromRf('UnsortedMonthlyBands-NDVI-Day_2020033')
         self.assertEqual(b.shape, (4800, 4800))
-        
-        # ---
-        # Old metrics have a different format. Cope with it, instead of
-        # running the metrics again, because we are in a rush.
-        # ---
-        mm.getMetricFromRf('UnsortedMonthlyBands-Band_3-Day-2019289')
         
     # -------------------------------------------------------------------------
     # testCompositeValues
     # -------------------------------------------------------------------------
     def testCompositeValues(self):
 
-        mm = self.mmMod44
+        mm = Metrics('h12v02',
+                     self.year2019,
+                     self.productTypeMod44,
+                     self._mod44OutDir,
+                     self._logger)
+
         b5Name = ProductTypeMod44.BAND5
         b5, b5Xref = mm.getBandCube(b5Name)
-        self.assertEqual(np.count_nonzero(np.isnan(b5[:, 0, 0])), 12)
+        self.assertEqual(np.count_nonzero(np.isnan(b5[:, 0, 0])), 0)
 
-        daysSought = [(2019, 65), (2019, 97), (2019, 129), (2019, 161), 
-                      (2019, 193), (2019, 225), (2019, 257), (2019, 289),
-                      (2019, 321), (2019, 353), (2020, 17), (2020, 49)]
-        
+        daysSought = [(2019,  65), (2019, 113), (2019, 161), (2019, 209),
+                      (2019, 257), (2019, 305), (2019, 353), (2020,  33)]
+
         testDays = []
         
         for year, day in daysSought:
@@ -391,11 +406,8 @@ class MetricsTestCase(unittest.TestCase):
             
             testDays.append(raster)
 
-        for i in range(12):
+        for i in range(8):
             self.assertEqual(b5[i, 0, 0], testDays[i][0, 0])
-
-        self.assertEqual(np.count_nonzero(np.isnan(b5[:, 0, 232])), 3)
-        self.assertEqual(np.count_nonzero(np.isnan(b5[:, 0, 292])), 4)
 
     # -------------------------------------------------------------------------
     # testGetDayXref
@@ -406,8 +418,8 @@ class MetricsTestCase(unittest.TestCase):
         b5, xref = self.mmMod44.getBandCube(ProductTypeMod44.BAND5)
         print('xref: ' + str(xref))
         self.assertTrue('2019065' in xref)
-        self.assertTrue('2020017' in xref)
-        self.assertEqual(xref['2019225'], 5)
+        self.assertTrue('2020033' in xref)
+        self.assertEqual(xref['2019209'], 3)
         
     # -------------------------------------------------------------------------
     # testRegistration
@@ -425,10 +437,10 @@ class MetricsTestCase(unittest.TestCase):
         year = self.mmMod44.getYearForDay(65)
         self.assertEqual(year, self.mmMod44._year)
 
-        year = self.mmMod44.getYearForDay(289)
+        year = self.mmMod44.getYearForDay(257)
         self.assertEqual(year, self.mmMod44._year)
 
-        year = self.mmMod44.getYearForDay(17)
+        year = self.mmMod44.getYearForDay(33)
         self.assertEqual(year, self.mmMod44._year + 1)
 
     # -------------------------------------------------------------------------
@@ -453,9 +465,10 @@ class MetricsTestCase(unittest.TestCase):
         b1, xref = mm.getBandCube(self.productTypeMod09A.BAND1)
         b2, xref = mm.getBandCube(self.productTypeMod09A.BAND2)
         
-        self.assertTrue(np.isnan(b1).any())
-        self.assertTrue(np.isnan(b2).any())
-        self.assertTrue(np.isnan(ndvi).any())
+        # Now there should be no NaNs.
+        self.assertFalse(np.isnan(b1).any())
+        self.assertFalse(np.isnan(b2).any())
+        self.assertFalse(np.isnan(ndvi).any())
 
         # ---
         # Test MOD09A.  Elsewhere, NDVI had no NaNs.
@@ -469,10 +482,13 @@ class MetricsTestCase(unittest.TestCase):
         b1, b1Xref = mm.getBandCube(self.productTypeMod09A.BAND1)
         b2, b2Xref = mm.getBandCube(self.productTypeMod09A.BAND2)
         
-        self.assertTrue(np.isnan(b1).any())
-        self.assertTrue(np.isnan(b2).any())
-        self.assertTrue(np.isnan(ndvi).any())
-                
+        self.assertFalse(np.isnan(b1).any())
+        self.assertFalse(np.isnan(b2).any())
+        self.assertFalse(np.isnan(ndvi).any())
+        self.assertFalse((b1 == -10001).any())
+        self.assertFalse((b2 == -10001).any())
+        self.assertFalse((ndvi == -10001).any())
+        
         # Remove existing file.
         mm = self.mmMod44
         name = mm._metricsDir / (mm._productType._productType + '-NDVI.bin')
@@ -482,20 +498,16 @@ class MetricsTestCase(unittest.TestCase):
         b1, b1Xref = mm.getBandCube(self.productTypeMod44.BAND1)
         b2, b2Xref = mm.getBandCube(self.productTypeMod44.BAND2)
         
-        self.assertTrue(np.isnan(b1).any())
-        self.assertTrue(np.isnan(b2).any())
-        self.assertTrue(np.isnan(ndvi).any())
+        self.assertFalse(np.isnan(b1).any())
+        self.assertFalse(np.isnan(b2).any())
+        self.assertFalse(np.isnan(ndvi).any())
+        self.assertFalse((b1 == -10001).any())
+        self.assertFalse((b2 == -10001).any())
+        self.assertFalse((ndvi == -10001).any())
 
         # Ensure division by zero works as expected.
         d, r, c = np.argwhere(b1 + b2 == 0)[0]
         self.assertEqual(ndvi[d, r, c], 0)
-        
-        # Ensure NaNs in bands one or two works as expected.
-        d, r, c = np.argwhere(np.isnan(b1))[0]
-        self.assertTrue(np.isnan(ndvi[d, r, c]))
-
-        d, r, c = np.argwhere(np.isnan(b2))[0]
-        self.assertTrue(np.isnan(ndvi[d, r, c]))
         
         # Test some values.
         d, r, c = (0, 0, 0)
@@ -516,21 +528,6 @@ class MetricsTestCase(unittest.TestCase):
         exp = ((v2 - v1) / (v2 + v1)) * 1000
         self.assertEqual(ndvi[d, r, c], exp)
 
-        # ---
-        # Test threshold.
-        #
-        # From running findStacksForApplyThreshold(), we know that
-        # LT stack: (0, 0)
-        # EQ stack: (0, 232)
-        # GT stack: None
-        # self.findStacksForApplyThreshold(ndviNoThr)
-        # ---
-        ndviNoThr, ndviXref = mm.getNdvi()
-        self.assertEqual(np.count_nonzero(np.isnan(ndviNoThr[:, 0, 0])), 0)
-        self.assertEqual(np.count_nonzero(np.isnan(ndviNoThr[:, 0, 232])), 3)
-        self.assertEqual(np.count_nonzero(np.isnan(ndvi[:, 0, 0])), 0)
-        self.assertEqual(np.count_nonzero(np.isnan(ndvi[:, 0, 232])), 3)
-        
         # Test reading ndvi.
         ndviRead, ndviXref = mm.getNdvi()
         self.assertTrue(np.array_equal(ndvi, ndviRead, equal_nan=True))
@@ -546,98 +543,52 @@ class MetricsTestCase(unittest.TestCase):
         ndvi, ndviXref = mm.getNdvi()
         nSorted = np.sort(ndvi, axis=0)
 
-        # Test NDVI sort.  No-data values should be at the beginning.
+        # Test NDVI sort. 
         ndviSortedBand: np.ndarray = mm._sortByNDVI(band)
         self.assertFalse((ndviSortedBand == band).all())
         
-        # Case 1:  band with no NaNs and NDVI with no NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-                           ~np.isnan(nSorted[11, :, :]))[0]
-                           
-        maxIndex = np.nanargmax(ndvi[:, x, y])
+        x = 0
+        y = 0
+        maxIndex = np.argmax(ndvi[:, x, y])
         self.assertEqual(maxIndex, 1)
-        self.assertAlmostEqual(ndvi[maxIndex, x, y], 332.27445997)
+        self.assertAlmostEqual(ndvi[maxIndex, x, y], 298.7625221)
         self.assertEqual(ndviSortedBand[-1, x, y], band[maxIndex, x, y])
-
-        # ---
-        # Case 2:  band with no NaNs and NDVI with some NaNs
-        # This case does not exist.
-        # x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-        #                    np.isnan(nSorted[11, :, :]))[0]
-        # ---
-
-        # ---
-        # Case 3:  band with some NaNs and NDVI with no NaNs
-        # This case does not exist.
-        # x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-        #                    ~np.isnan(bSorted[1, :, :]) &
-        #                    np.isnan(bSorted[11, :, :]) &
-        #                    ~np.isnan(nSorted[11, :, :]))[0]
-        # ---
-
-        # Case 4:  band with some NaNs and NDVI with some NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-                           ~np.isnan(bSorted[1, :, :]) &
-                           np.isnan(bSorted[11, :, :]) &
-                           np.isnan(nSorted[11, :, :]))[0]
-
-        maxIndex = np.nanargmax(ndvi[:, x, y])
-        self.assertEqual(maxIndex, 2)
-        self.assertAlmostEqual(ndvi[maxIndex, x, y], 191.26912691)
-        self.assertEqual(ndviSortedBand[-1, x, y], band[maxIndex, x, y])
-        self.assertTrue(np.isnan(ndviSortedBand[0, x, y]))
-
-        # Case 5:  band all NaN
-        x, y = np.argwhere(np.isnan(bSorted[0, :, :]))[0]
-        self.assertTrue(np.isnan(ndviSortedBand[:, x, y]).all())
-
-        # Case 6:  ndvi all NaN
-        x, y = np.argwhere(np.isnan(nSorted[0, :, :]))[0]
-        self.assertTrue(np.isnan(ndviSortedBand[:, x, y]).all())
-
-        # ---
-        # Ensure sorted values are NaN where NDVI values are NaN.  Find a case
-        # where NDVI is NaN and band 1 is not.  Unable to find this case.
-        # d, r, c = np.argwhere(np.isnan(ndvi) & ~np.isnan(band))
-        # ---
-
-        # ---
-        # Test sorted by NDVI with no-data values at the end.
-        # ---
-        ndviSortedBand: np.ndarray = mm._sortByNDVI(band, noDataLow=False)
         
-        # Case 1:  band with no NaNs and NDVI with no NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-                           ~np.isnan(nSorted[11, :, :]))[0]
-                           
-        maxIndex = np.nanargmax(ndvi[:, x, y])
+        x = 2100
+        y = 1200
+        maxIndex = np.argmax(ndvi[:, x, y])
+        self.assertEqual(maxIndex, 2)
+        self.assertAlmostEqual(ndvi[maxIndex, x, y], 151.12540193)
+        self.assertEqual(ndviSortedBand[-1, x, y], band[maxIndex, x, y])
+        
+        # Test h12v02
+        mm = Metrics('h12v02',
+                     self.year2019,
+                     self.productTypeMod44,
+                     self._mod44OutDir,
+                     self._logger)
+
+        band, bXref = mm.getBandCube(ProductTypeMod44.BAND3)
+        bSorted: np.ndarray = np.sort(band, axis=0)
+        ndvi, ndviXref = mm.getNdvi()
+        nSorted = np.sort(ndvi, axis=0)
+
+        ndviSortedBand: np.ndarray = mm._sortByNDVI(band)
+        self.assertFalse((ndviSortedBand == band).all())
+        
+        x = 0
+        y = 0
+        maxIndex = np.argmax(ndvi[:, x, y])
         self.assertEqual(maxIndex, 1)
-        self.assertAlmostEqual(ndvi[maxIndex, x, y], 332.27445997)
+        self.assertAlmostEqual(ndvi[maxIndex, x, y], 0)
         self.assertEqual(ndviSortedBand[-1, x, y], band[maxIndex, x, y])
-
-        # Case 4:  band with some NaNs and NDVI with some NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-                           ~np.isnan(bSorted[1, :, :]) &
-                           np.isnan(bSorted[11, :, :]) &
-                           np.isnan(nSorted[11, :, :]))[0]
-
-        maxIndex = np.nanargmax(ndvi[:, x, y])
+        
+        x = 2100
+        y = 1200
+        maxIndex = np.argmax(ndvi[:, x, y])
         self.assertEqual(maxIndex, 2)
-        self.assertAlmostEqual(ndvi[maxIndex, x, y], 191.26912691)
-        numNan = np.isnan(ndvi[:, x, y]).sum()
-        
-        self.assertEqual(ndviSortedBand[-numNan - 1, x, y], 
-                         band[maxIndex, x, y])
-        
-        self.assertTrue(np.isnan(ndviSortedBand[-1, x, y]))
-
-        # Case 5:  band all NaN
-        x, y = np.argwhere(np.isnan(bSorted[0, :, :]))[0]
-        self.assertTrue(np.isnan(ndviSortedBand[:, x, y]).all())
-
-        # Case 6:  ndvi all NaN
-        x, y = np.argwhere(np.isnan(nSorted[0, :, :]))[0]
-        self.assertTrue(np.isnan(ndviSortedBand[:, x, y]).all())
+        self.assertAlmostEqual(ndvi[maxIndex, x, y], 562.89707751)
+        self.assertEqual(ndviSortedBand[-1, x, y], band[maxIndex, x, y])
 
     # -------------------------------------------------------------------------
     # testSortByThermal
@@ -654,98 +605,51 @@ class MetricsTestCase(unittest.TestCase):
         thermal, tXref = mm.getBandCube(ProductTypeMod44.BAND31)
         tSorted = np.sort(thermal, axis=0)
 
-        # Case 1:  band with no NaNs and thermal with no NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-                           ~np.isnan(tSorted[11, :, :]))[0]
-                           
-        maxIndex = np.nanargmax(thermal[:, x, y])
-        self.assertEqual(tSortedBand[-1, x, y], band[maxIndex, x, y])
-        
-        # ---
-        # Case 2:  band with no NaNs and thermal with some NaNs
-        # This case does not exist.
-        # x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-        #                    np.isnan(tSorted[11, :, :]))[0]
-        # ---
-
-        # ---
-        # Case 3:  band with some NaNs and thermal with no NaNs
-        # This case does not exist.
-        # x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-        #                    ~np.isnan(bSorted[1, :, :]) &
-        #                    np.isnan(bSorted[11, :, :]) &
-        #                    ~np.isnan(tSorted[11, :, :]))[0]
-        # ---
-
-        # Case 4:  band with some NaNs and thermal with some NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-                           ~np.isnan(bSorted[1, :, :]) &
-                           np.isnan(bSorted[11, :, :]) &
-                           np.isnan(tSorted[11, :, :]))[0]
-
-        maxIndex = np.nanargmax(thermal[:, x, y])
+        x = 0
+        y = 0
+        maxIndex = np.argmax(thermal[:, x, y])
+        self.assertEqual(maxIndex, 3)
+        self.assertAlmostEqual(thermal[maxIndex, x, y], 32349)
         self.assertEqual(tSortedBand[-1, x, y], band[maxIndex, x, y])
 
-        # Case 5:  band all NaN
-        x, y = np.argwhere(np.isnan(bSorted[0, :, :]))[0]
-        self.assertTrue(np.isnan(tSortedBand[:, x, y]).all())
+        x = 2100
+        y = 1200
+        maxIndex = np.argmax(thermal[:, x, y])
+        self.assertEqual(maxIndex, 2)
+        self.assertAlmostEqual(thermal[maxIndex, x, y], 27941)
+        self.assertEqual(tSortedBand[-1, x, y], band[maxIndex, x, y])
 
-        # Case 6:  ndvi all NaN
-        x, y = np.argwhere(np.isnan(tSorted[0, :, :]))[0]
-        self.assertTrue(np.isnan(tSortedBand[:, x, y]).all())
+        # Test h12v02
+        mm = Metrics('h12v02',
+                     self.year2019,
+                     self.productTypeMod44,
+                     self._mod44OutDir,
+                     self._logger)
 
-        # ---
-        # Test with no-data values at the end.
-        # ---
-        tSortedBand: np.ndarray = mm._sortByThermal(band, noDataLow=False)
+        band, bXref = mm.getBandCube(ProductTypeMod44.BAND3)
+        bSorted: np.ndarray = np.sort(band, axis=0)
+
+        tSortedBand: np.ndarray = mm._sortByThermal(band)
         self.assertFalse((tSortedBand == band).all())
 
         thermal, tXref = mm.getBandCube(ProductTypeMod44.BAND31)
         tSorted = np.sort(thermal, axis=0)
 
-        # Case 1:  band with no NaNs and thermal with no NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-                           ~np.isnan(tSorted[11, :, :]))[0]
-                           
-        maxIndex = np.nanargmax(thermal[:, x, y])
+        x = 0
+        y = 0
+        import pdb
+        pdb.set_trace()
+        maxIndex = np.argmax(thermal[:, x, y])
+        self.assertEqual(maxIndex, 3)
+        self.assertAlmostEqual(thermal[maxIndex, x, y], 32349)
         self.assertEqual(tSortedBand[-1, x, y], band[maxIndex, x, y])
-        
-        # ---
-        # Case 2:  band with no NaNs and thermal with some NaNs
-        # This case does not exist.
-        # x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-        #                    np.isnan(tSorted[11, :, :]))[0]
-        # ---
 
-        # ---
-        # Case 3:  band with some NaNs and thermal with no NaNs
-        # This case does not exist.
-        # x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-        #                    ~np.isnan(bSorted[1, :, :]) &
-        #                    np.isnan(bSorted[11, :, :]) &
-        #                    ~np.isnan(tSorted[11, :, :]))[0]
-        # ---
-
-        # Case 4:  band with some NaNs and thermal with some NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-                           ~np.isnan(bSorted[1, :, :]) &
-                           np.isnan(bSorted[11, :, :]) &
-                           np.isnan(tSorted[11, :, :]))[0]
-
-        maxIndex = np.nanargmax(thermal[:, x, y])
-
-        numNan = np.isnan(thermal[:, x, y]).sum()
-        
-        self.assertEqual(tSortedBand[-numNan - 1, x, y], 
-                         band[maxIndex, x, y])
-
-        # Case 5:  band all NaN
-        x, y = np.argwhere(np.isnan(bSorted[0, :, :]))[0]
-        self.assertTrue(np.isnan(tSortedBand[:, x, y]).all())
-
-        # Case 6:  ndvi all NaN
-        x, y = np.argwhere(np.isnan(tSorted[0, :, :]))[0]
-        self.assertTrue(np.isnan(tSortedBand[:, x, y]).all())
+        x = 2100
+        y = 1200
+        maxIndex = np.argmax(thermal[:, x, y])
+        self.assertEqual(maxIndex, 1)
+        self.assertAlmostEqual(thermal[maxIndex, x, y], 29255)
+        self.assertEqual(tSortedBand[-1, x, y], band[maxIndex, x, y])
 
     # -------------------------------------------------------------------------
     # testUnsortedMonthlyBands
@@ -866,7 +770,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
         
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND6 
@@ -909,7 +813,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
         
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND6 
@@ -953,7 +857,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
         
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND6 
@@ -996,7 +900,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND2
@@ -1038,7 +942,7 @@ class MetricsTestCase(unittest.TestCase):
                            np.isnan(bSorted[11, :, :]) &
                            np.isnan(nSorted[11, :, :]))[0]
         
-        maxNdviIndex = np.nanargmax(ndvi[:, x, y])
+        maxNdviIndex = np.argmax(ndvi[:, x, y])
         exp = int(band[maxNdviIndex, x, y])
         self.assertEqual(metric.cube[bIndex, x, y], exp)
 
@@ -1061,7 +965,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND1
@@ -1135,7 +1039,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND2
@@ -1199,7 +1103,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND4
@@ -1241,7 +1145,7 @@ class MetricsTestCase(unittest.TestCase):
                            np.isnan(bSorted[11, :, :]) &
                            np.isnan(tSorted[11, :, :]))[0]
         
-        maxIndex = np.nanargmax(thermal[:, x, y])
+        maxIndex = np.argmax(thermal[:, x, y])
         self.assertEqual(metric.cube[bIndex, x, y], band[maxIndex, x, y])
 
         # Case 5:  band all NaN
@@ -1263,7 +1167,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND4
@@ -1335,7 +1239,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND4
@@ -1399,7 +1303,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (7, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND1
@@ -1456,7 +1360,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
         
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND3
@@ -1539,7 +1443,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND3
@@ -1620,7 +1524,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND6 
@@ -1658,7 +1562,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND4 
@@ -1703,7 +1607,7 @@ class MetricsTestCase(unittest.TestCase):
                            np.isnan(nSorted[11, :, :]))[0]
 
         minIndex = np.nanargmin(ndvi[:, x, y])
-        maxIndex = np.nanargmax(ndvi[:, x, y])
+        maxIndex = np.argmax(ndvi[:, x, y])
         exp = abs(int(band[maxIndex, x, y] - band[minIndex, x, y]))
         self.assertEqual(metric.cube[index, x, y], exp)
 
@@ -1728,7 +1632,7 @@ class MetricsTestCase(unittest.TestCase):
         metName = mm._metricsDir / (METRIC_TITLE + '.tif')
         metName.unlink(missing_ok=True)
         metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (8, 4800, 4800))
+        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
         self.assertEqual(metric.name, METRIC_TITLE)
 
         xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND5 
@@ -1746,7 +1650,7 @@ class MetricsTestCase(unittest.TestCase):
                            ~np.isnan(tSorted[11, :, :]))[0]
 
         minIndex = np.nanargmin(thermal[:, x, y])
-        maxIndex = np.nanargmax(thermal[:, x, y])
+        maxIndex = np.argmax(thermal[:, x, y])
         exp = abs(int(band[maxIndex, x, y] - band[minIndex, x, y]))
         self.assertEqual(metric.cube[index, x, y], exp)
 
@@ -1773,7 +1677,7 @@ class MetricsTestCase(unittest.TestCase):
                            np.isnan(tSorted[11, :, :]))[0]
 
         minIndex = np.nanargmin(thermal[:, x, y])
-        maxIndex = np.nanargmax(thermal[:, x, y])
+        maxIndex = np.argmax(thermal[:, x, y])
         exp = abs(int(band[maxIndex, x, y] - band[minIndex, x, y]))
         self.assertEqual(metric.cube[index, x, y], exp)
 
@@ -1983,151 +1887,3 @@ class MetricsTestCase(unittest.TestCase):
                         v = state[p2[0], p2[1]]
                         sz = solz[p2[0], p2[1]]
                         print(p2, bandName, cdfYear, cdfDay, bin(v), sz)
-
-    # -------------------------------------------------------------------------
-    # debug
-    # -------------------------------------------------------------------------
-    def debug(self):
-        
-        pt = self.productTypeMod44
-        outDir = self._mod44OutDir
-        tid = 'h12v02'
-        
-        mm = Metrics(tid,
-                     self.year2019,
-                     pt,
-                     outDir,
-                     self._logger)
-                     
-        # metric = mm.getMetric('metricBandReflMin')
-        metric = mm.getMetric('metricBandReflMinTemp')
-        
-        # Find a point where all metric values are 0
-        # allSame = np.argwhere(np.sum(metric.cube, axis=0) == 0)
-
-        # Find a point where all metric values are no-data values
-        allSame = np.argwhere(np.sum(metric.cube, axis=0) == \
-                              pt.NO_DATA * metric.cube.shape[0])
-
-        x, y = allSame[0]
-
-        print('Interrogating (', x, ',', y, ')')
-        print('Metric:', metric.cube[:, x , y])
-
-        # ---
-        # Why is every metric at this coordinate a no-data value?
-        # First, why does B1 have a no-data value?
-        # Does the CDF contain no-data values for the entire year?
-        # ---
-        bandName = pt.BAND1
-        cdfs = []
-        cdfValues = []
-
-        for year, day in mm._daysSought:
-
-                cdf = CompositeDayFile().initFromParams(pt,
-                                                        bandName,
-                                                        tid,
-                                                        year,
-                                                        day,
-                                                        mm._compDir,
-                                                        logger=None,
-                                                        dayDir=mm._dayDir)
-
-                cdf._logger.setLevel(logging.WARNING)
-                cdfs.append(cdf)
-                cdfValues.append(cdf.raster()[x, y])
-
-        print('All CDFs no-data?', (np.array(cdfValues) == pt.NO_DATA).all())
-        
-        # Why is the first composite day a no-data value?
-        daysInComp = cdfs[0]._getDaysToFind()
-
-        for year, day in daysInComp:
-
-            bdf = BandDayFile().initFromParams(pt,
-                                               bandName,
-                                               tid,
-                                               year,
-                                               day,
-                                               mm._dayDir)
-
-            bdf._logger.setLevel(logging.WARNING)
-            print(bdf.raster()[x, y])
-        
-        
-        
-        
-        
-        
-        
-        
-        # for year, day in daysSought:
-        #
-        #     for bandName in pt.BANDS:
-        #
-        #         cdf = CompositeDayFile().initFromParams(pt,
-        #                                                 bandName,
-        #                                                 tid,
-        #                                                 year,
-        #                                                 day,
-        #                                                 mm._compDir,
-        #                                                 logger=None,
-        #                                                 dayDir=mm._dayDir)
-        #
-        #         cdf._logger.setLevel(logging.WARNING)
-        #         band, xref = mm.getBandCube(bandName)
-        #         # b31, b31X = mm.getBandCube(pt.BAND31)
-        #
-        #         print(year, day, bandName, cdf.raster()[x, y], band[:, x, y])
-        #         # print('B31', b31[:, x, y])
-        #
-        #         daysInComp = cdf._getDaysToFind()
-        #
-        #         for year, day in daysInComp:
-        #
-        #             print('Day ' + str(year) + str(day))
-        #
-        #             bdf = BandDayFile().initFromParams(pt,
-        #                                                bandName,
-        #                                                tid,
-        #                                                year,
-        #                                                day,
-        #                                                mm._dayDir)
-        #
-        #             bdf._logger.setLevel(logging.WARNING)
-        #             # bdf.outName.unlink(missing_ok=True)
-        #
-        #             # Ensure it is valid data before applying QA.
-        #             subDsValue = bdf._readSubdataset()[0][x, y]
-        #             self.assertNotEqual(subDsValue, pt.NO_DATA)
-        #
-        #             # Execute the full read without QA.
-        #             noQaValue = bdf._getRaster(applyQa=False)[x, y]
-        #             self.assertEqual(subDsValue, noQaValue)
-        #
-        #             # What is the QA doing?  First, solar zenith.
-        #             solz, dType = bdf._readSubdataset(pt.SOLZ)
-        #
-        #             solzValue = (solz * \
-        #                          bdf._productType.solarZenithScaleFactor). \
-        #                          astype(np.int16)[x, y]
-        #
-        #             # self.assertLessEqual(solzValue, bdf.DEFAULT_ZENITH_CUTOFF)
-        #             if solzValue >= bdf.DEFAULT_ZENITH_CUTOFF:
-        #                 print('Solz > cutoff')
-        #
-                    # Check the state.
-                    # state, dtype = bdf._readSubdataset(pt.STATE, False)
-                    # stateValue = state[x, y]
-                    #
-                    # cloud = state & 3
-                    # shadow = state & 4
-                    # adjacency = state & 8192
-                    # aerosol = (state & 192) >> 6
-                    #
-                    # print('Cloud == 0:', (cloud == 0).sum())
-                    # print('Shadow == 0:', (shadow == 0).sum())
-                    # print('Aerosol == 0:', (aerosol != 3).sum())
-                    # print('Adjacency == 0:', (adjacency == 0).sum())
-            

@@ -12,6 +12,8 @@ import numpy as np
 # TODO: Complete validation in __init__().
 # TODO: Refactor QA code as appropriate.
 # TODO: Make product types register themselves.
+# TODO: Remove or rename variables referring to no-data values.  Every pixel
+#       must have some value for machine learning.
 # ----------------------------------------------------------------------------
 class ProductType(ABC):
 
@@ -22,8 +24,8 @@ class ProductType(ABC):
     BAND5 = 'Band_5'
     BAND6 = 'Band_6'
     BAND7 = 'Band_7'
-    BAND31 = 'Band31'
-    BANDS = [BAND1, BAND2, BAND3, BAND4, BAND5, BAND6, BAND7]
+    BAND31 = 'Band_31'
+    BANDS = [BAND1, BAND2, BAND3, BAND4, BAND5, BAND6, BAND7, BAND31]
     NDVI = 'NDVI'
 
     SOLZ = 'SolarZenith'
@@ -31,7 +33,6 @@ class ProductType(ABC):
 
     ROWS = 4800
     COLS = 4800
-    NO_DATA = -10001
 
     YEAR_ONE_START_DAY = 65
     YEAR_ONE_END_DAY = 365
@@ -119,7 +120,17 @@ class ProductType(ABC):
                  altDir: Path = None) -> Path:
         
         searchPt: ProductType = self.getProductTypeForBand(bandName)
-        globDir = altDir or searchPt._inputDir
+        globDir = altDir or searchPt._inputDir / str(year)
+
+        # ---
+        # The new input directory now has year subdirectories.  If the day
+        # corresponds to the following year, from wrapping, subtract one
+        # from the year.  In the new directory structure, for example,
+        # 2019 wrapped days, like 2020033, will reside in the 2019 directory.
+        # ---
+        # dirYear = year if day in self._yearOneDays else int(year - 1)
+        # globDir = altDir or searchPt._inputDir / Path(str(dirYear))
+
         prefix = searchPt._prefixXref[bandName]
         yNj = str(year) + str(day).zfill(3)
         pt = searchPt.productType
@@ -127,7 +138,11 @@ class ProductType(ABC):
         mateFiles = list(globDir.glob(mateGlob))
 
         if not mateFiles:
-            raise RuntimeError('Unable to find file for ' + mateGlob)
+            
+            raise RuntimeError('Unable to find file for ' + 
+                               mateGlob + 
+                               ' in ' +
+                               str(globDir))
             
         return mateFiles[0]
         

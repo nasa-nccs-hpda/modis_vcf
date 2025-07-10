@@ -4,12 +4,14 @@ from concurrent.futures import Future
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures import wait
 import datetime as datetime
+import gc
 import glob
 import joblib
 import logging
 import math
 import multiprocessing
 from pathlib import Path
+import pickle
 import random
 import sys
 import warnings
@@ -73,31 +75,47 @@ class MonteCarloSim(object):
 
         self._logger: logging.RootLogger = logger
         
-        # Output directory
+        # Directories
         if not outDir or not outDir.exists() or not outDir.is_dir():
             raise ValueError('A valid output directory must be provided.')
             
         self._outDir: Path = outDir
-        
         self._trialDir: Path = outDir / 'trials'
         self._trialDir.mkdir(exist_ok=True)
-
-        # Consolidate training-related initialization.
         self._trainingDir: Path = trainingDir
+
+        # Labeled training data
         self._trainingType: TrainingType = trainingType
-        self._trials: list[Trial] = []
-        self._masterTraining: MasterTraining = None
-        self._allVars: list = None
-        self._X: pd.DataFrame = None
-        self._xTrain: pd.DataFrame = None
-        self._xTest: pd.DataFrame = None
-        self._yTrain: np.ndarray = None
-        self._yTest: np.ndarray = None
-        self._y: pd.DataFrame = None
-            
-        self._initTraining(procInputTrainFilesIndependently)
+
+        masterTraining = MasterTraining(self._trainingDir,
+                                        self._trainingType, 
+                                        self._logger)
+
+        self._allVars: list = masterTraining.dataset.schema.names \
+                              [MasterTraining.START_COL:]
+
+        # ---
+        # Load X- and y-related data members.  The test values are needed
+        # for the GPU version's permutation importance computation.  X
+        # objects are large, so save them as Parquet files.  Pertinent columns
+        # are extracted as needed, minimizing memory usage.  We must write y;
+        # otherwise we would need to read it all again just to get y.
+        # ---
+        self._xPath = self._outDir / ('X.parq')
+        self._xTrainPath: Path = self._outDir / ('xTrain.parq')
+        self._xTestPath: Path = self._outDir / ('xTest.parq')
+        
+        self._yPath: Path = self._outDir / ('y.parq')
+        self._yTrainPath: Path = self._outDir / ('yTrain.parq')
+        self._yTestPath: Path = self._outDir / ('yTest.parq')
+        
+        self._initXY(masterTraining, procInputTrainFilesIndependently)
 
         # Initialize the simulation parameters.
+        tFiles: list = self._trialDir.glob('Trial-*.bin')
+        self._trials: list[Trial] = [Trial.load(t) for t in tFiles]
+        self._numTrials = len(self._trials)
+
         self._numVarsForFinalModel: int = numVarsForFinalModel or 20
         self._predictorsPerTrial: int = predictorsPerTrial or 10
         self._numCpus = min(numCpus, multiprocessing.cpu_count())
@@ -106,12 +124,21 @@ class MonteCarloSim(object):
         self._minTimesEachVarUsed: int = \
             minTimesEachVarUsed if minTimesEachVarUsed is not None else 10
         
+        # ---
+        # The fit model.  CUML's regressor does not use feature names.  These
+        # are needed when we make prediction because it determines which
+        # metrics must be created.  Store the top-N predictors here, so they
+        # may be written to disk along with the final model.
+        # ---
+        self._rf: RandomForestRegressor = None
+        self._topN: list = None
+        
         # Print configuration.
         logger.info('Training dir: ' + str(trainingDir))
         logger.info('Predictors per trial: ' + str(self._predictorsPerTrial))
-        logger.info('Num rows: ' + str(self._masterTraining.numRows()))
+        logger.info('Num rows: ' + str(masterTraining.numRows()))
 
-        numVars = self._masterTraining.numVars()
+        numVars = masterTraining.numVars()
         logger.info('Num vars: ' + str(numVars))
         
         if numVars < 263:
@@ -125,66 +152,118 @@ class MonteCarloSim(object):
         logger.info('Min var usage: ' + str(self._minTimesEachVarUsed))
         logger.info('CPUs in use: ' + str(self._numCpus))
         logger.info('Max trials: ' + str(self._maxTrials))
+        logger.info('Read ' + str(len(self._trials)) + ' existing trials.')
 
     # ------------------------------------------------------------------------
-    # initTraining
-    #
-    # Normally, all input training Parquet files are treated as a single
-    # Parquet dataset.  The procInputTrainFilesIndependently option 
-    # performs the test/train split on each training file in the training
-    # directory, and combines all those into composite test/train data.
+    # initXY
     # ------------------------------------------------------------------------
-    def _initTraining(self, procTFilesIndependently: bool) -> None:
+    def _initXY(self, 
+                masterTraining: MasterTraining, 
+                procTFilesIndependently: bool) -> None:
         
-        self._masterTraining = MasterTraining(self._trainingDir,
-                                              self._trainingType, 
-                                              self._logger)
+        if not self._xPath.exists() or \
+            not self._xTestPath.exists() or \
+            not self._xTrainPath.exists() or \
+            not self._yPath.exists() or \
+            not self._yTestPath.exists() or \
+            not self._yTrainPath.exists():
+            
+            self._logger.info('Writing training to Parquet.')
+            
+            sampName = masterTraining.dataset.schema.names \
+                       [MasterTraining.SAMPLE_COL]
 
-        self._allVars: list = self._masterTraining.dataset.schema.names \
-                              [MasterTraining.START_COL:]
-                              
-        sampName = self._masterTraining.dataset.schema.names \
-                   [MasterTraining.SAMPLE_COL]
-
+            X, xTrain, xTest, y, yTrain, yTest = \
+                self._trainTestSplit(masterTraining, 
+                                     sampName, 
+                                     procTFilesIndependently)
+            
+            X.to_parquet(self._xPath)
+            xTrain.to_parquet(self._xTrainPath)
+            xTest.to_parquet(self._xTestPath)
+            
+            y.to_frame().to_parquet(self._yPath)
+            yTrain.to_frame().to_parquet(self._yTrainPath)
+            yTest.to_frame().to_parquet(self._yTestPath)
+            
+        else:
+            self._logger.info('Reading x/y from Parquet as needed.')
+            
+    # ------------------------------------------------------------------------
+    # trainTestSplit
+    # ------------------------------------------------------------------------
+    def _trainTestSplit(self,
+                        masterTraining: MasterTraining,
+                        sampName: str, 
+                        procTFilesIndependently: bool) -> [pd.DataFrame]:
+        
+        self._logger.info('Running train-test split.')
+        
+        X: pd.DataFrame = None
+        y: pd.DataFrame = None
+        xTrain: pd.DataFrame = None
+        yTrain: pd.DataFrame = None
+        xTest: pd.DataFrame = None
+        yTest: pd.DataFrame = None
+        
         if procTFilesIndependently:
 
-            xList = []
-            yList = []
-            xnList = []
-            xtList = []
-            ynList = []
-            ytList = []
+            loopX = []
+            loopY = []
+            loopXTrain = []
+            loopYTrain = []
+            loopXTest = []
+            loopYTest = []
             
-            for fName in self._masterTraining.dataset.files:
+            for fName in masterTraining.dataset.files:
                 
-                x = ParquetDataset(fName).read().to_pandas()
-                x = x.replace(-10001, 10001)
-                y = x[sampName]
-                yList.append(y)
-                xList.append(x.drop(sampName, axis=1))
+                xTemp = ParquetDataset(fName).read().to_pandas()
+                xTemp = xTemp.replace(-10001, 10001)
+                loopX.append(xTemp.drop(sampName, axis=1))
+                
+                yTemp = xTemp[sampName]
+                loopY.append(yTemp)
 
-                xn, xt, yn, yt = train_test_split(x, y)
-                xnList.append(xn)
-                xtList.append(xt)
-                ynList.append(yn)
-                ytList.append(yt)
+                xTrainTemp, xTestTemp, yTrainTemp, yTestTemp = \
+                    train_test_split(xTemp, yTemp)
+                    
+                loopXTrain.append(xTrainTemp)
+                loopXTest.append(xTestTemp)
+                loopYTrain.append(yTrainTemp)
+                loopYTest.append(yTestTemp)
                 
-            self._X = pd.concat(xList)
-            self._y = pd.concat(yList)
-            self._xTrain = pd.concat(xnList)
-            self._xTest = pd.concat(xtList)
-            self._yTrain = pd.concat(ynList)
-            self._yTest = pd.concat(ytList)
+                del xTemp
+                del yTemp
+                del xTrainTemp
+                del xTestTemp
+                del yTrainTemp
+                del yTestTemp
+
+            X = pd.concat(loopX)
+            y = pd.concat(loopY)
+            xTrain = pd.concat(loopXTrain)
+            xTest = pd.concat(loopXTest)
+            yTrain = pd.concat(loopYTrain)
+            yTest = pd.concat(loopYTest)
+
+            del loopX
+            del loopY
+            del loopXTrain
+            del loopYTrain
+            del loopXTest
+            del loopYTest
 
         else:
 
             X = self._masterTraining.dataset.read().to_pandas()
-            self._X = X.replace(-10001, 10001)
-            self._y = self._X[sampName]
-            self._X.drop(sampName, axis=1, inplace=True)
+            X = X.replace(-10001, 10001)
+            y = X[sampName]
+            X.drop(sampName, axis=1, inplace=True)
+            xTrain, xTest, yTrain, yTest = train_test_split(X, y)
             
-            self._xTrain, self._xTest, self._yTrain, self._yTest = \
-                train_test_split(self._X, self._y)
+        gc.collect()
+
+        return X, xTrain, xTest, y, yTrain, yTest
 
     # ------------------------------------------------------------------------
     # chooseColumns
@@ -270,7 +349,7 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     @property
     def numTrials(self) -> int:
-        return self._numTrials
+        return len(self._trials)
         
     # ------------------------------------------------------------------------
     # numVarsForFinalModel
@@ -326,10 +405,10 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
-    def run(self) -> RandomForestRegressor:
+    def run(self) -> None:
 
         topN = []
-        numCompleted = 0
+        numCompleted = self._numTrials
         varUsageCount = dict.fromkeys(self._allVars, 0)
         rf: RandomForestRegressor = None
         allConditionsMet = False
@@ -337,7 +416,9 @@ class MonteCarloSim(object):
         
         while not allConditionsMet:
             
-            # This is mostly for testing, so test complete quickly.
+            self._logger.info(str(self.numTrials) + ' completed.')
+            
+            # This is mostly for testing, so tests complete quickly.
             if numCompleted >= self._maxTrials:
                 
                 self._logger.warn('Insufficient trials were run because ' + 
@@ -398,38 +479,45 @@ class MonteCarloSim(object):
         # Run the final model.
         if allConditionsMet:
             
-            rf = self._runRandomForest(self._xTrain[topN], self._yTrain)
+            self.runFinalModel(topN)
             self._printSortedPredictors(averages)
-            
-        return rf
-        
+
     # ------------------------------------------------------------------------
     # runTrials
     # ------------------------------------------------------------------------
     def _runTrials(self, numCompleted: int) -> (list, int):
         
-        with ProcessPoolExecutor(max_workers=self._numCpus) as xtor:
-
-            completedTrials = []
-
-            self._logger.info('Starting a batch of ' + 
-                              str(self._numCpus) + 
-                              ' trials.')
-
-            futures = []
-
-            for count in range(self._numCpus):
-                futures.append(xtor.submit(self._runOneTrial))
-
-            self._logger.info('Awaiting batch completion.')
+        completedTrials = []
+        numCompleted = 0
+        
+        if self._numCpus == 1:
             
-            comp, incomp = wait(futures, return_when=FIRST_EXCEPTION)
-            numCompleted += len(comp)
+            self._logger.info('Starting a batch of 1 trial.')
+            trial: Trial = self._runOneTrial()
+            completedTrials.append(trial)
             
-            for future in comp:
+        else:
+            
+            with ProcessPoolExecutor(max_workers=self._numCpus) as xtor:
+
+                self._logger.info('Starting a batch of ' + 
+                                  str(self._numCpus) + 
+                                  ' trials.')
+
+                futures = []
+
+                for count in range(self._numCpus):
+                    futures.append(xtor.submit(self._runOneTrial))
+
+                self._logger.info('Awaiting batch completion.')
+            
+                comp, incomp = wait(futures, return_when=FIRST_EXCEPTION)
+                numCompleted += len(comp)
+            
+                for future in comp:
                 
-                trial: Trial = future.result()
-                completedTrials.append(trial)
+                    trial: Trial = future.result()
+                    completedTrials.append(trial)
                 
         self._logger.info('Total completed: ' + str(numCompleted))
         
@@ -444,24 +532,14 @@ class MonteCarloSim(object):
     def _runOneTrial(self) -> Trial:
         
         colNames: list[str] = self._chooseColumns()
-        X = self._X[colNames]
-        xTrain = self._xTrain[colNames]
+        xTrain = pd.read_parquet(self._xTrainPath, columns=colNames)
+        yTrain = pd.read_parquet(self._yTrainPath).to_numpy().ravel()
+        rf: RandomForestRegressor = self._runRandomForest(xTrain, yTrain)
 
-        rf: RandomForestRegressor = \
-            self._runRandomForest(xTrain, self._yTrain)
+        X = pd.read_parquet(self._xPath, columns=colNames)
+        y = pd.read_parquet(self._yPath).to_numpy().ravel()
 
-        # ---
-        # According to the user manual, permutation importance items are
-        # presented in the same order as the input variables.  Wish this were
-        # explicit.  For the trial object, the permutation importance values
-        # correspond, in order, to the predictor names.  See
-        # https://scikit-learn.org/stable/modules/permutation_importance.html#permutation-importance
-        #
-        # The permutation importances are all 0.  RFR documentation suggests
-        # using permutation_importance(), so this implies it is compatible.
-        # ---
-        # permImportances = dict(permutation_importance(rf, X, self._y))
-        permImportances = permutation_importance(rf, X, self._y)
+        permImportances = permutation_importance(rf, X, y)
         name = 'Trial-' + str(hash(''.join(colNames)))
         trial = Trial(name, colNames, permImportances)
         trial.save(self._trialDir)
@@ -475,19 +553,36 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def _runRandomForest(self, xTrain, yTrain) -> RandomForestRegressor:
 
-        rf = RandomForestRegressor(n_estimators=1)
+        rf = RandomForestRegressor(n_estimators=30)
         rf = rf.fit(xTrain, yTrain)
         return rf
 
     # ------------------------------------------------------------------------
+    # runFinalModel
+    #
+    # Having this as a final model means we can independently choose and
+    # specify the top-n predictors.  Specifically, we can use this to create
+    # a model based on the top predictors identified in the pge61 code.
+    # ------------------------------------------------------------------------
+    def runFinalModel(self, colsInFinalModel: list) -> None:
+        
+        self._logger.info('Running final model.')
+        xTrain = pd.read_parquet(self._xTrainPath, columns=colsInFinalModel)
+        yTrain = pd.read_parquet(self._yTrainPath).to_numpy().ravel()
+        self._rf = self._runRandomForest(xTrain, yTrain)
+        self._topN = colsInFinalModel
+        
+    # ------------------------------------------------------------------------
     # saveFinalModel
     # ------------------------------------------------------------------------
-    def saveFinalModel(self, finalModel: RandomForestRegressor) -> Path:
+    def saveFinalModel(self) -> None:
         
         outPath: Path = self._outDir / (self._trainingType.value + '.bin')
+        topPath: Path = self._outDir / (self._trainingType.value + 'TopN.bin')
         
         with open(outPath, 'wb') as f:
-            joblib.dump(finalModel, f)
+            joblib.dump(self._rf, f)
 
-        return outPath
+        with open(topPath, 'wb') as f:
+            pickle.dump(self._topN, f)
                 
