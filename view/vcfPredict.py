@@ -37,6 +37,11 @@ def main():
                         type=Path,
                         help='Path to non-vegetated model.')
 
+    parser.add_argument('--nvn',
+                        required=True,
+                        type=Path,
+                        help='Path to non-vegetated top-N predictors.')
+
     parser.add_argument('-t',
                         type=str,
                         nargs='*',
@@ -48,6 +53,11 @@ def main():
                         type=Path,
                         help='Path to tree-cover model.')
 
+    parser.add_argument('--tcn',
+                        required=True,
+                        type=Path,
+                        help='Path to tree-cover top-N predictors.')
+
     parser.add_argument('-y',
                         type=int,
                         required='True',
@@ -56,7 +66,9 @@ def main():
     args = parser.parse_args()
     
     vcfp = VcfPredict(args.tc,
+                      args.tcn,
                       args.nv,
+                      args.nvn,
                       args.o, 
                       args.metricsDir,
                       args.modisDir)

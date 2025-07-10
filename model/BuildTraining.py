@@ -33,6 +33,7 @@ from modis_vcf.model.TrainingType import TrainingType
 class BuildTraining(object):
     
     TRAINING_DIR = Path(__file__).parent.parent / 'data' / 'training'
+    TRAINING_NO_DATA = -10001
     
     # ------------------------------------------------------------------------
     # __init__
@@ -113,13 +114,18 @@ class BuildTraining(object):
         for metricName in metricsToRun:
             
             # metric: Band = mets.getMetric(metricName)
+            # metric: list[Metrics.Metric] = mets.getMetric(metricName)
+            #
+            # for bandName in metric.dayXref:
+            #
+            #     index = metric.dayXref[bandName]
+            #     df[bandName] = metric.cube[index].flatten().astype(np.int16)
+
             metric: list[Metrics.Metric] = mets.getMetric(metricName)
             
-            for bandName in metric.dayXref:
+            for metricDay in metric:
+                df[metricDay.name] = metricDay.value.flatten()
                 
-                index = metric.dayXref[bandName]
-                df[bandName] = metric.cube[index].flatten().astype(np.int16)
-            
         return df
 
     # ------------------------------------------------------------------------
@@ -138,7 +144,10 @@ class BuildTraining(object):
             samples: np.ndarray = np.fromfile(tFileName, np.uint8)
             
             # Using Band.NO_DATA converts samples from uint8 to int16.
-            samples = np.where(samples == 255, Band.NO_DATA, samples)
+            samples = np.where(samples == 255, 
+                               BuildTraining.TRAINING_NO_DATA, 
+                               samples)
+                               
             allTraining = np.append(allTraining, samples).astype(np.int16)
 
         # Add the training to the data frame as one big column.
@@ -283,8 +292,6 @@ class BuildTraining(object):
 
             # tid-x-y, tid, x, y, training, metric 1, metric 2, ...
             try:
-                import pdb
-                pdb.set_trace()
                 df: pd.DataFrame = self._addOneMetricToDf(df, tid)
 
             except AttributeError:
@@ -293,7 +300,8 @@ class BuildTraining(object):
                 self._logger.error('Failed tid ' + str(tid))
                 
             # Remove rows that do not have training data.
-            df: pd.DataFrame = df[df[self._trainingType.value] != Band.NO_DATA]
+            df: pd.DataFrame = df[df[self._trainingType.value] != \
+                               BuildTraining.TRAINING_NO_DATA]
 
             # Data frame to Parquet.
             self._logger.info('Writing ' + str(outFile))

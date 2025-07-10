@@ -24,7 +24,7 @@ class ProductType(ABC):
     BAND5 = 'Band_5'
     BAND6 = 'Band_6'
     BAND7 = 'Band_7'
-    BAND31 = 'Band31'
+    BAND31 = 'Band_31'
     BANDS = [BAND1, BAND2, BAND3, BAND4, BAND5, BAND6, BAND7, BAND31]
     NDVI = 'NDVI'
 

@@ -11,6 +11,7 @@ import logging
 import math
 import multiprocessing
 from pathlib import Path
+import pickle
 import random
 import sys
 import warnings
@@ -123,6 +124,15 @@ class MonteCarloSim(object):
         self._minTimesEachVarUsed: int = \
             minTimesEachVarUsed if minTimesEachVarUsed is not None else 10
         
+        # ---
+        # The fit model.  CUML's regressor does not use feature names.  These
+        # are needed when we make prediction because it determines which
+        # metrics must be created.  Store the top-N predictors here, so they
+        # may be written to disk along with the final model.
+        # ---
+        self._rf: RandomForestRegressor = None
+        self._topN: list = None
+        
         # Print configuration.
         logger.info('Training dir: ' + str(trainingDir))
         logger.info('Predictors per trial: ' + str(self._predictorsPerTrial))
@@ -179,8 +189,6 @@ class MonteCarloSim(object):
         else:
             self._logger.info('Reading x/y from Parquet as needed.')
             
-        # self._readY()
-        
     # ------------------------------------------------------------------------
     # trainTestSplit
     # ------------------------------------------------------------------------
@@ -397,7 +405,7 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
-    def run(self) -> RandomForestRegressor:
+    def run(self) -> None:
 
         topN = []
         numCompleted = self._numTrials
@@ -471,16 +479,9 @@ class MonteCarloSim(object):
         # Run the final model.
         if allConditionsMet:
             
-            # xTrain = pd.read_parquet(self._xTrainPath, columns=topN)
-            # yTrain = pd.read_parquet(self._yTrainPath).to_numpy().ravel()
-            # rf = self._runRandomForest(xTrain, yTrain)
-            # self._printSortedPredictors(averages)
-
-            rf = self.runFinalModel(topN)
+            self.runFinalModel(topN)
             self._printSortedPredictors(averages)
 
-        return rf
-        
     # ------------------------------------------------------------------------
     # runTrials
     # ------------------------------------------------------------------------
@@ -552,7 +553,7 @@ class MonteCarloSim(object):
     # ------------------------------------------------------------------------
     def _runRandomForest(self, xTrain, yTrain) -> RandomForestRegressor:
 
-        rf = RandomForestRegressor(n_estimators=1)
+        rf = RandomForestRegressor(n_estimators=30)
         rf = rf.fit(xTrain, yTrain)
         return rf
 
@@ -563,22 +564,25 @@ class MonteCarloSim(object):
     # specify the top-n predictors.  Specifically, we can use this to create
     # a model based on the top predictors identified in the pge61 code.
     # ------------------------------------------------------------------------
-    def runFinalModel(self, colsInFinalModel: list) -> RandomForestRegressor:
+    def runFinalModel(self, colsInFinalModel: list) -> None:
         
-        xTrain = pd.read_parquet(self._xTrainPath, columns=topN)
+        self._logger.info('Running final model.')
+        xTrain = pd.read_parquet(self._xTrainPath, columns=colsInFinalModel)
         yTrain = pd.read_parquet(self._yTrainPath).to_numpy().ravel()
-        rf = self._runRandomForest(xTrain, yTrain)
-        return rf
+        self._rf = self._runRandomForest(xTrain, yTrain)
+        self._topN = colsInFinalModel
         
     # ------------------------------------------------------------------------
     # saveFinalModel
     # ------------------------------------------------------------------------
-    def saveFinalModel(self, finalModel: RandomForestRegressor) -> Path:
+    def saveFinalModel(self) -> None:
         
         outPath: Path = self._outDir / (self._trainingType.value + '.bin')
+        topPath: Path = self._outDir / (self._trainingType.value + 'TopN.bin')
         
         with open(outPath, 'wb') as f:
-            joblib.dump(finalModel, f)
+            joblib.dump(self._rf, f)
 
-        return outPath
+        with open(topPath, 'wb') as f:
+            pickle.dump(self._topN, f)
                 

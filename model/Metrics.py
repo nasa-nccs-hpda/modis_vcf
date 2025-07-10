@@ -282,10 +282,14 @@ class Metrics(object):
                       bandName: str,
                       day: str = None) -> np.ndarray:
         
-        # allBands: Band = self.getMetric(metricName)
         metrics: list[Metric] = self.getMetric(metricName)
-        bandName += '-Day_' + day if day is not None else ''
-        soughtName = self._getBaseName(metricName) + '-' + bandName
+        soughtName = self._getBaseName(metricName)
+
+        if bandName:
+            
+            bandName += '-Day_' + day if day is not None else ''
+            soughtName += '-' + bandName
+        
         metric: Metric = [m for m in metrics if m.name == soughtName]
         
         if not metric:
@@ -308,13 +312,19 @@ class Metrics(object):
     # Special cases: 
     # UnsortedMonthlyBands-NDVI-Day_2020017
     # UnsortedMonthlyBands-Band_6-Day_2019289
+    # TempMeanWarmest3
     # ------------------------------------------------------------------------
     def getMetricFromRf(self, rfMetricName: str) -> np.ndarray:
 
         parts = rfMetricName.split('-')
         metric = 'metric' + parts[0]
-        band = parts[1]
-        day = parts[2].split('_')[1] if len(parts) == 3 else None
+        band = None
+        day = None
+        
+        if len(parts) > 1:
+            
+            band = parts[1]
+            day = parts[2].split('_')[1] if len(parts) == 3 else None
         
         return self.getMetricBand(metric, band, day)
         
@@ -1093,26 +1103,7 @@ class Metrics(object):
 
         baseName = 'TempMeanWarmest3'        
         thermal, tXref = self.getBandCube(self._productType.BAND31)
-        
-        # # ---
-        # # Change NaN to low values so they are at the beginning of the sorted
-        # # array and are disregarded when selecting the warmest.
-        # # ---
-        # thermal = np.where(np.isnan(thermal),
-        #                    self._productType.NO_DATA,
-        #                    thermal)
-                           
         sortedCube = np.sort(thermal, axis=0)
-        
-        # ---
-        # There remains the cases where there are fewer than three valid 
-        # values.  Create a masked array, masking the low values, take the
-        # last three elements from the array, which may contain low values,
-        # and compute the mean with masked_array.mean().
-        # ---
-        # mArray = ma.masked_equal(sortedCube, self._productType.NO_DATA)
-        # slicedArray = mArray[-3:, :, :]
-        
         slicedArray = sortedCube[-3:, :, :]
         value = slicedArray.mean(axis=0).astype(int)
         metric = Metrics.Metric(baseName, desc, value)
