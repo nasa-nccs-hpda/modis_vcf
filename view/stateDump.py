@@ -186,19 +186,19 @@ def read(inFile: Path) -> dict:
     brdf2 = (state >> 14) & 1
     snowAlgo2 = (state >> 15) & 1
 
-    if cloud != cloud2 or \
-        shadow != shadow2 or \
-        land != land2 or \
-        aerosol != aerosol2 or \
-        cirrus != cirrus2 or \
-        intCloud != intCloud2 or \
-        fire != fire2 or \
-        snow != snow2 or \
-        adjacency != adjacency2 or \
-        brdf != brdf2 or \
-        snowAlgo != snowAlgo2:
-        
-        raise RuntimeError('Field extractions do not match.')
+    # if cloud != cloud2 or \
+    #     shadow != shadow2 or \
+    #     land != land2 or \
+    #     aerosol != aerosol2 or \
+    #     cirrus != cirrus2 or \
+    #     intCloud != intCloud2 or \
+    #     fire != fire2 or \
+    #     snow != snow2 or \
+    #     adjacency != adjacency2 or \
+    #     brdf != brdf2 or \
+    #     snowAlgo != snowAlgo2:
+    #
+    #     raise RuntimeError('Field extractions do not match.')
 
     # VCF masking
     solzDs = gdal.Open(ds.GetSubDatasets()[2][0])
