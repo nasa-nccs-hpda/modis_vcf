@@ -156,25 +156,86 @@ class VcfPredictTestCase(unittest.TestCase):
              (maskedPredAtOkIndexes != VcfPredict.PRED_OUT_OF_PROJ)).all())
         
     # -------------------------------------------------------------------------
-    # testRunTileForYear
+    # testRunPredictionClamps
+    #
+    # Random Forest/Bagging predictions are already bounded to the training
+    # range by construction (an average of decision-tree leaf means), so this
+    # never fires for them in practice - a plain unittest.mock stand-in is used
+    # here instead of relying on a real model happening to overshoot.  A
+    # boosted model such as XGBoost is not bounded this way and does overshoot
+    # in real output; see NonTreeVeg_Water_OutOfProj_Code_Propagation_Plan.md.
     # -------------------------------------------------------------------------
-    def testRunTileForYear(self):
-        
-        pctTree, pctNonVeg, pctNonTreeVeg = \
-            self._vcfp.runTileForYear(self._tids[1], self._years[1])
-            
-        self.assertTrue((pctTree + pctNonVeg + pctNonTreeVeg < 100).all())
+    def testRunPredictionClamps(self):
+
+        rows = Band.ROWS * Band.COLS
+        outOfRange = np.linspace(-30, 130, rows).astype(np.float64)
+
+        class FakeRegressor:
+            def predict(self, X):
+                return outOfRange[:len(X)]
+
+        X = self._vcfp._getMetrics(self._tids[1],
+                                   self._years[1],
+                                   self._vcfp._treeCoverRf.feature_names_in_)
+
+        maskedPred: np.ndarray = self._vcfp._runPrediction(self._tids[1],
+                                                            self._years[1],
+                                                            FakeRegressor(),
+                                                            list(X.columns))
+
+        mask: np.ndarray = self._vcfp._getMask(self._tids[1], self._years[1])
+        okIndexes = np.nonzero((mask != VcfPredict.MASK_WATER) &
+                               (mask != VcfPredict.MASK_OUT_OF_PROJ))
+
+        self.assertTrue((maskedPred[okIndexes] >= 0).all())
+        self.assertTrue((maskedPred[okIndexes] <= 100).all())
+
+    # -------------------------------------------------------------------------
+    # testRunTileForYear
+    #
+    # Tree cover, non-vegetated and non-tree vegetation must sum to exactly 100
+    # on an ordinary (unmasked) pixel - non-vegetated is reduced, never tree
+    # cover, to absorb any overshoot between the two raw predictions.  Masked
+    # (water/out-of-projection) pixels carry the same code (200 or 250) on all
+    # three layers.  See NonTreeVeg_Water_OutOfProj_Code_Propagation_Plan.md.
+    # -------------------------------------------------------------------------
+    def _checkPartition(self, tid, year, pctTree, pctNonVeg, pctNonTreeVeg):
+
+        mask: np.ndarray = self._vcfp._getMask(tid, year)
+        okIndexes = np.nonzero((mask != VcfPredict.MASK_WATER) &
+                               (mask != VcfPredict.MASK_OUT_OF_PROJ))
+
+        # Ordinary pixels: the three layers sum to exactly 100, and tree cover
+        # is never reduced to make that happen.
+        self.assertTrue((pctTree[okIndexes] + pctNonVeg[okIndexes] +
+                         pctNonTreeVeg[okIndexes] == 100).all())
+        self.assertTrue((pctNonVeg[okIndexes] <= 100 - pctTree[okIndexes]).all())
+
+        for code, maskVal in ((VcfPredict.PRED_WATER, VcfPredict.MASK_WATER),
+                              (VcfPredict.PRED_OUT_OF_PROJ, VcfPredict.MASK_OUT_OF_PROJ)):
+            idx = np.nonzero(mask == maskVal)
+            if idx[0].size:
+                self.assertTrue((pctTree[idx] == code).all())
+                self.assertTrue((pctNonVeg[idx] == code).all())
+                self.assertTrue((pctNonTreeVeg[idx] == code).all())
+
         self.assertTrue((pctTree != -10001).all())
         self.assertTrue((pctNonVeg != -10001).all())
         self.assertTrue((pctNonTreeVeg != -10001).all())
+
+    def testRunTileForYear(self):
+
+        pctTree, pctNonVeg, pctNonTreeVeg = \
+            self._vcfp.runTileForYear(self._tids[1], self._years[1])
+
+        self._checkPartition(self._tids[1], self._years[1],
+                             pctTree, pctNonVeg, pctNonTreeVeg)
 
         pctTree, pctNonVeg, pctNonTreeVeg = \
             self._vcfp.runTileForYear(self._tids[0], self._years[0])
 
-        self.assertTrue((pctTree + pctNonVeg + pctNonTreeVeg < 100).all())
-        self.assertTrue((pctTree != -10001).all())
-        self.assertTrue((pctNonVeg != -10001).all())
-        self.assertTrue((pctNonTreeVeg != -10001).all())
+        self._checkPartition(self._tids[0], self._years[0],
+                             pctTree, pctNonVeg, pctNonTreeVeg)
         
     # -------------------------------------------------------------------------
     # testRun

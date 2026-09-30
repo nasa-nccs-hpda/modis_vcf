@@ -204,9 +204,17 @@ class VcfPredict(object):
                                          self._productType.COLS)
         del X, parts
 
+        # Clamp to the valid percentage range before applying the water/out-of-projection
+        # codes below (200 and 250 are legitimate values outside 0-100 and must not be
+        # clamped).  Random Forest/Bagging predictions are already bounded to the training
+        # range by construction (an average of decision-tree leaf means), so this never
+        # changes their output; boosted models such as XGBoost are not bounded this way and
+        # can genuinely predict outside 0-100.
+        prediction = np.clip(prediction, 0, 100)
+
         # Apply the water mask.
         maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
-        
+
         return maskedPred
         
     # ------------------------------------------------------------------------
@@ -216,28 +224,40 @@ class VcfPredict(object):
 
         self._logger.info('Running ' + tid + ' for ' + str(year))
         
-        pctTc: np.ndarray = self._runPrediction(tid, 
-                                                year, 
+        pctTc: np.ndarray = self._runPrediction(tid,
+                                                year,
                                                 self._treeCoverRf,
                                                 self._treeCoverTopN)
-                                                
-        self._write(tid, year, 'Percent_Tree_Cover', pctTc)     
 
-        pctNonveg: np.ndarray = self._runPrediction(tid, 
-                                                    year, 
+        pctNonvegRaw: np.ndarray = self._runPrediction(tid,
+                                                    year,
                                                     self._nonvegRf,
                                                     self._nonvegTopN)
-                                                    
-        self._write(tid, year, 'Percent_NonVegetated', pctNonveg)     
 
         # ---
-        # If 100 - pctTc - pctNonVeg < 0, that the percentages add up to 
-        # over 100.  Clamp pctNonTreeVeg to 0 in that case.
+        # Tree cover, non-vegetated and non-tree vegetation must sum to exactly 100 on an
+        # ordinary pixel.  If tree cover and non-vegetated overshoot 100 together, reduce
+        # non-vegetated - never tree cover - down to what is left after tree cover, so
+        # non-tree vegetation lands on exactly 0 by arithmetic rather than a separate floor.
+        # Water (mask == MASK_WATER) and out-of-projection (mask == MASK_OUT_OF_PROJ) pixels
+        # are excluded from this reduction: they already carry 200/200 or 250/250 from
+        # _runPrediction's _maskPrediction call, and applying the reduction there would
+        # corrupt them (e.g. water: 100 - 200 = -100).
         # ---
-        zeros = np.zeros_like(pctTc)
-        pctNontreeVeg: np.ndarray = np.maximum(0, 100 - pctTc - pctNonveg)
+        mask: np.ndarray = self._getMask(tid, year)
+        okMask = (mask != VcfPredict.MASK_WATER) & (mask != VcfPredict.MASK_OUT_OF_PROJ)
+
+        pctNonveg: np.ndarray = np.where(okMask,
+                                         np.minimum(pctNonvegRaw, 100 - pctTc),
+                                         pctNonvegRaw)
+
+        pctNontreeVeg: np.ndarray = 100 - pctTc - pctNonveg
+        pctNontreeVeg = self._maskPrediction(tid, year, pctNontreeVeg)
+
+        self._write(tid, year, 'Percent_Tree_Cover', pctTc)
+        self._write(tid, year, 'Percent_NonVegetated', pctNonveg)
         self._write(tid, year, 'Percent_NonTree_Vegetation', pctNontreeVeg)
-        
+
         return pctTc, pctNonveg, pctNontreeVeg
         
     # ------------------------------------------------------------------------
