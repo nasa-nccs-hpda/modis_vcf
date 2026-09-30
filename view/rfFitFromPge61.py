@@ -9,7 +9,8 @@ import sys
 
 import pandas as pd
 
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import BaggingRegressor
+from sklearn.tree import DecisionTreeRegressor
 
 from modis_vcf.model.TrainingType import TrainingType
 
@@ -44,6 +45,30 @@ def main():
                         choices=[t.value for t in TrainingType],
                         help='Choose the training type to run.')
 
+    parser.add_argument('--nEstimators',
+                        type=int,
+                        default=1,
+                        help='Number of BaggingRegressor ensemble members. ' +
+                             'Use 1 to fit a single per-model-number ' +
+                             'member (mirrors C\'s per-model-number ' +
+                             'weka.bare.NN.model structure); use 30 to fit ' +
+                             'one complete ensemble matching C\'s 30-model ' +
+                             'combined ensemble in a single invocation.')
+
+    parser.add_argument('--predictorFile',
+                        type=Path,
+                        help='Text file with one predictor name per line; replaces the built-in list.')
+
+    parser.add_argument('--nJobs',
+                        type=int,
+                        default=1,
+                        help='Cores used to fit the ensemble members.')
+
+    parser.add_argument('--randomState',
+                        type=int,
+                        default=None,
+                        help='Random seed; with a seed the result does not depend on nJobs.')
+
     args = parser.parse_args()
 
     treeCoverPreds = [
@@ -64,52 +89,52 @@ def main():
         'UnsortedMonthlyBands-NDVI-Day_2019257',
         'UnsortedMonthlyBands-Band_3-Day_2019305',
         'UnsortedMonthlyBands-Band_7-Day_2019305',
-        'UnsortedMonthlyBands-Band31-Day_2019305',
+        'UnsortedMonthlyBands-Band_31-Day_2019305',
         'UnsortedMonthlyBands-Band_3-Day_2019353',
         'UnsortedMonthlyBands-Band_6-Day_2019353',
         'UnsortedMonthlyBands-Band_7-Day_2019353',
-        'UnsortedMonthlyBands-Band31-Day_2019353',
+        'UnsortedMonthlyBands-Band_31-Day_2019353',
         'UnsortedMonthlyBands-NDVI-Day_2019353',
         'UnsortedMonthlyBands-Band_1-Day_2020033',
         'Lowest3MeanBandRefl-Band_6',
-        'Lowest3MeanBandRefl-Band31',
+        'Lowest3MeanBandRefl-Band_31',
         'Lowest6MeanBandRefl-Band_1',
         'Lowest6MeanBandRefl-Band_7',
-        'Lowest6MeanBandRefl-Band31',
+        'Lowest6MeanBandRefl-Band_31',
         'Lowest8MeanBandRefl-Band_1',
         'Lowest8MeanBandRefl-Band_2',
         'Lowest8MeanBandRefl-Band_7',
         'BandReflMedian-Band_2',
-        'BandReflMedian-Band31',
+        'BandReflMedian-Band_31',
         # 'N/A-Band_1',
         # 'N/A-Band_2',
         'AmpBandRefl-Band_7',
-        'AmpBandRefl-Band31',
+        'AmpBandRefl-Band_31',
         # 'N/A-Band_2-Day_2019113',
         # 'N/A-Band_3-Day_2019161',
         'BandReflMaxGreenness-Band_2',
         'BandReflMaxGreenness-NDVI',
         'Greenest3MeanBandRefl-Band_1',
-        'Greenest3MeanBandRefl-Band31',
+        'Greenest3MeanBandRefl-Band_31',
         'Greenest3MeanBandRefl-NDVI',
         'Greenest6MeanBandRefl-Band_1',
-        'Greenest6MeanBandRefl-Band31',
+        'Greenest6MeanBandRefl-Band_31',
         'Greenest6MeanBandRefl-NDVI',
         'Greenest8MeanBandRefl-Band_2',
         'Greenest8MeanBandRefl-Band_7',
         'BandReflMedianGreenness-Band_6',
         'BandReflMedianGreenness-NDVI',
-        'AmpGreenestBandRefl-Band31',
+        'AmpGreenestBandRefl-Band_31',
         'Warmest3MeanBandRefl-Band_1',
         'Warmest3MeanBandRefl-Band_2',
         'Warmest3MeanBandRefl-Band_6',
         'Warmest3MeanBandRefl-Band_7',
-        'Warmest3MeanBandRefl-Band31',
+        'Warmest3MeanBandRefl-Band_31',
         'Warmest3MeanBandRefl-NDVI',
-        'Warmest6MeanBandRefl-Band31',
+        'Warmest6MeanBandRefl-Band_31',
         'Warmest6MeanBandRefl-NDVI',
         'Warmest8MeanBandRefl-Band_7',
-        'Warmest8MeanBandRefl-Band31',
+        'Warmest8MeanBandRefl-Band_31',
         'Warmest8MeanBandRefl-NDVI']
         
     barePreds = [
@@ -118,7 +143,7 @@ def main():
     'UnsortedMonthlyBands-NDVI-Day_2019305',
     'UnsortedMonthlyBands-Band_3-Day_2019353',
     'UnsortedMonthlyBands-Band_7-Day_2019353',
-    'UnsortedMonthlyBands-Band31-Day_2019353',
+    'UnsortedMonthlyBands-Band_31-Day_2019353',
     'UnsortedMonthlyBands-NDVI-Day_2019353',
     'UnsortedMonthlyBands-Band_1-Day_2020033',
     'UnsortedMonthlyBands-Band_2-Day_2020033',
@@ -126,27 +151,47 @@ def main():
     'UnsortedMonthlyBands-Band_4-Day_2020033',
     'UnsortedMonthlyBands-Band_5-Day_2020033',
     'UnsortedMonthlyBands-Band_7-Day_2020033',
-    'UnsortedMonthlyBands-Band31-Day_2020033',
+    'UnsortedMonthlyBands-Band_31-Day_2020033',
     'UnsortedMonthlyBands-NDVI-Day_2020033',
     'Lowest6MeanBandRefl-Band_4',
     'BandReflMedian-NDVI',
     # 'N/A-Band_2',
     # 'N/A-Band_6-Day_2019305',
     # 'BandReflMin-Band_1-Day_2019065',
-    'Greenest6MeanBandRefl-Band31']
+    'Greenest6MeanBandRefl-Band_31']
 
     outDir = args.o
     trainingType = args.trainingType
     
     preds = treeCoverPreds if trainingType == TrainingType.PCT_TREE \
         else barePreds
+
+    if args.predictorFile:
+
+        preds = [l.strip() for l in open(args.predictorFile) if l.strip()]
+        print('Using', len(preds), 'predictors from', args.predictorFile)
     
     print('Reading training data.')
     xTrain = pd.read_parquet(args.xTrainPath, columns=preds)
     yTrain = pd.read_parquet(args.yTrainPath).to_numpy().ravel()
 
     print('Fitting pcttree model.')
-    rf = RandomForestRegressor(n_estimators=1)
+
+    # ---
+    # C's training method is Weka's Bagging meta-classifier around a single
+    # tree learner (bootstrap-resamples rows, all features per split), not
+    # Random Forest, which also restricts each split to a random feature
+    # subset. BaggingRegressor wrapping a plain DecisionTreeRegressor is the
+    # closer sklearn analogue; see
+    # Sync_Plan_and_Model_Retraining_Alternate.md. n_estimators=1 matches
+    # this script fitting one ensemble member per invocation, mirroring
+    # C's per-model-number (weka.bare.NN.model) training structure.
+    # ---
+    rf = BaggingRegressor(estimator=DecisionTreeRegressor(),
+                          n_estimators=args.nEstimators,
+                          bootstrap=True,
+                          n_jobs=args.nJobs,
+                          random_state=args.randomState)
     rf = rf.fit(xTrain, yTrain)
 
     outPath: Path = outDir / (trainingType + '.bin')

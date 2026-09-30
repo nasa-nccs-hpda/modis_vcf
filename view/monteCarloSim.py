@@ -5,7 +5,7 @@ import multiprocessing
 from pathlib import Path
 import sys
 
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import BaggingRegressor
 
 from modis_vcf.model.MonteCarloSim import MonteCarloSim
 from modis_vcf.model.TrainingType import TrainingType
@@ -75,7 +75,7 @@ def main():
                         args.minVarUsage,
                         numCpus=args.numCpus)
         
-    finalModel: RandomForestRegressor = mcs.run()
+    finalModel: BaggingRegressor = mcs.run()
     mcs.saveFinalModel(finalModel)
 
 

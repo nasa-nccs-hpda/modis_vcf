@@ -10,7 +10,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import BaggingRegressor
 
 from modis_vcf.model.MasterTraining import MasterTraining
 from modis_vcf.model.MonteCarloSim import MonteCarloSim
@@ -302,8 +302,8 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
                  
-        rf: RandomForestRegressor = mcs.run()
-        
+        rf: BaggingRegressor = mcs.run()
+
         # Minimum usage achieved.
         self.assertTrue(mcs.minVarUsageAchieved())
 
@@ -374,7 +374,7 @@ class MonteCarloSimTestCase(unittest.TestCase):
                             maxTrials=200,  # So the test ends soon
                             logger = MonteCarloSimTestCase.logger)
              
-        rf1: RandomForestRegressor = mcs.run()
+        rf1: BaggingRegressor = mcs.run()
                        
         finalPath: Path = mcs.saveFinalModel(rf1)
         print('Model File:', finalPath)

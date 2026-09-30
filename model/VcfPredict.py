@@ -7,8 +7,13 @@ import sys
 
 import numpy as np
 import pandas as pd
-# from sklearn.ensemble import RandomForestRegressor
-from cuml.ensemble import RandomForestRegressor
+# CPU/sklearn: models are now BaggingRegressor (see
+# Sync_Plan_and_Model_Retraining_Alternate.md), not RandomForest.
+# Aliased so the RandomForestRegressor type hints below still read
+# correctly without renaming each one.
+from sklearn.ensemble import BaggingRegressor as RandomForestRegressor
+# GPU/cuML (forest203 has no GPU; not currently usable):
+# from cuml.ensemble import RandomForestRegressor
 
 from osgeo import gdal
 
@@ -31,6 +36,7 @@ class VcfPredict(object):
     MASK_OUT_OF_PROJ = 250
     PRED_WATER = 200
     PRED_OUT_OF_PROJ = 250
+    PREDICT_CHUNK_ROWS = 1000000
 
     # ------------------------------------------------------------------------
     # __init__
@@ -44,7 +50,8 @@ class VcfPredict(object):
                  metricsDir: Path,
                  mod44Dir: Path = MOD44_DIR,
                  mod44wDir: Path = MOD44W_DIR,
-                 logger: logging.RootLogger = None):
+                 logger: logging.RootLogger = None,
+                 nJobs: int = 1):
                  
         # Validate the output directory.
         if outDir is None or not outDir.exists() or not outDir.is_dir():
@@ -71,6 +78,11 @@ class VcfPredict(object):
         with open(nonvegModelTopNFile, 'rb') as f:
             self._nonvegTopN = pickle.load(f)
             
+        # Threads used by the models when predicting.
+        self._nJobs: int = nJobs
+        self._treeCoverRf.set_params(n_jobs=nJobs)
+        self._nonvegRf.set_params(n_jobs=nJobs)
+
         # Instantiate the product type for the metrics.
         self._productType = ProductTypeMod44(mod44Dir)
         self._metricsDir: Path = metricsDir
@@ -172,16 +184,25 @@ class VcfPredict(object):
         
         self._logger.info('Predicting ...')
         
-        prediction: np.ndarray = rf.predict(X). \
-                                 to_numpy(). \
-                                 astype(np.int16). \
-                                 reshape(self._productType.ROWS,
-                                         self._productType.COLS)
-
+        # GPU/cuML: .predict() returns a cuDF object needing .to_numpy().
+        # Not currently usable (forest203 has no GPU).
         # prediction: np.ndarray = rf.predict(X). \
+        #                          to_numpy(). \
         #                          astype(np.int16). \
         #                          reshape(self._productType.ROWS,
         #                                  self._productType.COLS)
+
+        # CPU/sklearn: .predict() already returns a plain numpy ndarray.
+        # Predict in blocks of rows with threads, which bounds memory and uses every core.
+        with joblib.parallel_backend('threading', n_jobs=self._nJobs):
+            parts = [rf.predict(X.iloc[i:i + VcfPredict.PREDICT_CHUNK_ROWS])
+                     for i in range(0, len(X), VcfPredict.PREDICT_CHUNK_ROWS)]
+
+        prediction: np.ndarray = np.concatenate(parts). \
+                                 astype(np.int16). \
+                                 reshape(self._productType.ROWS,
+                                         self._productType.COLS)
+        del X, parts
 
         # Apply the water mask.
         maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)

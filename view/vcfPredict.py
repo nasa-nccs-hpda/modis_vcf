@@ -58,6 +58,11 @@ def main():
                         type=Path,
                         help='Path to tree-cover top-N predictors.')
 
+    parser.add_argument('--nJobs',
+                        type=int,
+                        default=1,
+                        help='Threads to use when predicting.')
+
     parser.add_argument('-y',
                         type=int,
                         required='True',
@@ -71,7 +76,8 @@ def main():
                       args.nvn,
                       args.o, 
                       args.metricsDir,
-                      args.modisDir)
+                      args.modisDir,
+                      nJobs=args.nJobs)
 
     vcfp.run(tids=args.t, years=[args.y])
 

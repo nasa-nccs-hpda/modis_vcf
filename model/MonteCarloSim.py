@@ -19,9 +19,10 @@ import warnings
 import numpy as np
 import pandas as pd
 from pyarrow.parquet import ParquetDataset
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import BaggingRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor
 
 from modis_vcf.model.MasterTraining import MasterTraining
 from modis_vcf.model.TrainingType import TrainingType
@@ -130,7 +131,7 @@ class MonteCarloSim(object):
         # metrics must be created.  Store the top-N predictors here, so they
         # may be written to disk along with the final model.
         # ---
-        self._rf: RandomForestRegressor = None
+        self._rf: BaggingRegressor = None
         self._topN: list = None
         
         # Print configuration.
@@ -410,7 +411,7 @@ class MonteCarloSim(object):
         topN = []
         numCompleted = self._numTrials
         varUsageCount = dict.fromkeys(self._allVars, 0)
-        rf: RandomForestRegressor = None
+        rf: BaggingRegressor = None
         allConditionsMet = False
         averages = {}
         
@@ -534,7 +535,7 @@ class MonteCarloSim(object):
         colNames: list[str] = self._chooseColumns()
         xTrain = pd.read_parquet(self._xTrainPath, columns=colNames)
         yTrain = pd.read_parquet(self._yTrainPath).to_numpy().ravel()
-        rf: RandomForestRegressor = self._runRandomForest(xTrain, yTrain)
+        rf: BaggingRegressor = self._runRandomForest(xTrain, yTrain)
 
         X = pd.read_parquet(self._xPath, columns=colNames)
         y = pd.read_parquet(self._yPath).to_numpy().ravel()
@@ -551,9 +552,20 @@ class MonteCarloSim(object):
     #
     # This is a template method.
     # ------------------------------------------------------------------------
-    def _runRandomForest(self, xTrain, yTrain) -> RandomForestRegressor:
+    def _runRandomForest(self, xTrain, yTrain) -> BaggingRegressor:
 
-        rf = RandomForestRegressor(n_estimators=30)
+        # ---
+        # C's training method is Weka's Bagging meta-classifier around a
+        # single tree learner (bootstrap-resamples rows, but every split
+        # considers all features) - not Random Forest, which additionally
+        # restricts each split to a random feature subset. BaggingRegressor
+        # wrapping a plain DecisionTreeRegressor is the closer sklearn
+        # analogue; see Sync_Plan_and_Model_Retraining_Alternate.md.
+        # ---
+        rf = BaggingRegressor(estimator=DecisionTreeRegressor(),
+                              n_estimators=30,
+                              bootstrap=True,
+                              n_jobs=-1)
         rf = rf.fit(xTrain, yTrain)
         return rf
 
