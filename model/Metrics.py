@@ -120,6 +120,7 @@ class Metrics(object):
         self._productType: ProductType = productType
         self.availableMetrics: list = None
         self._tid: str = tileId
+        self._readCache: dict = {}   # metric name -> list of Metric read from disk, so each file is read once
         self._year: int = year
 
         # Two sixteen-day composites
@@ -265,7 +266,12 @@ class Metrics(object):
             self.writeMetric(metrics)
 
         else:
-            metrics = self.readMetric(metricFileName)
+            metrics = self._readCache.get(metricName)
+
+            if metrics is None:
+
+                metrics = self.readMetric(metricFileName)
+                self._readCache[metricName] = metrics
         
         return metrics
         
@@ -1144,3 +1150,12 @@ class Metrics(object):
 
         metric = Metrics.Metric(baseName, desc, value)
         return [metric]
+
+
+# ---
+# C-mirror metrics: Python versions of the metrics C's make_metrics.c derives
+# from the unsorted period values.  Installed here, after the class exists, so
+# each family becomes one more metric method.  See CMirrorMetrics.py.
+# ---
+from modis_vcf.model import CMirrorMetrics  # noqa: E402
+CMirrorMetrics.install(Metrics)
