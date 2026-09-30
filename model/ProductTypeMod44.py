@@ -72,12 +72,18 @@ class ProductTypeMod44(ProductType):
         
         cloud = state & 3
         shadow = state & 4
-        adjacency = state & 8192
-        aerosol = (state & 192) >> 6
+        adjacency = state & 64
+
+        # Bit 15 is PGE72's overall QC flag (1 = good).  It replaces an
+        # aerosol test on bits 7-8, which in MOD44C state overlap other
+        # fields and rejected 29-50% of good pixels.  State is read as
+        # int16, where bit 15 is the sign bit; widen first so the mask
+        # also works under NumPy 2.
+        qcGood = state.astype(np.int32) & 32768
 
         mask = np.where((cloud == 0) &
                         (shadow == 0) &
-                        (aerosol != 3) &
+                        (qcGood != 0) &
                         (adjacency == 0) &
                         (solz > 0) &
                         (solz < zenithCutOff),

@@ -87,6 +87,9 @@ class BuildTraining(object):
             'VCF_training_' + self._trainingType.value + '_'
         
         self._trainingFileSuffix = '.7.0.0.out'
+
+        # The trainingDir argument was accepted but never used; use it, falling back to the package folder.
+        self._trainingDir: Path = Path(trainingDir) if trainingDir else BuildTraining.TRAINING_DIR
         
         self._tids: list = tileIds or self._getTileIds()
 
@@ -161,7 +164,7 @@ class BuildTraining(object):
     def _getTileIds(self) -> list:
 
         sampleFiles = \
-            BuildTraining.TRAINING_DIR.glob('*' + self._trainingFileSuffix)
+            self._trainingDir.glob('*' + self._trainingFileSuffix)
         
         tids = [f.name.split('.')[0] for f in sampleFiles]
         tids = [tid.split('_')[-1] for tid in tids]
@@ -173,7 +176,7 @@ class BuildTraining(object):
     def getTrainingFileName(self, tid:str) -> Path:
         
         baseName = self._trainingFilePrefix + tid + self._trainingFileSuffix
-        tFileName = BuildTraining.TRAINING_DIR / baseName
+        tFileName = self._trainingDir / baseName
             
         return tFileName
         
