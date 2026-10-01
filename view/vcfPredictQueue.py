@@ -29,6 +29,11 @@ def main():
     ap.add_argument('--markerDir', type=Path, required=True)
     ap.add_argument('--nJobs', type=int, default=1)
     ap.add_argument('-y', type=int, required=True)
+    ap.add_argument('--tcAgg', default='mean', choices=VcfPredict.AGG_METHODS,
+                    help='How the tree-cover members are combined (default mean, which equals predict()).')
+    ap.add_argument('--nvAgg', default='mean', choices=VcfPredict.AGG_METHODS,
+                    help='How the non-vegetated members are combined (default mean).')
+    ap.add_argument('--noSd', action='store_true', help='Do not write the two SD layers.')
     args = ap.parse_args()
 
     tiles = args.tilesFile.read_text().split()
@@ -36,7 +41,7 @@ def main():
     args.markerDir.mkdir(parents=True, exist_ok=True)
 
     vcfp = VcfPredict(args.tc, args.tcn, args.nv, args.nvn, args.o, args.metricsDir, args.modisDir,
-                      nJobs=args.nJobs)
+                      nJobs=args.nJobs, treeCoverAgg=args.tcAgg, nonvegAgg=args.nvAgg, writeSd=not args.noSd)
 
     for tile in tiles:
 

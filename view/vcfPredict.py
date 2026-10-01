@@ -68,6 +68,20 @@ def main():
                         required='True',
                         help='The year to run')
 
+    parser.add_argument('--tcAgg',
+                        default='mean',
+                        choices=VcfPredict.AGG_METHODS,
+                        help='How the tree-cover members are combined (default mean, which equals predict()).')
+
+    parser.add_argument('--nvAgg',
+                        default='mean',
+                        choices=VcfPredict.AGG_METHODS,
+                        help='How the non-vegetated members are combined (default mean).')
+
+    parser.add_argument('--noSd',
+                        action='store_true',
+                        help='Do not write the Percent_Tree_Cover_SD and Percent_NonVegetated_SD layers.')
+
     args = parser.parse_args()
     
     vcfp = VcfPredict(args.tc,
@@ -77,7 +91,10 @@ def main():
                       args.o, 
                       args.metricsDir,
                       args.modisDir,
-                      nJobs=args.nJobs)
+                      nJobs=args.nJobs,
+                      treeCoverAgg=args.tcAgg,
+                      nonvegAgg=args.nvAgg,
+                      writeSd=not args.noSd)
 
     vcfp.run(tids=args.t, years=[args.y])
 
