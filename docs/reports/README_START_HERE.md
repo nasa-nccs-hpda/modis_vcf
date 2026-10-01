@@ -1,9 +1,11 @@
 # Start here: MODIS-VCF development workspace
 
-Last updated 2026-09-30 ~21:00. Read this section, then `Project_Summary_and_Conclusions.md`. The dated status entries are kept word for word under "Status history" at the end.
+Last updated 2026-10-01 (four-way comparison and recommendation added at the top of "Current state"). Read this section, then `Project_Summary_and_Conclusions.md`. The dated status entries are kept word for word under "Status history" at the end.
 
 ## Current state (2026-09-30)
 
+- **2026-10-01: four-way comparison done** (C6, C6.1, the C code, Python RF; `Historical_C6_C61_Four_Way_Comparison_Results.md`). The comparability conclusion holds against C6.1 (54 unaffected tiles: Python RF 4.17, the C code 3.42; C6 vs C6.1 2.64). Python RF is the recommended replacement path for tree cover, pending an out-of-sample test, the SD layer and the non-vegetated layer (`C_to_Python_Conversion_Assessment.md`, "Recommendation"). **Next session: the non-vegetated (= bare) layer.**
+- **2026-10-01: Python judged comparable to the historical MOD44B** (agreed with the project lead): on the 63 training tiles for 2019, Python RF tree cover is within a pooled MAE of 4.2 points of historical with negligible bias, about 0.6 points from the operational C code, weakest in dense forest (about 3 points low; corrected 2026-10-01 from 4, which was the older bits 7-8 RF). Evidence and qualifications: `C_to_Python_Conversion_Assessment.md` and `Project_Summary_and_Conclusions.md` section 10.
 - **V4r** (lowest-red pick when all 3 MOD44C inputs are cloudy or cloud-adjacent), h12v09, steps 1-3 of the amendment in `Cloud_Composite_Alternatives_Plan.md`.
   - **Done 2026-09-30 ~20:39; results in `V4r_Darkest_Red_h12v09_Results.md`.**
     - Against historical, the drop-pixel bias moves from -21.7 to -4.9, but the all-land bias rises from +0.4 to +3.0.
@@ -45,6 +47,10 @@ Last updated 2026-09-30 ~21:00. Read this section, then `Project_Summary_and_Con
 ## Document map
 
 **Start with `Project_Summary_and_Conclusions.md`**: one page on what was done, the results, the open items, what changed in code and what to discuss with the repository owner.
+
+**`Historical_C6_C61_Four_Way_Comparison_Plan.md` / `_Results.md`** (2026-10-01): C6, C6.1, the C code and Python RF on 63 tiles; C6.1 high-latitude rule; 4 cover bins; continent x latitude band.
+
+**`C_to_Python_Conversion_Assessment.md`** (2026-10-01): the problem statement, the challenges of building the C toolkits and code, the Python milestones to 2026-09-30 (excluding the h12v09 cloud variants), and the agreed conclusion that Python is comparable to the historical MOD44B, with its evidence and qualifications.
 
 **63-tile run (2026-09-19)**
 - `FullRun_Results_C_vs_Python_63tiles.md`: comparison results.
