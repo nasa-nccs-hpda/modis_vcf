@@ -38,6 +38,31 @@ module load singularity
 singularity build --sandbox /lscratch/$USER/container/modis-vcf-dev docker://nasanccs/modis-vcf:dev
 ```
 
+## Fitting and prediction
+
+Both layers use a Random Forest of 30 trees, fitted on the bit-15 QA metrics.
+Tree cover uses its own predictors; non-vegetated uses the C code's 21 bare predictors
+(the default list in `view/rfFitFromPge61.py`).
+
+```bash
+python view/fitAltModel.py --algo rf --nEstimators 30 --maxFeatures sqrt --randomState 0 \
+    --trainingType pcttree --predictorFile <predictors.txt> \
+    --xTrainPath xTrain.parq --yTrainPath yTrain.parq -o <modelDir>
+```
+
+`view/vcfPredict.py` (or `view/vcfPredictQueue.py` for many tiles) writes `Percent_Tree_Cover`,
+`Percent_NonVegetated` and `Percent_NonTree_Vegetation`, plus the two SD layers
+`Percent_Tree_Cover_SD` and `Percent_NonVegetated_SD`.
+
+- `--tcAgg` / `--nvAgg` set how each layer's 30 trees are combined: `mean` (the same as
+  `predict()`), `mid20` (the mean of the middle 20) or `median`. Defaults are `mean`. The
+  production setting is `--tcAgg median --nvAgg mean`.
+- The SD layers are the population SD of the 30 trees, stored as round(100 x SD), with 0 on
+  water and out-of-projection. Use `--noSd` to skip them. Models without ensemble members
+  (XGBoost) get no SD and support only `mean`.
+- A process needs about 45 GB of memory per tile, and most of the run time is spent reading
+  the metrics.
+
 ## Additional Projects
 
 ### Validation of MODIS VCF training with Very High Resolution Imagery
