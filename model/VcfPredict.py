@@ -1,4 +1,5 @@
 
+from concurrent.futures import ThreadPoolExecutor
 import joblib
 import logging
 from pathlib import Path
@@ -38,10 +39,16 @@ class VcfPredict(object):
     PRED_OUT_OF_PROJ = 250
     PREDICT_CHUNK_ROWS = 1000000
 
+    # How the ensemble members' predictions are combined into the value of a pixel.
+    # 'mean' is what predict() returns; 'mid20' drops the MID20_TRIM highest and lowest members
+    # (the middle 20 of 30) and averages the rest; 'median' is the members' median.
+    AGG_METHODS = ('mean', 'mid20', 'median')
+    MID20_TRIM = 5
+
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
-    def __init__(self, 
+    def __init__(self,
                  treeCoverModelFile: Path,
                  treeCoverTopNFile: Path,
                  nonvegModelFile: Path,
@@ -51,8 +58,11 @@ class VcfPredict(object):
                  mod44Dir: Path = MOD44_DIR,
                  mod44wDir: Path = MOD44W_DIR,
                  logger: logging.RootLogger = None,
-                 nJobs: int = 1):
-                 
+                 nJobs: int = 1,
+                 treeCoverAgg: str = 'mean',
+                 nonvegAgg: str = 'mean',
+                 writeSd: bool = True):
+
         # Validate the output directory.
         if outDir is None or not outDir.exists() or not outDir.is_dir():
             raise RuntimeError('A valid output directory must be provided.')
@@ -82,6 +92,20 @@ class VcfPredict(object):
         self._nJobs: int = nJobs
         self._treeCoverRf.set_params(n_jobs=nJobs)
         self._nonvegRf.set_params(n_jobs=nJobs)
+
+        # How each layer's members are combined, and whether to write the SD layers.
+        for model, agg in ((self._treeCoverRf, treeCoverAgg), (self._nonvegRf, nonvegAgg)):
+
+            if agg not in VcfPredict.AGG_METHODS:
+                raise ValueError('Unknown aggregation ' + str(agg) + '; use one of ' + str(VcfPredict.AGG_METHODS))
+
+            if agg != 'mean' and VcfPredict._members(model) is None:
+                raise ValueError(type(model).__name__ + ' has no ensemble members, so it only supports ' +
+                                 'aggregation "mean".')
+
+        self._treeCoverAgg: str = treeCoverAgg
+        self._nonvegAgg: str = nonvegAgg
+        self._writeSd: bool = writeSd
 
         # Instantiate the product type for the metrics.
         self._productType = ProductTypeMod44(mod44Dir)
@@ -173,13 +197,50 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     # runPrediction
     # ------------------------------------------------------------------------
-    def _runPrediction(self, 
-                       tid: str, 
-                       year: int, 
+    def _runPrediction(self,
+                       tid: str,
+                       year: int,
                        rf: RandomForestRegressor,
-                       topN: list) -> np.ndarray:
-        
+                       topN: list,
+                       agg: str = 'mean') -> tuple:
+        """
+        Returns (prediction, sd).  prediction is the masked int16 layer; sd is the members' population SD stored
+        as round(100 * SD) (0 on water and out-of-projection), or None when the SD is switched off or the model
+        has no ensemble members (e.g. XGBoost).
+        """
         X: pd.DataFrame = self._getMetrics(tid, year, topN)
+
+        # ---
+        # Ensemble models: one pass over the members gives the value (combined by agg) and the SD.
+        # The members' mean equals predict() exactly for Random Forest and BaggingRegressor
+        # (Reports/SD_Layer_Results.md), so 'mean' gives the same layer as the predict() path below.
+        # ---
+        if VcfPredict._members(rf) is not None and (self._writeSd or agg != 'mean'):
+
+            self._logger.info('Predicting with the ensemble members (' + agg + ') ...')
+
+            value, sd = VcfPredict._memberPredict(rf, X.to_numpy(dtype=np.float32), agg, self._nJobs)
+            del X
+
+            prediction = np.clip(value.astype(np.int16).reshape(self._productType.ROWS,
+                                                                self._productType.COLS), 0, 100)
+
+            maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
+
+            sdRaster = None
+
+            if self._writeSd:
+
+                sdRaster = np.round(sd * 100).astype(np.int16).reshape(self._productType.ROWS,
+                                                                       self._productType.COLS)
+                mask = self._getMask(tid, year)
+                outside = (mask == VcfPredict.MASK_WATER) | (mask == VcfPredict.MASK_OUT_OF_PROJ)
+                sdRaster = np.where(outside, 0, sdRaster).astype(np.int16)
+
+            return maskedPred, sdRaster
+
+        if self._writeSd:
+            self._logger.info(type(rf).__name__ + ' has no ensemble members: SD layer skipped.')
         # X = X.replace(-10001, 10001)
         
         self._logger.info('Predicting ...')
@@ -215,8 +276,83 @@ class VcfPredict(object):
         # Apply the water mask.
         maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
 
-        return maskedPred
-        
+        return maskedPred, None
+
+    # ------------------------------------------------------------------------
+    # members
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _members(model) -> list:
+        """
+        The ensemble members as (estimator, feature indices or None), or None if the model has none.
+        Random Forest: estimators_.  BaggingRegressor: estimators_ with estimators_features_, because each
+        member sees only its own subset of the predictors.  XGBoost has no members.
+        """
+        ests = getattr(model, 'estimators_', None)
+
+        if not isinstance(ests, list) or not ests:
+            return None
+
+        feats = getattr(model, 'estimators_features_', None)
+
+        return list(zip(ests, feats if feats is not None else [None] * len(ests)))
+
+    # ------------------------------------------------------------------------
+    # combine
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _combine(P: np.ndarray, agg: str) -> np.ndarray:
+        """Combine the members' predictions P (members x pixels) per pixel."""
+        if agg == 'mean':
+            return P.mean(axis=0)
+
+        if agg == 'median':
+            return np.median(P, axis=0)
+
+        if agg == 'mid20':
+
+            k = VcfPredict.MID20_TRIM
+
+            if P.shape[0] <= 2 * k:
+                raise ValueError('mid20 needs more than ' + str(2 * k) + ' members; the model has ' +
+                                 str(P.shape[0]))
+
+            return np.sort(P, axis=0)[k:P.shape[0] - k].mean(axis=0)
+
+        raise ValueError('Unknown aggregation ' + str(agg))
+
+    # ------------------------------------------------------------------------
+    # memberPredict
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _memberPredict(model, X: np.ndarray, agg: str, nJobs: int = 1) -> tuple:
+        """
+        Predict every member on X in blocks of rows, each member clipped to 0-100 as the C code does for its
+        30 models (MOD44B3.c).  Returns (value, sd): value combines the members by agg, and sd is their
+        population SD (ddof = 0), without the C code's +0.5 offset (Reports/SD_Layer_Plan.md).  The SD is the
+        spread of the members whichever way the value is combined.
+        """
+        members = VcfPredict._members(model)
+        value = np.empty(len(X), dtype=np.float64)
+        sd = np.empty(len(X), dtype=np.float64)
+        n = VcfPredict.PREDICT_CHUNK_ROWS
+
+        def predictMember(member, xc):
+            est, feats = member
+            return np.clip(est.predict(xc if feats is None else xc[:, feats]), 0, 100)
+
+        with ThreadPoolExecutor(nJobs) as ex:
+
+            for i in range(0, len(X), n):
+
+                xc = X[i:i + n]
+                P = np.vstack(list(ex.map(lambda m: predictMember(m, xc), members)))
+                value[i:i + n] = VcfPredict._combine(P, agg)
+                sd[i:i + n] = P.std(axis=0)
+                del P
+
+        return value, sd
+
     # ------------------------------------------------------------------------
     # runTileForYear
     # ------------------------------------------------------------------------
@@ -224,15 +360,17 @@ class VcfPredict(object):
 
         self._logger.info('Running ' + tid + ' for ' + str(year))
         
-        pctTc: np.ndarray = self._runPrediction(tid,
-                                                year,
-                                                self._treeCoverRf,
-                                                self._treeCoverTopN)
+        pctTc, sdTc = self._runPrediction(tid,
+                                          year,
+                                          self._treeCoverRf,
+                                          self._treeCoverTopN,
+                                          self._treeCoverAgg)
 
-        pctNonvegRaw: np.ndarray = self._runPrediction(tid,
-                                                    year,
-                                                    self._nonvegRf,
-                                                    self._nonvegTopN)
+        pctNonvegRaw, sdNonveg = self._runPrediction(tid,
+                                                     year,
+                                                     self._nonvegRf,
+                                                     self._nonvegTopN,
+                                                     self._nonvegAgg)
 
         # ---
         # Tree cover, non-vegetated and non-tree vegetation must sum to exactly 100 on an
@@ -257,6 +395,13 @@ class VcfPredict(object):
         self._write(tid, year, 'Percent_Tree_Cover', pctTc)
         self._write(tid, year, 'Percent_NonVegetated', pctNonveg)
         self._write(tid, year, 'Percent_NonTree_Vegetation', pctNontreeVeg)
+
+        # The SD layers describe the members' disagreement before the sum cap above, as in the C code.
+        if sdTc is not None:
+            self._write(tid, year, 'Percent_Tree_Cover_SD', sdTc)
+
+        if sdNonveg is not None:
+            self._write(tid, year, 'Percent_NonVegetated_SD', sdNonveg)
 
         return pctTc, pctNonveg, pctNontreeVeg
         
