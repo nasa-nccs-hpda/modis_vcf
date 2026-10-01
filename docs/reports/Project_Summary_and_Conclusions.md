@@ -4,7 +4,7 @@ This is the front page for the whole body of work. It states the goal, the seque
 reports for the evidence rather than repeating them; `README_START_HERE.md` is the index of those reports.
 
 **Status of code (2026-09-30):** the Python changes are committed on local branch `mcarrol2/c-python-parity-fixes` in the delivery clone `$SYNC/Git_delivery/modis_vcf`,
-based on `origin/develop` (`b83e302`). The project lead pushes it (no GitHub credentials exist on the cluster); see `Git_Delivery_Clone_modis_vcf.md`. `$SYNC/Python_code`
+based on `origin/develop` (`b83e302`). Pushed to GitHub by the project lead on 2026-09-30 (`335ceb2`); see `Git_Delivery_Clone_modis_vcf.md`. `$SYNC/Python_code`
 matches the branch. **Nothing has been applied to rlgill's checkouts or the pge61 repository.** The one C change (`fix_bands.c`) is in `$SYNC/C_code/pge61` only and is now known to be the wrong aerosol screen (section 10).
 
 Paths used below: `$SYNC` = `/explore/nobackup/people/mcarrol2/MOD44B_VCF_Development/AI_code_sync_09152026`; `$RUN` = `/explore/nobackup/people/mcarrol2/MOD44B_VCF_Development/FullRuns/full63_c_vs_py_20260919-0806`.
@@ -127,6 +127,7 @@ static, previously trained bare models while Python retrained on bare labels fro
 9. **Label provenance for h12v02:** two tree-cover label files exist (`v5.0.3samp/h12v02.samp.bin` and the legacy file `modis_vcf` trains on); both contain only zeros and unlabeled pixels. The project lead accepts the samp file as accurate
    from its 2010 modification date; that is a file date, not independent evidence (`Signoff_Package_2tile_C_vs_Python.md`, item 3).
 10. **Whether to adopt Monte Carlo predictor selection** in the Python pipeline. The 63-tile run used C's 64 predictors (no search). The search gave a different, slightly worse set here; a run-to-run baseline for the map differences (same predictors, another seed) has not been done. Section 5 has the numbers.
+11. **Per-pixel SD layer needed (to do; noted 2026-09-30).** The historical MOD44B has `Percent_Tree_Cover_SD` (and `Percent_NonVegetated_SD`): the SD across its 30 bagged models. The Python pipeline writes no SD layer. RF and the baseline (30 bootstrap trees) can produce the equivalent from per-tree predictions (`model.estimators_`) at almost no cost; it needs a small addition to `VcfPredict`, then a comparison with the historical SD on a few tiles (expect a different scale). XGBoost has no equivalent without bagging about 30 models. Because the project lead considers RF and XGBoost equivalent in accuracy, this favours RF. Not planned yet.
 
 ## 7. What changed in code, and where it lives
 
@@ -181,10 +182,13 @@ These need the repository owner's view; none has been acted on.
 
 From 2026-09-27 the goal shifted from matching C to making the Python product as good as possible.
 - **Regression tree methods.** Random Forest and XGBoost ("tunedB": 2000 rounds, depth 6, learning rate 0.02) against the baseline bagged trees, same predictors and training data.
-  Against the historical MOD44B on 63 tiles, pooled MAE: baseline 5.06, RF 4.48, XGBoost 4.02 (C 3.54). XGBoost is the best Python model on 59 of 63 tiles
+  Against the historical MOD44B on 63 tiles, pooled MAE: baseline 5.06, RF 4.48, XGBoost 4.02 (C 3.54). XGBoost is the best Python model against the historical product on 59 of 63 tiles, but it is the worst against held-out training labels (see the correction below)
   (`Regression_Tree_Methods_RF_XGBoost_Results.md`, `Model_vs_Historical_DeepDive_20260929.md`). The non-vegetated layer is still the baseline model.
 - **h16v01 (Greenland) over-prediction.** Most of its compositing periods have no pixel passing the 65-degree zenith cutoff. A zenith-only NDVI-default fix
   cures h16v01 but hurts at least 10 other tiles, so it is not adopted; the direction is to scope it to Greenland (and possibly Iceland) tiles, which is blocked on MOD44C data.
+- **Model choice is not settled (corrected 2026-09-30).** XGBoost tunedB is the best Python model only against references built from the historical MOD44B: best C (bit-15) model on 56 of 63 tiles against the historical map (pooled MAE baseline 4.87 / RF 4.20 / XGBoost 3.61), and best on the h11v02 stable historical pixels (2.74 / 2.55 / 2.36) and on the 3-tile stable set (5.72 / 5.13 / 4.81; gaps are ties; `Stable_Set_Model_Eval_Results.md`). Against the held-out 20% training labels it is **last on every tile** (best: baseline 48, RF 15, XGBoost 0; pooled MAE 7.25 / 7.32 / 8.38). G-LiHT lidar on h11v02 does not separate the models. The references disagree, so by the relative-difference rule no model is chosen yet. The historical product had no working aerosol screen, so references built from it favour whatever resembles it.
+- **NEON lidar (2026-09-30):** on 50,561 pixels at 19 sites, RF (bit 15) ties the historical MOD44B (3 m MAE 20.39 vs 20.43). All products and the training labels read far below lidar in dense forest, which reflects the cover definition, not the model (`NEON_Lidar_Eval_Results.md`).
+- **Model choice and SD layer (2026-09-30).** The project lead treats RF and XGBoost as equivalent in accuracy. RF is favoured because it can produce the per-pixel SD layer the historical MOD44B has; that layer still has to be built (open item 11).
 - **Aerosol QA.** The 2026-09-15 aerosol screen (MOD44C `state` bits 7-8) was shown to reject 29-50% of good pixels (bit overlap; investigation in
   `/explore/nobackup/people/mcarrol2/MOD44C_PGE72_Investigation/`). A 63-tile rebuild and retrain with `state` bit 15 (C) against the bits 7-8 screen (B):
   **B and C are equivalent (within about 1 point MAE on every reference); a tie favours C, which is now on the branch.** Watch h16v01 (C baseline +3.8 MAE vs historical).

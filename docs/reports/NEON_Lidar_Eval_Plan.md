@@ -1,6 +1,18 @@
 # Plan: NEON airborne lidar as tree cover truth for the historical MOD44B and the B and C models (2026-09-30)
 
-**Status: Step 1 DONE (2026-09-30 ~10:05). Steps 2-5 NOT started; awaiting the project lead's go-ahead.**
+**Original status: Step 1 DONE (2026-09-30 ~10:05). Steps 2-5 NOT started; awaiting the project lead's go-ahead.**
+
+**DONE 2026-09-30 14:33 (steps 2, 3 and 5; about 5 minutes on ngaproc201/202). Results: `NEON_Lidar_Eval_Results.md`.**
+
+**SCOPE CHANGE AND GO-AHEAD (project lead, 2026-09-30 ~14:25): RF with the bit-15 screen only.** The project lead is going forward with Random Forest and
+the bit-15 aerosol QA, so the B-vs-C question is dropped:
+- Step 2 (map all site-years) and step 3 (pools) run as written, on **ngaproc201 and ngaproc202** (24 CPUs, 225 GB each; ssh `-o CheckHostIP=no`;
+  singularity via a login shell and `module load singularity/4.3.1`). Launcher `code/neon_ngaproc_chain.sh`, status in `neon/status/`.
+- **Step 4 is dropped.** C RF predictions for all 63 tiles already exist (`qaC_full63_retrain_20260929/Python/predictions_C/rf/`), so no
+  predictions are needed. Sites off the 63 training tiles (e.g. PUUM) are mapped but not scored.
+- Step 5 scores **C RF** against NEON cover at 2, 3 and 5 m. The historical MOD44B 2019 and the C-code product are scored alongside as context, with no B/C
+  differences. Outputs are per site, per tile, by cover bin, on the stable-pixel subset, and a label-vs-lidar height-cutoff check.
+- Step 6 (point clouds) not now.
 
 ## Why
 The G-LiHT test on h11v02 (`Lidar_Reference_Coincidence_20260930.md`) had three limits: one boreal tile, lidar 5 years older than the

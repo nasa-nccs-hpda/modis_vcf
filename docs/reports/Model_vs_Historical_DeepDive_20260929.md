@@ -1,5 +1,7 @@
 # Baseline, Random Forest and XGBoost tunedB vs the historical MOD44B: tile deep dives (h09v05, h12v02, h12v09, h20v06)
 
+> **Model choice is not settled (corrected 2026-09-30).** XGBoost tunedB is the best Python model only against references built from the historical MOD44B: best C (bit-15) model on 56 of 63 tiles against the historical map (pooled MAE baseline 4.87 / RF 4.20 / XGBoost 3.61), and best on the h11v02 stable historical pixels (2.74 / 2.55 / 2.36). Against the held-out 20% training labels it is **last on every tile** (best: baseline 48, RF 15, XGBoost 0; pooled MAE 7.25 / 7.32 / 8.38). G-LiHT lidar on h11v02 does not separate the models. The references disagree, so by the relative-difference rule no model is chosen yet. The historical product had no working aerosol screen, so references built from it favour whatever resembles it. Details: `README_START_HERE.md`, "Current state".
+
 **Status (2026-09-29): finished. Started on one test tile, extended at 08:26 to h12v02, h12v09 and h20v06, and at 08:51 to all 63 tiles (last section).**
 The paragraphs below were written for the first tile. No product code changed. Nothing outside the regression-tree
 run root and this Reports directory was written.

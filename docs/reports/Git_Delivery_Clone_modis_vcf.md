@@ -2,7 +2,7 @@
 
 ## Status (2026-09-30)
 
-The Python changes are **committed locally** on branch `mcarrol2/c-python-parity-fixes` in the delivery clone. The branch is **not pushed**. The cluster has no GitHub credentials: the SSH key is rejected (`Permission denied (publickey)`), there is no HTTPS token and no `gh`. The project lead pushes from a terminal with their own credentials (see "To push" below).
+**Pushed 2026-09-30 by the project lead:** `origin/mcarrol2/c-python-parity-fixes` = `335ceb2` (checked with `git ls-remote`). Next: a pull request into `develop` for rlgill. Before the push, the branch was committed locally in the delivery clone. The cluster has no GitHub credentials: the SSH key is rejected (`Permission denied (publickey)`), there is no HTTPS token and no `gh`. The project lead pushes from a terminal with their own credentials (see "To push" below).
 
 - **Clone:** `/explore/nobackup/people/mcarrol2/MOD44B_VCF_Development/AI_code_sync_09152026/Git_delivery/modis_vcf/`
 - **Origin:** `https://github.com/nasa-nccs-hpda/modis_vcf`. rlgill's checkout at `/explore/nobackup/people/rlgill/innovation-lab-repositories/modis_vcf` is a clone of the same repository and was not touched.
@@ -19,8 +19,8 @@ The Python changes are **committed locally** on branch `mcarrol2/c-python-parity
 | `e0e6478` | New `CAttributes.py`, `CMirrorMetrics.py`, `CEquivalentMetrics.py` (Python mirrors of C's 252 derived metrics); `Metrics.py` read cache. | `OptionC_ImplementationB_Validation_Results.md` |
 | `c69c32d` | cuML `RandomForestRegressor` replaced by scikit-learn `BaggingRegressor` (**design change**, separate so it can be reverted alone); threaded, chunked prediction; new `view/vcfPredictQueue.py`. | `Parallel_CPU_Use_Assessment.md`, 63-tile run |
 | `2a37f9e` | `VcfPredict`: clamp to 0-100, layers sum to 100, codes 200/250 on all layers; tests. | `NonTreeVeg_Water_OutOfProj_Code_Propagation_Plan.md` |
-| `241623f` | New `view/fitAltModel.py` (RF, XGBoost, HGB fits; XGBoost tunedB settings in its docstring). | `Regression_Tree_Methods_RF_XGBoost_Results.md` |
-| (last) | `docs/`: copies of the `Reports/*.md` documents as of 2026-09-30. | |
+| `8f42c83` | New `view/fitAltModel.py` (RF, XGBoost, HGB fits; XGBoost tunedB settings in its docstring). | `Regression_Tree_Methods_RF_XGBoost_Results.md` |
+| `335ceb2` | `docs/reports/`: copies of the 51 `Reports/*.md` documents as of 2026-09-30, plus a short README. Another cluster user's name is replaced by "another user" in the copies. | |
 
 `c69c32d` holds `VcfPredict.py` and `test_VcfPredict.py` as they were in the 63-tile run's code copy. `2a37f9e` adds the 2026-09-27 fix on top, so each commit matches code that actually ran.
 

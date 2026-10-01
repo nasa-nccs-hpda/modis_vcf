@@ -1,22 +1,40 @@
 # Start here: MODIS-VCF development workspace
 
-Last updated 2026-09-30 ~13:30. Read this section, then `Project_Summary_and_Conclusions.md`. The dated status entries are kept word for word under "Status history" at the end.
+Last updated 2026-09-30 ~21:00. Read this section, then `Project_Summary_and_Conclusions.md`. The dated status entries are kept word for word under "Status history" at the end.
 
 ## Current state (2026-09-30)
 
-- **Nothing is running.** All run markers are `.done`. The last run, the 63-tile bit-15 rebuild and retrain, finished at 10:41 with no failures.
+- **V4r** (lowest-red pick when all 3 MOD44C inputs are cloudy or cloud-adjacent), h12v09, steps 1-3 of the amendment in `Cloud_Composite_Alternatives_Plan.md`.
+  - **Done 2026-09-30 ~20:39; results in `V4r_Darkest_Red_h12v09_Results.md`.**
+    - Against historical, the drop-pixel bias moves from -21.7 to -4.9, but the all-land bias rises from +0.4 to +3.0.
+    - Against the h12v09 held-out labels, MAE gets worse, 6.84 to 8.70, entirely at labels of 80-100.
+    - The references disagree and the models were not retrained, so there is no decision. Next step proposed: retrain on V4r metrics (awaiting approval).
+  - **First run failed** (`FullRuns/v4r_darkest_red_h12v09_20260930/`, `status/compose.failed`, kept as is). Its alignment check was exact in 7 of the 8 periods but 0.0 in 2020033. The fault was in the check, not the data: the 2020065 slot does not exist (no MOD44C file and no 1-Days file), and the stored 2020033 composite is exactly the mean of the 2 inputs that exist (2020033 and 2020049; identical at 100% of fallback pixels on Band_1, 2, 3 and 31). The check had filled the missing slot with 10000.
+  - **Rerun (launched 2026-09-30 ~20:00, fully detached on ngaproc201):** `FullRuns/v4r_darkest_red_h12v09_20260930_r2/`. The code is the same except for the corrected check, which now averages only the inputs that exist. The chain runs compose, then metrics, then compare; `status/ALL.done` when finished. A second fix was made at about 20:20: the chain passed `makeMetrics -o $R/metrics` instead of `-o $R/metrics/h12v09`, so makeMetrics ignored the V4r composites and started rebuilding the standard ones. It was stopped, the path corrected and the chain restarted from metrics (compose kept). The log now shows "Reading Composite from .../h12v09/h12v09/2019/2-Composites". The partial tree from the wrong path is in `metrics/h12v09/STRAY_wrong_path_2019_unused/` (unused). Logs:
+    - `logs/compose.log`: cheap check, alignment check and shadow/water gate;
+    - `logs/compare.log`: map and held-out comparison, with exactness checks;
+    - tables in `eval/`.
+- **Daily-data variants** (R0 re-implementation of PGE72, V1, V2, V3, V3m, and V4 on R0), cloudiness only. **Done 2026-09-30 17:15** (`FullRuns/cloud_composites_h12v09_20260930/`, `out/measures_summary.txt`).
+  - R0 reads "VALID: False" against the code threshold of 0.90: its exact band 1+2 match with the real MOD44CQ is 0.853-0.936 by window (median 0.881).
+  - **The project lead accepted the about 88% match for this evaluation (2026-09-30).** The likely cause is that the public MOD09GA files hold only the first observation per day.
+  - R0's fallback count matches the pipeline (3.290 against 3.289).
+- **Both results reports written 2026-09-30:** `V4r_Darkest_Red_h12v09_Results.md` and `Cloud_Composite_Alternatives_Results.md`. On the daily-data variants: V4 gets most of V3's cloud reduction with no daily data and no change to clear pixels; V1 and V2 barely help.
 - **Aerosol QA decision:** B (`state` bits 7-8) and C (`state` bit 15) are equivalent in accuracy, and a tie favours **C**. C is now in the code. Before production, look at h16v01 (snow): C's baseline model is +3.8 MAE there against historical.
-- **Best Python model:** XGBoost tunedB, best on 59 of 63 tiles against the historical MOD44B. The non-vegetated layer is still the baseline model.
-- **Code:** the Python changes are **committed on local branch `mcarrol2/c-python-parity-fixes`** (6 commits off `origin/develop` `b83e302`) in `Git_delivery/modis_vcf`. **The project lead pushes it**, because the cluster has no GitHub credentials (`Git_Delivery_Clone_modis_vcf.md`). `Python_code/modis_vcf` matches the branch.
+- **Model choice is not settled (corrected 2026-09-30).** XGBoost tunedB is the best Python model only against references built from the historical MOD44B: best C (bit-15) model on 56 of 63 tiles against the historical map (pooled MAE baseline 4.87 / RF 4.20 / XGBoost 3.61), and best on the h11v02 stable historical pixels (2.74 / 2.55 / 2.36). Against the held-out 20% training labels it is **last on every tile** (best: baseline 48, RF 15, XGBoost 0; pooled MAE 7.25 / 7.32 / 8.38). G-LiHT lidar on h11v02 does not separate the models. The references disagree, so by the relative-difference rule no model is chosen yet. The historical product had no working aerosol screen, so references built from it favour whatever resembles it. The non-vegetated layer is still the baseline model.
+- **Model choice (project lead, 2026-09-30):** RF and XGBoost tunedB are close enough to be treated as equivalent. RF is favoured because it can produce the per-pixel SD layer that the historical product has (item 8 below, still to be built).
+- **Code:** the Python changes are **committed on local branch `mcarrol2/c-python-parity-fixes`** (6 commits off `origin/develop` `b83e302`) in `Git_delivery/modis_vcf`. **Pushed to GitHub 2026-09-30** (`335ceb2`; pull request into `develop` still to open). The cluster has no GitHub credentials (`Git_Delivery_Clone_modis_vcf.md`). `Python_code/modis_vcf` matches the branch. **Local commit `2778628` (2026-09-30, not pushed):** the non-vegetated default predictors in `rfFitFromPge61.py` are now C's 21 bare attributes (`NonVegetated_Model_Predictors_C.md`). A second local commit refreshes `docs/reports` with all the reports as of 2026-09-30 ~21:00, with the same redaction of other users' usernames. **The branch is 2 commits ahead of GitHub; the project lead pushes.**
 - **Compute:** forest201-205 as before, plus **ngaproc201 and ngaproc202** (24 CPUs, 225 GB each, from 2026-09-30). On those two, ssh needs `-o CheckHostIP=no` (a stale IP entry in `/etc/ssh/ssh_known_hosts`), and singularity needs `module load singularity/4.3.1`. The existing launchers call `singularity` directly and need that line before they will run there.
 
 ## Waiting on the project lead
 
-1. Push the branch and open a pull request for rlgill (`Git_Delivery_Clone_modis_vcf.md`, "To push").
-2. NEON lidar steps 2-5 (optional, about 1-2.5 h; `NEON_Lidar_Eval_Plan.md`).
-3. Plan the cloudy-region work: cloud-fallback composites (`C_vs_Historical_h12v09_20260930.md`, last section).
+1. Open the pull request into `develop` for rlgill (the branch is pushed) (`Git_Delivery_Clone_modis_vcf.md`, "To push").
+2. **Done 2026-09-30:** NEON lidar evaluation of RF (bit 15) (`NEON_Lidar_Eval_Results.md`). RF ties the historical MOD44B (3 m MAE 20.4 vs 20.4). Every product and the labels compress the range against lidar (dense forest about -28).
+3. Cloudy-region work (cloud-fallback composites): **stage A done 2026-09-30** (`Cloudy_Fallback_Diagnosis_Results.md`). C and Python use the same fallback rule; the current C code drops too, and more than RF at high fallback counts. Only the historical C6 product is less affected (it fell back about 1 period less at the drop pixels). About 14% of land outside the high latitudes has 3 or more fallback periods; in dense forest RF is biased about -7 at 5 or more. Side finding: Python `outCloud` is inverted (unused). Addendum: 2-input periods and h12v09 label distribution. **Next (project lead, 2026-09-30): single-tile h12v09 test bed instead of the literature search:** `Single_Tile_h12v09_Scenario_Plan.md` (awaiting approval).
 4. Greenland/Iceland scoped fix: blocked on MOD44C files (`Greenland_Iceland_Scoped_Fix_Plan.md`).
-5. The non-vegetated layer has not been tried with RF or XGBoost.
+5. The non-vegetated layer has not been tried with RF or XGBoost. C's 21 bare predictors, decoded (2026-09-30): `NonVegetated_Model_Predictors_C.md`. Our runs already use them through a predictor file, but the default list in `rfFitFromPge61.py` is still wrong and needs replacing.
+6. Score the models on the 10,000-pixel stable set (h11v04, h18v03, h19v09). It was selected but never scored; only h11v02 stable pixels were. **Done 2026-09-30** (`Stable_Set_Model_Eval_Results.md`): XGBoost 4.81, RF 5.13, baseline 5.72 MAE. The ranking matches the other historical-based references, but every pooled gap is a tie (at most 1 point).
+7. Model choice (baseline, RF or XGBoost): the references disagree (see above). The 3-tile stable set agrees with the other historical-based references (XGBoost first, gaps are ties). An independent reference is needed; NEON lidar (item 2) is the one available.
+8. **Per-pixel SD layer needed (to do; noted 2026-09-30).** The historical MOD44B has `Percent_Tree_Cover_SD` (and `Percent_NonVegetated_SD`): the SD across its 30 bagged models. The Python pipeline writes no SD layer. RF and the baseline (30 bootstrap trees) can produce the equivalent from per-tree predictions (`model.estimators_`) at almost no cost; it needs a small addition to `VcfPredict`, then a comparison with the historical SD on a few tiles (expect a different scale). XGBoost has no equivalent without bagging about 30 models. Because the project lead considers RF and XGBoost equivalent in accuracy, this favours RF. Not planned yet.
 
 ## Standing conditions
 
@@ -89,9 +107,15 @@ Last updated 2026-09-30 ~13:30. Read this section, then `Project_Summary_and_Con
 - `MOD44C_State_Aerosol_Bit_Collision.md`: stub. The report moved to `/explore/nobackup/people/mcarrol2/MOD44C_PGE72_Investigation/`.
 - `Aerosol_QA_Variant_Test_Plan.md`, `_Results.md`, `Aerosol_QA_Variant_Stage2_Tables.md`: bit 15 (C) against the bits 7-8 screen (B) on three tiles.
 - `Aerosol_QA_C_Full63_Retrain_Plan.md`, `_Results.md`, `_Tables.md`: 63-tile C rebuild and B/C retrain; **decision: equivalent, and a tie favours C**.
+- `Cloudy_Fallback_Diagnosis_Plan.md`: why the Python models drop on cloud-fallback composites, how widespread it is, and QA information layers for RF (plan).
+- `Cloudy_Fallback_Diagnosis_Results.md`: stage A results (steps 1, 2 and 4), 2026-09-30.
+- `Single_Tile_h12v09_Scenario_Plan.md`: single-tile RF test bed for cloud-fallback scenarios (plan).
+- `RF_Fallback_Counts_Results.md`: 63-tile RF with fallback and cloudy counts as predictors (done 2026-09-30): small consistent gain, no tile worse, drop reduced but not fixed.
+- `Cloud_Composite_Alternatives_Plan.md`: plan to test less-cloudy compositing rules on h12v09 from MOD09GA/GQ (cloudiness only, no model; awaiting approval).
+- `Stable_Set_Model_Eval_Plan.md`, `Stable_Set_Model_Eval_Results.md`: the models scored on that set (done 2026-09-30).
 - `Stable_Pixel_Reference_Selection.md`: the 10,000-pixel stable reference set, which stands in for Stage 6.
 - `Lidar_Reference_Coincidence_20260930.md`: G-LiHT on h11v02, the decision section, and the lidar coverage survey.
-- `NEON_Lidar_Eval_Plan.md`: NEON evaluation, step 1 done, steps 2-5 optional.
+- `NEON_Lidar_Eval_Plan.md`, `NEON_Lidar_Eval_Results.md`: NEON lidar evaluation of RF (bit 15), 19 sites, done 2026-09-30.
 - `C_vs_Historical_h12v09_20260930.md`: dense-forest check, and cloud-fallback drops in the eastern Amazon.
 - `Git_Delivery_Clone_modis_vcf.md`: the local branch with the Python changes and how to push it.
 
@@ -135,6 +159,7 @@ Last updated 2026-09-30 ~13:30. Read this section, then `Project_Summary_and_Con
 12. **Cloud-fallback composites** (2026-09-30): persistently cloudy pixels fall back to all-day means with clouds, and every Python model drops there. Improving this is the next model-quality area; not planned yet.
 13. **The C workspace copy still has the bits 7-8 aerosol shift** (`C_code/pge61/.../fix_bands.c`). Do not deliver it. Whether C should use bit 15 is undecided.
 14. **The qaC and aerosol-variant runs used code without the 2026-09-27 `VcfPredict` output fix** (no clamp; layers not forced to sum to 100). B and C are affected alike; the branch has the fix.
+15. **Per-pixel SD layer needed (to do; noted 2026-09-30).** The historical MOD44B has `Percent_Tree_Cover_SD` (and `Percent_NonVegetated_SD`): the SD across its 30 bagged models. The Python pipeline writes no SD layer. RF and the baseline (30 bootstrap trees) can produce the equivalent from per-tree predictions (`model.estimators_`) at almost no cost; it needs a small addition to `VcfPredict`, then a comparison with the historical SD on a few tiles (expect a different scale). XGBoost has no equivalent without bagging about 30 models. Because the project lead considers RF and XGBoost equivalent in accuracy, this favours RF. Not planned yet.
 
 ## Documentation audit (2026-09-20)
 

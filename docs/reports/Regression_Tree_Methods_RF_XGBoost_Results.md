@@ -1,5 +1,7 @@
 # Regression tree alternatives (Random Forest, XGBoost): results
 
+> **Model choice is not settled (corrected 2026-09-30).** XGBoost tunedB is the best Python model only against references built from the historical MOD44B: best C (bit-15) model on 56 of 63 tiles against the historical map (pooled MAE baseline 4.87 / RF 4.20 / XGBoost 3.61), and best on the h11v02 stable historical pixels (2.74 / 2.55 / 2.36). Against the held-out 20% training labels it is **last on every tile** (best: baseline 48, RF 15, XGBoost 0; pooled MAE 7.25 / 7.32 / 8.38). G-LiHT lidar on h11v02 does not separate the models. The references disagree, so by the relative-difference rule no model is chosen yet. The historical product had no working aerosol screen, so references built from it favour whatever resembles it. Details: `README_START_HERE.md`, "Current state".
+
 **Status: done.** Plan: `Regression_Tree_Methods_RF_XGBoost_Plan.md`. Run root
 `$RUN2 = /explore/nobackup/people/mcarrol2/MOD44B_VCF_Development/FullRuns/regtree_alt_models_20260927/`.
 Baseline run `$RUN = FullRuns/full63_c_vs_py_20260919-0806/` (the 63-tile C-vs-Python run) is untouched;
