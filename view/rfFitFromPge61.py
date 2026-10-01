@@ -12,6 +12,7 @@ import pandas as pd
 from sklearn.ensemble import BaggingRegressor
 from sklearn.tree import DecisionTreeRegressor
 
+from modis_vcf.model import CAttributes
 from modis_vcf.model.TrainingType import TrainingType
 
 
@@ -68,6 +69,13 @@ def main():
                         type=int,
                         default=None,
                         help='Random seed; with a seed the result does not depend on nJobs.')
+
+    parser.add_argument('--year',
+                        type=int,
+                        default=2019,
+                        help='Year of the training metrics; sets the period ' +
+                             'days in the built-in non-vegetated predictor ' +
+                             'names.')
 
     args = parser.parse_args()
 
@@ -137,28 +145,15 @@ def main():
         'Warmest8MeanBandRefl-Band_31',
         'Warmest8MeanBandRefl-NDVI']
         
-    barePreds = [
-    'UnsortedMonthlyBands-Band_6-Day_2019113',
-    'UnsortedMonthlyBands-Band_1-Day_2019161',
-    'UnsortedMonthlyBands-NDVI-Day_2019305',
-    'UnsortedMonthlyBands-Band_3-Day_2019353',
-    'UnsortedMonthlyBands-Band_7-Day_2019353',
-    'UnsortedMonthlyBands-Band_31-Day_2019353',
-    'UnsortedMonthlyBands-NDVI-Day_2019353',
-    'UnsortedMonthlyBands-Band_1-Day_2020033',
-    'UnsortedMonthlyBands-Band_2-Day_2020033',
-    'UnsortedMonthlyBands-Band_3-Day_2020033',
-    'UnsortedMonthlyBands-Band_4-Day_2020033',
-    'UnsortedMonthlyBands-Band_5-Day_2020033',
-    'UnsortedMonthlyBands-Band_7-Day_2020033',
-    'UnsortedMonthlyBands-Band_31-Day_2020033',
-    'UnsortedMonthlyBands-NDVI-Day_2020033',
-    'Lowest6MeanBandRefl-Band_4',
-    'BandReflMedian-NDVI',
-    # 'N/A-Band_2',
-    # 'N/A-Band_6-Day_2019305',
-    # 'BandReflMin-Band_1-Day_2019065',
-    'Greenest6MeanBandRefl-Band_31']
+    # ---
+    # The non-vegetated predictors are C's 21 bare attributes
+    # (MOD_PR44B3/MOD44B3.c attributes_bare[], header.bare.arff), named as
+    # the Python metrics that mirror them.  The former hand-written list
+    # translated C's indices with a date-major layout instead of C's
+    # band-major one, so 13 of its 18 names were not C's predictors.
+    # ---
+    barePreds = CAttributes.predictorNames(CAttributes.BARE_ATTRIBUTES,
+                                           CAttributes.periodDays(args.year))
 
     outDir = args.o
     trainingType = args.trainingType
