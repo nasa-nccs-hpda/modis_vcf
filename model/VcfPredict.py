@@ -45,6 +45,9 @@ class VcfPredict(object):
     AGG_METHODS = ('mean', 'mid20', 'median')
     MID20_TRIM = 5
 
+    # Tile rows (the v of hXXvYY) where land is set to tree cover 0, non-vegetated 100.
+    HIGH_LATITUDE_BARE_VTILES = (0,)
+
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
@@ -222,8 +225,8 @@ class VcfPredict(object):
             value, sd = VcfPredict._memberPredict(rf, X.to_numpy(dtype=np.float32), agg, self._nJobs)
             del X
 
-            prediction = np.clip(value.astype(np.int16).reshape(self._productType.ROWS,
-                                                                self._productType.COLS), 0, 100)
+            prediction = np.clip(VcfPredict._roundValue(value).reshape(self._productType.ROWS,
+                                                                       self._productType.COLS), 0, 100)
 
             maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
 
@@ -259,8 +262,7 @@ class VcfPredict(object):
             parts = [rf.predict(X.iloc[i:i + VcfPredict.PREDICT_CHUNK_ROWS])
                      for i in range(0, len(X), VcfPredict.PREDICT_CHUNK_ROWS)]
 
-        prediction: np.ndarray = np.concatenate(parts). \
-                                 astype(np.int16). \
+        prediction: np.ndarray = VcfPredict._roundValue(np.concatenate(parts)). \
                                  reshape(self._productType.ROWS,
                                          self._productType.COLS)
         del X, parts
@@ -277,6 +279,26 @@ class VcfPredict(object):
         maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
 
         return maskedPred, None
+
+    # ------------------------------------------------------------------------
+    # vTile
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _vTile(tid: str) -> int:
+        """The tile row of a tile ID such as 'h16v00'."""
+        return int(tid[tid.index('v') + 1:])
+
+    # ------------------------------------------------------------------------
+    # roundValue
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _roundValue(value: np.ndarray) -> np.ndarray:
+        """
+        Round to the nearest integer, halves up, as the C code does (floor(prediction + 0.5), MOD44B3.c).
+        Truncating instead biased both layers down by about half a point
+        (Reports/Rounding_vs_Truncation_Results.md).
+        """
+        return np.floor(value + 0.5).astype(np.int16)
 
     # ------------------------------------------------------------------------
     # members
@@ -388,6 +410,20 @@ class VcfPredict(object):
         pctNonveg: np.ndarray = np.where(okMask,
                                          np.minimum(pctNonvegRaw, 100 - pctTc),
                                          pctNonvegRaw)
+
+        # ---
+        # High-latitude rule: on v00 tiles (north of about 80 N) every land pixel is tree
+        # cover 0 and non-vegetated 100.  There are no trees there and very likely no
+        # vegetation, and two of the eight composite periods have no input at all, which
+        # leaves the models with spurious tree cover.  This is the C code's Greenland rule
+        # (MOD44B3.c), which covers all land on these tiles.  The SD layers keep the
+        # members' spread, as in the C code.
+        # ---
+        if VcfPredict._vTile(tid) in VcfPredict.HIGH_LATITUDE_BARE_VTILES:
+
+            self._logger.info('High-latitude rule: ' + tid + ' land set to tree 0, non-vegetated 100.')
+            pctTc = np.where(okMask, 0, pctTc).astype(pctTc.dtype)
+            pctNonveg = np.where(okMask, 100, pctNonveg).astype(pctNonveg.dtype)
 
         pctNontreeVeg: np.ndarray = 100 - pctTc - pctNonveg
         pctNontreeVeg = self._maskPrediction(tid, year, pctNontreeVeg)
