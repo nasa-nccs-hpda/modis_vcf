@@ -15,6 +15,7 @@ from osgeo import gdal
 from osgeo.osr import SpatialReference
 
 from core.model.GeospatialImageFile import GeospatialImageFile
+from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompositeDayFile import CompositeDayFile
 from modis_vcf.model.ProductType import ProductType
 
@@ -63,6 +64,16 @@ class Metrics(object):
     
     NDVI = 'NDVI'
     VERY_LOW_SORT_VALUE = -999999
+
+    # ---
+    # Greenland tiles where NDVI is set to 0 in any composite period with no
+    # day under the zenith cutoff (0 < solz < 65).  Polar-night periods
+    # otherwise reach the models unfiltered and give spurious tree cover.
+    # Iceland (h17v02) is excluded: the fix did not lower its MAE against C6.
+    # See Greenland_Iceland_Scoped_Fix_v2_Results.md.
+    # ---
+    ZENITH_ONLY_NDVI_TILES = ('h15v02', 'h16v00', 'h16v01', 'h16v02',
+                              'h17v00', 'h17v01')
     
     # ---
     # There must be this many valid values in a pixel stack for the metric to
@@ -411,12 +422,63 @@ class Metrics(object):
         # ---
         
         ndviCube = ndviRaw * 1000
-            
+
+        if self._tid in Metrics.ZENITH_ONLY_NDVI_TILES:
+            ndviCube = self._applyZenithOnlyNdvi(ndviCube)
+
         # Write NDVI.
         ndviCube.tofile(outName)
 
         # NDVI's xref is the same as band 1's.
         return ndviCube, b1Xref
+
+    # ------------------------------------------------------------------------
+    # applyZenithOnlyNdvi
+    #
+    # For each composite period, set NDVI to 0 where none of the period's
+    # days has 0 < solz < ZENITH_CUTOFF.  A missing day file counts as no
+    # valid zenith.  Every NDVI-derived metric is computed from the result.
+    # ------------------------------------------------------------------------
+    def _applyZenithOnlyNdvi(self, ndviCube: np.ndarray) -> np.ndarray:
+
+        self._logger.info('Applying zenith-only NDVI to ' + self._tid)
+
+        for i, (year, day) in enumerate(self._daysSought):
+
+            cdf = CompositeDayFile().initFromParams(self._productType,
+                                                    self._productType.BAND1,
+                                                    self._tid,
+                                                    year,
+                                                    day,
+                                                    self._compDir,
+                                                    logger=self._logger,
+                                                    dayDir=self._dayDir)
+
+            valid = np.zeros((self._productType.ROWS,
+                              self._productType.COLS), dtype=bool)
+
+            for dYear, dDay in cdf._getDaysToFind():
+
+                bdf = BandDayFile().initFromParams(self._productType,
+                                                   self._productType.BAND1,
+                                                   self._tid,
+                                                   dYear,
+                                                   dDay,
+                                                   self._dayDir,
+                                                   self._logger)
+                try:
+                    solz = bdf.getSolz()
+
+                except RuntimeError as e:
+                    self._logger.warning('No solz for ' + str(dYear) +
+                                         str(dDay).zfill(3) + ': ' + str(e))
+                    continue
+
+                valid |= (solz > 0) & (solz < BandDayFile.ZENITH_CUTOFF)
+
+            ndviCube[i] = np.where(valid, ndviCube[i], 0.0)
+
+        return ndviCube
 
     # ------------------------------------------------------------------------
     # printAvailableMetrics
