@@ -4,6 +4,7 @@ import unittest
 
 import numpy as np
 from osgeo import gdal
+from osgeo import osr
 
 from modis_vcf.model.VcfPredict import VcfPredict
 
@@ -73,3 +74,24 @@ class VcfPredictWriteTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             self._vcfp._write('h09v05', 2019, 'Percent_Tree_Cover_SD', np.array([[-1, 0]], dtype=np.int16),
                               VcfPredict.SD_DATA_TYPE)
+
+    # -------------------------------------------------------------------------
+    # testModisSinusoidalGrid
+    #
+    # Expected corner and pixel size from the C6.1 MOD44B h08v04 granule (MOD44B.A2019065.h08v04.061).
+    # -------------------------------------------------------------------------
+    def testModisSinusoidalGrid(self):
+
+        raster = np.zeros((4800, 4800), dtype=np.int16)
+        outName = self._vcfp._write('h08v04', 2019, 'Percent_Tree_Cover', raster)
+
+        ds = gdal.Open(str(outName))
+        expected = (-11119505.196667, 231.656358263958, 0.0, 5559752.598333, 0.0, -231.656358263958)
+
+        for got, exp in zip(ds.GetGeoTransform(), expected):
+            self.assertAlmostEqual(got, exp, places=5)
+
+        srs = osr.SpatialReference()
+        srs.ImportFromWkt(ds.GetProjection())
+        self.assertEqual(srs.GetSemiMajor(), 6371007.181)
+        self.assertEqual(srs.GetSemiMinor(), 6371007.181)

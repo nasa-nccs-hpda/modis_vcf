@@ -18,6 +18,7 @@ from sklearn.ensemble import BaggingRegressor as RandomForestRegressor
 
 from osgeo import gdal
 from osgeo import gdal_array
+from osgeo import osr
 
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.Metrics import Metrics
@@ -44,6 +45,13 @@ class VcfPredict(object):
     PCT_DATA_TYPE = gdal.GDT_Byte
     PCT_NO_DATA = 253
     SD_DATA_TYPE = gdal.GDT_UInt16
+
+    # The MODIS sinusoidal grid: a sphere of radius 6371007.181 m, 36 x 18 tiles of 1111950.5197665 m
+    # (4800 x 4800 pixels of 231.656 m at 250 m), upper left corner of h00v00 at (-20015109.354, 10007554.677).
+    MODIS_SINU = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs'
+    MODIS_TILE_SIZE = 1111950.5196666666
+    MODIS_GRID_ULX = -20015109.354
+    MODIS_GRID_ULY = 10007554.677
 
     # How the ensemble members' predictions are combined into the value of a pixel.
     # 'mean' is what predict() returns; 'mid20' drops the MID20_TRIM highest and lowest members
@@ -290,6 +298,25 @@ class VcfPredict(object):
     # vTile
     # ------------------------------------------------------------------------
     @staticmethod
+    def _hTile(tid: str) -> int:
+        """The tile column of a tile ID such as 'h16v00'."""
+        return int(tid[tid.index('h') + 1:tid.index('v')])
+
+    # ------------------------------------------------------------------------
+    # geoTransform
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _geoTransform(tid: str, shape: tuple) -> tuple:
+        """The GDAL geotransform of a tile of the MODIS sinusoidal grid with shape (rows, columns)."""
+        size = VcfPredict.MODIS_TILE_SIZE
+        ulx = VcfPredict.MODIS_GRID_ULX + VcfPredict._hTile(tid) * size
+        uly = VcfPredict.MODIS_GRID_ULY - VcfPredict._vTile(tid) * size
+        return (ulx, size / shape[1], 0.0, uly, 0.0, -size / shape[0])
+
+    # ------------------------------------------------------------------------
+    # vTile
+    # ------------------------------------------------------------------------
+    @staticmethod
     def _vTile(tid: str) -> int:
         """The tile row of a tile ID such as 'h16v00'."""
         return int(tid[tid.index('v') + 1:])
@@ -469,9 +496,6 @@ class VcfPredict(object):
         fName = outPrefix + '-' + tid + '-' + str(year)
         outName = Path(self._outDir) / (fName + '.tif')
         
-        modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
-                  '+datum=WGS84 +units=m +no_defs'
-
         # Refuse values the storage type cannot hold rather than letting them wrap.
         npType = gdal_array.GDALTypeCodeToNumericTypeCode(dataType)
         info = np.iinfo(npType)
@@ -487,7 +511,10 @@ class VcfPredict(object):
                                                   1,
                                                   dataType,
                                                   options=['COMPRESS=LZW'])
-        ds.SetProjection(modSinu)
+        srs = osr.SpatialReference()
+        srs.ImportFromProj4(VcfPredict.MODIS_SINU)
+        ds.SetProjection(srs.ExportToWkt())
+        ds.SetGeoTransform(VcfPredict._geoTransform(tid, raster.shape))
         band = ds.GetRasterBand(1)
 
         if dataType == VcfPredict.PCT_DATA_TYPE:
