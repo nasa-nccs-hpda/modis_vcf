@@ -17,12 +17,12 @@ from sklearn.ensemble import BaggingRegressor as RandomForestRegressor
 # from cuml.ensemble import RandomForestRegressor
 
 from osgeo import gdal
+from osgeo import gdal_array
 
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
-from modis_water.model.Utils import Utils
  
 MOD44_DIR = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 MOD44W_DIR = Path('/css/modis/Collection6.1/L3/MOD44W-LandWaterMask')
@@ -38,6 +38,12 @@ class VcfPredict(object):
     PRED_WATER = 200
     PRED_OUT_OF_PROJ = 250
     PREDICT_CHUNK_ROWS = 1000000
+
+    # Output storage, as in the historical MOD44B: the three percent layers are uint8 (0-100, water
+    # 200, out of projection 250, fill 253) and the SD layers are uint16 holding SD x 100.
+    PCT_DATA_TYPE = gdal.GDT_Byte
+    PCT_NO_DATA = 253
+    SD_DATA_TYPE = gdal.GDT_UInt16
 
     # How the ensemble members' predictions are combined into the value of a pixel.
     # 'mean' is what predict() returns; 'mid20' drops the MID20_TRIM highest and lowest members
@@ -434,10 +440,10 @@ class VcfPredict(object):
 
         # The SD layers describe the members' disagreement before the sum cap above, as in the C code.
         if sdTc is not None:
-            self._write(tid, year, 'Percent_Tree_Cover_SD', sdTc)
+            self._write(tid, year, 'Percent_Tree_Cover_SD', sdTc, VcfPredict.SD_DATA_TYPE)
 
         if sdNonveg is not None:
-            self._write(tid, year, 'Percent_NonVegetated_SD', sdNonveg)
+            self._write(tid, year, 'Percent_NonVegetated_SD', sdNonveg, VcfPredict.SD_DATA_TYPE)
 
         return pctTc, pctNonveg, pctNontreeVeg
         
@@ -457,12 +463,39 @@ class VcfPredict(object):
                tid: str, 
                year: int, 
                outPrefix: str, 
-               raster: np.ndarray) -> Path:
+               raster: np.ndarray,
+               dataType: int = PCT_DATA_TYPE) -> Path:
         
-        fName: Path = outPrefix + '-' + tid + '-' + str(year)
+        fName = outPrefix + '-' + tid + '-' + str(year)
+        outName = Path(self._outDir) / (fName + '.tif')
         
         modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
                   '+datum=WGS84 +units=m +no_defs'
-        
-        Utils.writeRaster(self._outDir, raster, fName, projection=modSinu)
+
+        # Refuse values the storage type cannot hold rather than letting them wrap.
+        npType = gdal_array.GDALTypeCodeToNumericTypeCode(dataType)
+        info = np.iinfo(npType)
+
+        if raster.min() < info.min or raster.max() > info.max:
+
+            raise ValueError(fName + ': values ' + str(raster.min()) + '-' + str(raster.max()) +
+                             ' do not fit ' + gdal.GetDataTypeName(dataType))
+
+        ds = gdal.GetDriverByName('GTiff').Create(str(outName),
+                                                  raster.shape[1],
+                                                  raster.shape[0],
+                                                  1,
+                                                  dataType,
+                                                  options=['COMPRESS=LZW'])
+        ds.SetProjection(modSinu)
+        band = ds.GetRasterBand(1)
+
+        if dataType == VcfPredict.PCT_DATA_TYPE:
+            band.SetNoDataValue(VcfPredict.PCT_NO_DATA)
+
+        band.WriteArray(raster.astype(npType))
+        band = None
+        ds = None
+
+        return outName
         

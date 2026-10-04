@@ -55,6 +55,8 @@ python view/fitAltModel.py --algo rf --nEstimators 60 --maxFeatures sqrt --rando
 `view/vcfPredict.py` (or `view/vcfPredictQueue.py` for many tiles) writes `Percent_Tree_Cover`,
 `Percent_NonVegetated` and `Percent_NonTree_Vegetation`, plus the two SD layers
 `Percent_Tree_Cover_SD` and `Percent_NonVegetated_SD`.
+Each is a single-band LZW GeoTIFF. As in the historical MOD44B, the three percent layers are
+uint8 (0-100, water 200, out of projection 250, nodata 253) and the SD layers are uint16.
 
 - `--tcAgg` / `--nvAgg` set how each layer's trees are combined: `mean` (the same as
   `predict()`), `mid20` (the mean of the middle 20) or `median`. Defaults are `mean`. The
