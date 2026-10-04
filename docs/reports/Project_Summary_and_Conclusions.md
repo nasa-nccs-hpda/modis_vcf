@@ -3,6 +3,14 @@
 This is the front page for the whole body of work. It states the goal, the sequence of work, the conclusions with their numbers, what is still open, and what changed in code. It links to the detailed
 reports for the evidence rather than repeating them; `README_START_HERE.md` is the index of those reports.
 
+**Version names (added 2026-10-03; definitions in `Product_Versions_and_Work_Map.md`):**
+- **v0.0.0-pre.1:** rlgill's upstream Python as found (incomplete).
+- **v0.0.0-pre.2:** bagged trees on the bits 7-8 aerosol test; this covers most of this document up to 2026-09-29.
+- **v0.0.0:** bagged trees, MEAN of 30, on bit-15 inputs. In the project lead's view, **the closest match to the original intent of
+  the C code**.
+- **v1.0.0:** the current product (RF, tree MEDIAN, rounded, SD layers).
+- Where this document says "baseline", read v0.0.0-pre.2 before 2026-09-29 and v0.0.0 from then on.
+
 **Status of code (2026-09-30):** the Python changes are committed on local branch `mcarrol2/c-python-parity-fixes` in the delivery clone `$SYNC/Git_delivery/modis_vcf`,
 based on `origin/develop` (`b83e302`). Pushed to GitHub by the project lead on 2026-09-30 (`335ceb2`); see `Git_Delivery_Clone_modis_vcf.md`. `$SYNC/Python_code`
 matches the branch. **Nothing has been applied to rlgill's checkouts or the pge61 repository.** The one C change (`fix_bands.c`) is in `$SYNC/C_code/pge61` only and is now known to be the wrong aerosol screen (section 10).
