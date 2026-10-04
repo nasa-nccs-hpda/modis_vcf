@@ -58,7 +58,12 @@ The plan proposes one rule for these before the other years are run. Answer each
 | D11 | Order with other work | (a) this first, other years after; (b) run the years now, redo later | **(a)** | Avoids redoing the years |
 | D12 | Version name if adopted | name at adoption (v1.1.1 would be a guess) | **ask at adoption** | No tag without your OK |
 
-**To start: "D1-D12 default, D10 threshold X%".** Step 1 is then a read-only count, about 1 h. Full detail: `Composite_Unusable_Inputs_Plan.md`.
+**Step 1 (the read-only count) is RUNNING OVERNIGHT, approved 2026-10-04 evening and tagged EXPERIMENTAL:**
+`FullRuns/EXP_unusable_inputs_count_20261004` (see its `EXPERIMENTAL.md`). For 18 tiles (the 15 at v <= 02 and h11v04, h20v06, h12v09),
+it gives, per band and period, the land pixels whose composite would change under the plan's recommended rule, by kind (A missing,
+B polar night, C fill; D low sun counted but not changed). It also gives, per tile, the land pixels with any changed tree or bare
+predictor input (`out/<tile>_summary.csv`). Gate: h12v09's replay of today's rule must equal the stored composites exactly. Use these
+numbers to set the D10 threshold. **Then answer: "D1-D12 default, D10 threshold X%".** Full detail: `Composite_Unusable_Inputs_Plan.md`.
 
 ## C. Summer-snow ice rule (`SummerSnow_Rule_Screen_Results.md`)
 
@@ -77,7 +82,8 @@ The plan proposes one rule for these before the other years are run. Answer each
 
 ## E. Still under investigation (no decision needed now; to plan when you choose)
 
-10. The MC 64 deep dive (to-do 14): why it is +0.28 MAE worse.
+10. The MC 64 deep dive (to-do 14): why it is +0.28 MAE worse. **Plan written: `MC64_Deep_Dive_Plan.md`** (read-only steps
+    about 1-2 h; optional EXPERIMENTAL fits; approve or change).
 11. Cloud blend A (v1.0.1): why it helps open labels and hurts dense ones in the cloudiest pixels (decision 19.2).
 12. Revisit the h16v01 training inputs at the next retrain (decision 19.6).
 
