@@ -31,12 +31,34 @@ Nothing is running. Every run under `FullRuns/` from 2026-10-03/04 is finished, 
 
 ## B. Composite unusable inputs (`Composite_Unusable_Inputs_Plan.md`, section 5)
 
-6. **D1-D12.** The suggested defaults are D1 (a) A+B+C, not low-sun; D2 (a) usable inputs only; D3 (a) 10000 when nothing is usable;
-   D4 (a) fill test in all bands; D5 (a) every tile, evaluated per tile; D6 (a) keep the Greenland zenith rule; D7 (a) do not adopt the
-   C code's −3; D8 (a) retrain T60/B60; D9 (a) "no worse" pass rule; D10 (b) gate after the count; D11 (a) this goes before other years;
-   D12 ask at adoption.
-   **What you need to supply: the D10 threshold** (e.g. < 0.1% of land per tile outside v00 → code fix only). Step 1 is a read-only
-   count, about 1 h.
+6. **D1-D12** (one answer per line):
+
+**Background.** When a pixel has no clean observation in a 16-day period, the composite falls back to the **mean of all inputs**. Some
+of those inputs are not real data:
+- **A. Missing file:** the substitute value 10000 enters the mean (rare in 2019; matters for the other years).
+- **B. Polar-night zeros:** band = 0, solz = 0, state = 0 enter the mean and pull every band toward 0 (13 tiles at v <= 02, Nov-Feb).
+- **C. In-file fill −28672:** one fill input pulls the mean to about −9500 (bands 1-4, 6, 7: high-latitude ice in Nov-Jan; band 5
+  also passes QA on every tile, but no product predictor uses band 5).
+- **D. Low-sun readings (solz >= 65):** real but dark/unreliable observations.
+
+The plan proposes one rule for these before the other years are run. Answer each line with (a)/(b)/... or "default".
+
+| # | Question | Options | Suggested (default) | Why |
+|---|---|---|---|---|
+| D1 | Which inputs count as unusable? | (a) A, B, C; (b) A, B, C + D; (c) C only | **(a)** | D is real data; changing it hurt some tiles before (fill72) |
+| D2 | What does the fallback mean average? | (a) usable inputs only; (b) all inputs, as today | **(a)** | That is the point of the fix |
+| D3 | Value when no usable input is left | (a) 10000, as for missing files; (b) today's all-input mean; (c) nearest valid period; (d) no-data in the metrics; (e) 0 | **(a)** | One "nothing seen" value, already in the training data, gives NDVI 0; (c) failed in fill72 |
+| D4 | Also catch −28672 in the clean-observation (QA) path? | (a) all bands; (b) no | **(a)** | No product effect today; keeps band 5 sane for future predictor searches |
+| D5 | Where does it apply? | (a) every tile, checked per tile; (b) a fixed list of 15 tiles at v <= 02 | **(a)** | A data-validity fix, not a regional rule |
+| D6 | Greenland zenith-only NDVI rule | (a) keep; (b) replace with the new rule | **(a)** | Already adopted and tested |
+| D7 | Copy the C code's "no prediction where band 1 is fill" (output −3)? | (a) no; (b) yes | **(a)** | It leaves holes in the map |
+| D8 | Retrain? | (a) rebuild the affected training rows, refit T60/B60, 69 maps; (b) apply only at prediction | **(a)** | Train and predict on the same composites; (b) only if the change is negligible (D10) |
+| D9 | Pass rule | (a) "no worse": overall and every tile within seed noise (0.002-0.005 MAE); (b) bare better and tree no worse | **(a)** | A validity fix is expected to change little |
+| D10 | Gate after the 1-hour count (step 1) | (a) always run the full test (about 4-5 h); (b) if few values change, make it a code fix with only a maps check | **(b)** | Saves about 4 h. **You set the threshold** (suggested: < 0.1% of land per tile outside v00) |
+| D11 | Order with other work | (a) this first, other years after; (b) run the years now, redo later | **(a)** | Avoids redoing the years |
+| D12 | Version name if adopted | name at adoption (v1.1.1 would be a guess) | **ask at adoption** | No tag without your OK |
+
+**To start: "D1-D12 default, D10 threshold X%".** Step 1 is then a read-only count, about 1 h. Full detail: `Composite_Unusable_Inputs_Plan.md`.
 
 ## C. Summer-snow ice rule (`SummerSnow_Rule_Screen_Results.md`)
 
