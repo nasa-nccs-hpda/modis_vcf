@@ -40,12 +40,14 @@ singularity build --sandbox /lscratch/$USER/container/modis-vcf-dev docker://nas
 
 ## Fitting and prediction
 
-Both layers use a Random Forest of 30 trees, fitted on the bit-15 QA metrics.
+Version 1.1.0: both layers use a Random Forest of 60 trees (`max_features='sqrt'`, seed 0), fitted on the
+bit-15 QA metrics, and both are combined with the MEDIAN of the trees. (Version 1.0.0 used 30 trees, with the
+MEDIAN for tree cover and the MEAN for non-vegetated.)
 Tree cover uses its own predictors; non-vegetated uses the C code's 21 bare predictors
 (the default list in `view/rfFitFromPge61.py`).
 
 ```bash
-python view/fitAltModel.py --algo rf --nEstimators 30 --maxFeatures sqrt --randomState 0 \
+python view/fitAltModel.py --algo rf --nEstimators 60 --maxFeatures sqrt --randomState 0 \
     --trainingType pcttree --predictorFile <predictors.txt> \
     --xTrainPath xTrain.parq --yTrainPath yTrain.parq -o <modelDir>
 ```
@@ -54,13 +56,13 @@ python view/fitAltModel.py --algo rf --nEstimators 30 --maxFeatures sqrt --rando
 `Percent_NonVegetated` and `Percent_NonTree_Vegetation`, plus the two SD layers
 `Percent_Tree_Cover_SD` and `Percent_NonVegetated_SD`.
 
-- `--tcAgg` / `--nvAgg` set how each layer's 30 trees are combined: `mean` (the same as
+- `--tcAgg` / `--nvAgg` set how each layer's trees are combined: `mean` (the same as
   `predict()`), `mid20` (the mean of the middle 20) or `median`. Defaults are `mean`. The
-  production setting is `--tcAgg median --nvAgg mean`.
-- The SD layers are the population SD of the 30 trees, stored as round(100 x SD), with 0 on
+  production setting (v1.1.0) is `--tcAgg median --nvAgg median`; v1.0.0 used `--tcAgg median --nvAgg mean`.
+- The SD layers are the population SD of the trees, stored as round(100 x SD), with 0 on
   water and out-of-projection. Use `--noSd` to skip them. Models without ensemble members
   (XGBoost) get no SD and support only `mean`.
-- A process needs about 45 GB of memory per tile, and most of the run time is spent reading
+- A process needs about 45 GB of memory per tile with 30-tree models and about 80 GB with the 60-tree models, and most of the run time is spent reading
   the metrics.
 
 ## Additional Projects
