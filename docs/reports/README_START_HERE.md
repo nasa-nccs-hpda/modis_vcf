@@ -1,5 +1,7 @@
 # Start here: MODIS-VCF development workspace
 
+**START HERE ON 2026-10-05: `Decisions_For_20261005.md` lists every decision waiting for the project lead (push and tag first).**
+
 Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up; cloudy-pixel experiments of 2026-10-03 written up: V4r blend, snow/low-sun check, QA bits, 60 trees and counts, gated 63-tile blend, h12v09 drop pixels). **Read `Product_Versions_and_Work_Map.md` first:** it defines **v1.0.0** (the current product, called BASE in the cloudy-pixel reports; local tag `v1.0.0` on `16d6474`), **v1.0.1** (EXPERIMENTAL, not adopted: v1.0.0 with tree cover blended with V4R under the gated cloud, cover and snow rules; other layers v1.0.0's; `Gated_V4r_Blend_63Tile_Results.md`), **v0.0.0** (bagged trees, MEAN of 30, bit-15 inputs; the earlier "baseline"; in the project lead's view the closest match to the C code's intent), **v0.0.0-pre.1** (rlgill's incomplete upstream Python) and **v0.0.0-pre.2** (bagged trees on the bits 7-8 aerosol test, the September runs), and sorts the work into experiments to improve v1.0.0 (cloudy pixels, Monte Carlo rerun), validation (NGA WV2, AlphaEarth, lidar) and assessment (held-out labels, map comparisons, stable set, parity). Then read this section, then `Project_Summary_and_Conclusions.md`. The dated status entries are kept word for word under "Status history" at the end.
 
 ## Current state (2026-09-30)
@@ -163,6 +165,7 @@ Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up;
 8. **Push the branch and open the pull request** into `develop` for rlgill (`Git_Delivery_Clone_modis_vcf.md`, "To push"). It is 9 commits ahead of GitHub as of 2026-10-02. The `docs/reports` snapshot is deferred (project lead, 2026-10-02: do it later, before the push). **Reminder: do this at the start of the next session.**
 9. **Rerun the Monte Carlo predictor selection with all of the new changes to metrics and composites** (bit-15 QA composites, zenith-only NDVI on h16v01), with RF as the model, for **both tree cover and non-vegetated**, and a run-to-run (seed) baseline. No lidar evaluation. The old 2026-09-20 324-metric rasters (~1.2 TB) are deleted at the end. Runs on **ngaproc201/202 only**. Plan: `Monte_Carlo_Rerun_Plan.md` (revised 2026-10-02 with the project lead's decisions: results go to the project lead for review, 63-tile maps if the tile maps complete without error; about 14-19.5 h).
    - **2026-10-02 08:23-19:37: run DONE** (`FullRuns/mc_rerun_20261002`, ngaproc201/202, about 11.25 h; all gates and acceptance tests passed, no failures). Results: `Monte_Carlo_Rerun_Results.md`. **Neither layer's MC set beats C's predictors on held-out labels** (seed yardstick about 0.01-0.02): tree MC top 64 +0.28 MAE (worse in every bin and region; on 63 tiles further from the C code, C6 and C6.1), top 20 +1.49; non-vegetated MC top 64 +0.11 (mixed against references), top 21 +2.15. Top 64 sets are ties under the 1-point rule. The tree ranking reproduces 2026-09-20 (Spearman 0.97, 56/64 shared) and still shares only 19/64 with C's set (bare: 1/21). **Awaiting the project lead: keep or change each layer's predictor set, and go-ahead for step 8 given and done 2026-10-03 (1,076.8 GB of old 2026-09-20 324-metric rasters deleted; list in `mc_rerun_20261002/status/delete_old_metrics324.list`).**
+   - **DECIDED 2026-10-04 evening (project lead): keep the C code's predictor sets for both layers** (tree 64, non-vegetated 21).
 10. **DECIDED 2026-10-04 (project lead): non-vegetated uses MEDIAN, as tree cover does** (evidence: `Bare_Mechanisms_Results.md`, held-out 3.77 vs 4.15 MAE). Previously: **Revisit later:** the non-vegetated method (MEAN is provisional; MEDIAN is better on held-out labels but worse against C6/C6.1; see `RF_Aggregation_Maps_63Tile_Results.md`, "Non-vegetated detail").
 11. **`Quality` and `Cloud` layers and a single HDF product file** (to do; `Quality_Cloud_Layers_and_HDF_Output_Plan.md`). Writer: `pyhdf` or a C packer. Format: HDF-EOS2 or HDF5 (HDF-EOS2 recommended for C7; confirm with MODAPS / LP DAAC). uint16 SD storage comes with it.
 12. **Run more years with per-year training and models** on the 63 training tiles: for each year, build and save the training set, fit that year's own tree and non-vegetated models (same settings and predictors as 2019), and make that year's product. No lidar testing. Keeps the option of a later test of one pooled multi-year model against per-year models (held-out locations kept the same in every year). Complete locally: 2000, 2004, 2009, 2010, 2014. 2001, 2005, 2015 and 2023 each need DOY 001-049 of the next year from the private repository. Plan: `Additional_Years_Plan.md` (revised 2026-10-02; clean-up of intermediates accepted; not yet approved to run; about 16-20 h for the 5 years; about 2.3 TB with the suggested clean-up). Suggested order: after the Monte Carlo decision (item 9).
@@ -185,7 +188,74 @@ Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up;
     - tree T60 (60 trees, MEDIAN);
     - non-vegetated B60S0 (60 trees, MEDIAN);
     - everything else unchanged.
-    Maps: `FullRuns/cand60med_20261004/out/maps/CAND` (69 tiles, no SD). Version name not yet given (ask the project lead).
+    Maps: `FullRuns/cand60med_20261004/out/maps/CAND` (69 tiles, no SD). Version name: **v1.1.0** (confirmed 2026-10-04).
+18. **2026-10-04 evening:**
+    - **v1.1.0 confirmed** by the project lead. Branch `mcarrol2/v1.1.0` and tag `v1.1.0` exist in the Git_delivery clone; the docs
+      snapshot is committed. **Push pending (project lead): attempted 2026-10-04 evening and failed; `git ls-remote` shows
+      nothing reached GitHub (branch still `335ceb2`, no tags). To be pushed from the office on 2026-10-05.**
+    - **SD maps:** `FullRuns/v110_sd_20261004` DONE 17:55: 69 tiles x 5 layers; the 3 cover layers identical to the candidate maps on
+      all 69 tiles; checksums in `manifests/v1.1.0_maps_sha256.txt`.
+    - **Snow flag and the ice margin:** the summer snow flag (MOD44C bit 5) separates ice from margin almost perfectly on h16v01
+      (`SnowFlag_IceMargin_Results.md`). The h16v02 90-99 band is flagged ice: the remaining shortfall. A summer-snow ice rule is a
+      possible next test (not adopted).
+19. **DECIDED 2026-10-04 evening (project lead), on the 7 open questions:**
+    1. **WV2 report stays out of the public snapshot** (NGA rule). `WV2_Reference_Scenes_Provenance.md` stays on ADAPT only.
+    2. **Cloud blend "A" (v1.0.1) is not in v1.1.0; the code stays as the experimental v1.0.1. STILL NEEDS INVESTIGATION:** overall it
+       ties plain 60 trees on held-out (−0.118 vs −0.119 against v1.0.0); in the cloudiest pixels it raises tree cover about 2.2 points
+       and is better for open labels but worse for dense ones. Why it splits by cover is open.
+    3. **Monte Carlo 64 predictor set dropped from the product. STILL NEEDS INVESTIGATION:** worse in both tests (+0.28 MAE); the deep
+       dive (item 14) stays on the list.
+    4. **No post-model bare rules** (no Sahara stretch, no C code high-latitude box): the labels do not support them where they exist.
+       The v00 rule (2026-10-02) is unchanged.
+    5. **Summer-snow ice rule (bare 100, tree 0 where summer snow share >= 0.25): test it**, starting with a cheap screen of where it
+       triggers outside Greenland and whether tree cover is hurt there; full tiles only if the screen is clean.
+    6. **h16v01 training inputs: leave as is for v1.1.0** (trained on the original NDVI, predicted with the Greenland-corrected NDVI);
+       revisit at the next retrain.
+    7. **Order of work:** (a) in-file fill values (−28672) entering the composites (`Fallback_Solz_LE0_Plan.md`, side finding);
+       (b) other years with the v1.1.0 settings (item 12); (c) `Quality`/`Cloud` layers and HDF output (item 11).
+    - **(a) first screen DONE 2026-10-04 evening** (`Fill_Value_Screen_Results.md`, 5 tiles, read-only): band 5 fill passes QA
+      (83% on h11v04/h16v02) but no product predictor set uses band 5; fill in bands 1-4, 6, 7 never passes QA and appears only on
+      high-latitude tiles (Nov-Jan, ice), entering through the fallback mean. Next (awaiting OK): composite-level count on the v <= 02
+      tiles, then decide the fix (treat −28672 as missing in every band).
+    - **Plan written 2026-10-04 evening: `Composite_Unusable_Inputs_Plan.md`** (awaiting decisions D1-D12): one rule for every kind of
+      unusable input (missing file, polar-night zeros, −28672 fill) before other years; full history of the zenith/fallback work kept
+      in its section 3. Step 1 is a read-only composite-level count (about 1 h) with a gate (D10).
+    - **Output data type (question, 2026-10-04 evening):** the v1.1.0 GeoTIFFs are **Int16** (LZW; `VcfPredict.py` casts to int16,
+      `Utils.NUMPY_DTYPE`), not uint8; no NoData value is set. Cover layers hold 0-100 plus 200/250 and would fit uint8 like the
+      historical MOD44B; SD layers are percent x 100 (e.g. max 3632 on h08v04) and need 16 bits. Changing the storage belongs to
+      item 11 (Quality/Cloud + HDF, with uint16 SD). Not changed.
+      **DECIDED 2026-10-04 evening (project lead): the output data type should be 8-bit unsigned** (uint8), as in the historical
+      MOD44B (`Percent_Tree_Cover`, `Percent_NonTree_Vegetation`, `Percent_NonVegetated`: uint8, valid 0-100, water 200, _FillValue 253;
+      `Quality_Cloud_Layers_and_HDF_Output_Plan.md`). Open: the SD layers (historical uint16 with scale_factor 0.01; uint8 would need
+      whole-percent SD), and whether to change the code now or with item 11.
+      **Then decided (project lead): SD layers uint16 (round(100 x SD)), as historical; change now, before the push.**
+      **DONE 18:25: commit `0298e4e` on `mcarrol2/v1.1.0`** ("Write the percent layers as uint8 and the SD layers as uint16"):
+      `VcfPredict._write` now writes its own GeoTIFFs (modis_water's `writeRaster` hard-codes Int16): percent layers uint8 with
+      nodata 253, SD layers uint16, LZW; values that do not fit are refused. New tests `model/tests/test_VcfPredict_write.py`
+      (8/8 with the member tests). **One-tile check** (`FullRuns/uint8_check_20261004`, forest201, h08v04, v1.1.0 models and flags):
+      all 5 layers identical pixel for pixel to `v110_sd_20261004`; percent files 26-27% smaller. The tag `v1.1.0` stays on
+      `1ac9bc7` (Int16 output) unless the project lead moves it. Side notes: (1) **the output GeoTIFFs have no geotransform**
+      (upper left 0, 0; before and after this change; modis_water's writer never set one) - not fixed, for the project lead;
+      (2) the workspace copy `Python_code/modis_vcf` is older than the SD-layer commits and no longer matches the branch.
+20. **2026-10-04 evening (project lead), answers to the status check:**
+    - **Push:** from the office on 2026-10-05 (unchanged).
+    - **Tag `v1.1.0` should mark the uint8 output.** Moving the tag was blocked by the session's permission guard; the project lead moves it
+      (`git tag -f -a v1.1.0 -m "v1.1.0: 60 trees and MEDIAN for both layers (project lead, 2026-10-04)" 920d06f`). It is still on `1ac9bc7`.
+    - **Geotransform = MODIS sinusoidal: DONE, commit `920d06f`** on `mcarrol2/v1.1.0` ("Write the MODIS sinusoidal grid into the output
+      GeoTIFFs"). `VcfPredict._write` sets the tile's geotransform from its hXXvYY ID and the MODIS sphere (R = 6371007.181 m; the old
+      string said WGS84 ellipsoid). Matches the C6.1 MOD44B granules for h08v04, h16v01, h31v11 (corner and pixel size within 1 micrometre,
+      same SRS). New test `testModisSinusoidalGrid`; 9/9 writer and member tests pass. Existing v1.1.0 maps were not rewritten.
+    - **`Composite_Unusable_Inputs_Plan.md` D1-D12:** explained in the session; still awaiting the decisions.
+    - **Summer-snow ice rule: cheap screen DONE 19:31** (`SummerSnow_Rule_Screen_Results.md`, `FullRuns/summersnow_screen_20261004`,
+      69 tiles, no failures). **Not clean as specified:** June-August everywhere fires on h12v12 (Patagonian Andes, southern winter;
+      about 2.5 M tree points). The local-summer version hardly touches trees, but the few bare labels outside Greenland side with
+      v1.1.0. The gain is a few bare points on h16v02. No full-tile run. Decision pending (drop / Greenland only / 0.5 everywhere).
+    - **Predictor sets:** keep the C code's sets (item 9).
+    - **Other years (12), Quality/Cloud + HDF (11):** to be decided.
+    - **Synced 2026-10-04 evening:** the workspace copy `Python_code/modis_vcf` = `920d06f` (the notebook `view/editLabeledTraining.ipynb`
+      keeps its local edits); the docs snapshot on `mcarrol2/v1.1.0` is refreshed (see `Git_Delivery_Clone_modis_vcf.md`).
+    - **ALL DECISIONS FOR 2026-10-05 are listed in `Decisions_For_20261005.md`** (push and tag, rewriting the on-disk maps, D1-D12 + the D10
+      threshold, the summer-snow rule, other years, HDF output).
 
 **Done (from the earlier lists):**
 - NEON lidar evaluation (2026-09-30);
@@ -524,7 +594,7 @@ two-tile test is gone.
 **Environment.**
 - Compute nodes `forest201` to `forest205` (12 cores, 112 GB each); the login nodes have no `singularity`, NumPy or GDAL. Container `/explore/nobackup/projects/ilab/containers/modis-vcf-latest`. Every launcher here binds the project tree read-only plus its own new output folder only.
 - **Usable memory is about 65 to 70 GB per node** when running heavy work, not 105 GB: two 20 GB metric workers plus a 35 GB table build got 9 tiles killed by the memory watchdog (it kills the newest metrics job when free memory drops under 8 GB). A 13 to 15 GB model loads in 1.5 to 2 minutes; predicting with the top-64 model took about 26 GB in total on a node (free memory fell from 101 to 75 GB).
-- **Other users share these nodes.** On 2026-09-20 user `another user` used about 800% CPU on several of them for hours; check `uptime` and free memory before launching, and do not assume the load is yours.
+- **Other users share these nodes.** On 2026-09-20 user `qzhou2` used about 800% CPU on several of them for hours; check `uptime` and free memory before launching, and do not assume the load is yours.
 - Shell pitfalls seen: `noclobber` makes a retried `>` redirect onto an existing log fail at once (use `>>` or a new name); a claim directory left by a stopped runner blocks its tile until removed; `cp` is aliased to interactive (use `\cp -pf`); `ssh` prints a login banner on standard output, so filter output; `pgrep -f` matches the ssh command that ran it; do not edit a `.sh` launcher while it is running.
 - Status: `bash $RUN/code/validation/run_status.sh` reports **only the 63-tile run**. For 2026-09-20 work list `$RUN/status/`: `mc_*` (Monte Carlo), `predict_<label>` and `variant_compare` (map check), `figures_*`, `hist_compare_*`, `p0_*` (table build).
 

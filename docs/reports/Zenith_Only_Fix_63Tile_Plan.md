@@ -111,8 +111,8 @@ per-tile detail logs Stage 1/2 already produce.
 
 | Node | Load avg (1 min) | Memory | Notes |
 |---|---|---|---|
-| forest201 | 9.30 | 107 GB reported free | Another user (`another user`) has a job pushing load near saturation on 12 cores - **avoid**. |
-| forest202 | 3.85, falling from a recent peak | 40 GB free / 105 GB available | `another user` running an `mv` (large file copy) recently; **use cautiously, re-check before launch**. |
+| forest201 | 9.30 | 107 GB reported free | Another user (`qzhou2`) has a job pushing load near saturation on 12 cores - **avoid**. |
+| forest202 | 3.85, falling from a recent peak | 40 GB free / 105 GB available | `qzhou2` running an `mv` (large file copy) recently; **use cautiously, re-check before launch**. |
 | forest203 | 0.01-0.81 | 104 GB available | Idle - where today's h16v01/h12v09 work ran; safe to reuse. |
 | forest204 | 0.16-0.71 | 99 GB available | Idle - safe. |
 | forest205 | 0.01-0.13 | 104 GB available | Idle - safe. |

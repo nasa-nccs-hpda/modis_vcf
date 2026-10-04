@@ -55,3 +55,44 @@ Then open a pull request into `develop` for rlgill to review.
 ## Cleanup
 
 `rm -rf .../AI_code_sync_09152026/Git_delivery` removes the clone. Nothing else was created for the delivery.
+
+## 2026-10-04: docs snapshot and v1.1.0
+
+**On `mcarrol2/c-python-parity-fixes`:**
+- `0959749` "Refresh docs/reports snapshot (2026-10-04)": 44 new and 4 updated reports. One username is replaced by "another
+  user". `WV2_Reference_Scenes_Provenance.md` is left out (NGA rule; pending the project lead's OK).
+
+The branch is now 10 commits ahead of GitHub.
+
+**New branch `mcarrol2/v1.1.0`** (from `0959749`):
+- `1ac9bc7` "Document v1.1.0": the README now gives 60 trees and MEDIAN for both layers. Production flags: `--tcAgg median --nvAgg
+  median`.
+- **The code is unchanged**: v1.1.0 is defined by the models and the flags. See `FullRuns/v110_sd_20261004/manifests/VERSION_v1.1.0.md`.
+- Local annotated tag `v1.1.0`. The tag `v1.0.0` is also only local.
+
+**To push (the project lead; the cluster has no GitHub credentials):**
+```bash
+cd /explore/nobackup/people/mcarrol2/MOD44B_VCF_Development/AI_code_sync_09152026/Git_delivery/modis_vcf
+git push origin mcarrol2/c-python-parity-fixes
+git push -u origin mcarrol2/v1.1.0
+git push origin v1.0.0 v1.1.0
+```
+
+**2026-10-04 evening:** the project lead's push attempt failed. `git ls-remote origin` afterwards: `mcarrol2/c-python-parity-fixes` still at
+`335ceb2`, no `mcarrol2/v1.1.0`, no `v1.*` tags, so nothing was partly pushed. The local branches and tags are unchanged; the same three
+commands apply. Planned from the office on 2026-10-05.
+
+**2026-10-04, 18:25: new commit `0298e4e` on `mcarrol2/v1.1.0`:** percent layers written as uint8 (nodata 253), SD layers as uint16
+(project lead's decision). Checked on h08v04: values identical to the v1.1.0 maps. The branch is now 2 commits past
+`0959749`. The tag `v1.1.0` still points at `1ac9bc7`. To move it to this commit before pushing (only if the project lead wants it):
+`git tag -f -a v1.1.0 0298e4e -m "v1.1.0: 60 trees and MEDIAN for both layers; uint8/uint16 output"`. The push commands are unchanged.
+
+
+**2026-10-04 evening: new commits on `mcarrol2/v1.1.0`:**
+- `920d06f` "Write the MODIS sinusoidal grid into the output GeoTIFFs": geotransform from the tile ID and the MODIS sphere
+  (R = 6371007.181 m) instead of no geotransform and a WGS84-ellipsoid string. Matches C6.1 MOD44B on h08v04, h16v01, h31v11 within 1 µm.
+  New test `testModisSinusoidalGrid`; 9/9 writer and member tests pass.
+- A docs snapshot commit (the commit after `920d06f`): the new and changed reports since `0959749`, with the same rules (WV2 report
+  left out; one username replaced by "another user").
+- The tag `v1.1.0` still points at `1ac9bc7`. The project lead decided v1.1.0 = uint8 output; moving the tag was blocked by the
+  session's permission guard, so the project lead moves it (`Decisions_For_20261005.md`, A1). The push commands above are unchanged.

@@ -22,7 +22,7 @@ at 25 sites in most US biomes, on 10+ of our training tiles, so the B-vs-C diffe
 That is the rule we agreed on: act only when the sign is the same across independent references.
 
 ## Data (local; nothing to download)
-`/explore/nobackup/projects/ilab/data/AGB/Airborne_Lidar/` (gtamkin, from the earlier AGB work):
+`/explore/nobackup/projects/ilab/data/AGB/Airborne_Lidar/` (another user, from the earlier AGB work):
 - `FSD/<year>_NEON_<Dxx>_<SITE>_DP3_<E>_<N>_{CHM,CC,RUG}.tif`: 1 km tiles, 1 m, UTM. 25 sites, 2013-2022.
 - `DP1.30003.001/`: NEON classified point clouds (LAZ), about 957 GB for 2019 alone.
 - **What CC is (established from the data, `code/neon_cc_probe.py`):** CC = share of CHM cells > 2 m in a 3x3 window. It is reproduced
