@@ -3,7 +3,8 @@
 **Status: APPROVED 2026-10-07 (P1-P5 as suggested); started the same day, in parallel with the v1.2.0 build (read-only, no nodes).**
 **Update 2026-10-07 late morning:** inventory accepted by the project lead ("fine for now"); figures 0-6 regenerated after the v1.2.0
 build; fig7 (one tile through every version, h12v02 + h09v05 + h16v02) added at the lead's request; narrative written:
-`AICoE_10142026/Process_Overview_Figures.md`. Awaiting the lead's review. It is the next priority after the v1.2.0 build (`FullRuns/v120_20261007`).
+`AICoE_10142026/Process_Overview_Figures.md`. Awaiting the lead's review.
+**DONE 2026-10-07 afternoon:** fig8 (h12v09 cloud tests) and fig9 (before/after v0.0.0) added; fig0a holiday break collapsed. Project lead: "figures are good for now". It is the next priority after the v1.2.0 build (`FullRuns/v120_20261007`).
 Scope was set by the project lead on 2026-10-07; see `Decisions_For_20261005.md` item 13.
 
 ## 1. What the figures must say

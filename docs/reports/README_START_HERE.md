@@ -314,7 +314,7 @@ Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up;
     Versions and their run folders are defined in `Product_Versions_and_Work_Map.md`. Make it when the final version is settled;
     write a short plan (tiles, layers, references, which runs hold each version's maps) before making the figures.
 
-    **Partly done 2026-10-07 (F13, project lead):** h12v02 and h09v05 tree and non-vegetated, from the first Python maps to v1.2.0, against
+    **Done for F13 2026-10-07 (project lead: "figures are good for now"):** h12v02 and h09v05 tree and non-vegetated, from the first Python maps to v1.2.0, against
     the C code and C6, plus h16v02 non-vegetated v1.1.0 to v1.2.0: `AICoE_10142026/fig7_*.png`, `make_tile_evolution.py`,
     `tile_evolution_stats.csv`.
 22. **If time permits (added 2026-10-07, project lead): run rlgill's Python as found (`develop` `b83e302`, v0.0.0-pre.1) on h12v02 or

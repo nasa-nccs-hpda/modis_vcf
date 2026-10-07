@@ -86,7 +86,7 @@ numbers to set the D10 threshold. **Then answer: "D1-D12 default, D10 threshold 
 
 ## F. Next priority (added 2026-10-07 by the project lead)
 
-13. **DRAFT DONE 2026-10-07, awaiting review: `AICoE_10142026/Process_Overview_Figures.md` (fig0-fig7).** **Figures of the whole process (2026-09 to now): NEXT PRIORITY after the v1.2.0 build completes.** Figures showing the path from the
+13. **DONE 2026-10-07 (project lead: "figures are good for now"): `AICoE_10142026/Process_Overview_Figures.md`, fig0-fig9.** **Figures of the whole process (2026-09 to now): NEXT PRIORITY after the v1.2.0 build completes.** Figures showing the path from the
     C code / historical MOD44B and rlgill's Python, through the parity fixes, v0.0.0, v1.0.0, v1.1.0 and v1.2.0, with the experiments
     tried and why each was adopted or dropped.
     **Scope set by the project lead 2026-10-07:** audience = management and developers. Start from the starting point: operational C code
