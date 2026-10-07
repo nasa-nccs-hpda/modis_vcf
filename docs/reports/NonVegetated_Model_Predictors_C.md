@@ -55,7 +55,7 @@ That is 15 unsorted values and 6 statistics. Band_31 is 7 of the 21, so thermal 
 
 ## Fix applied (2026-09-30, project lead's go-ahead)
 
-`modis_vcf/view/rfFitFromPge61.py` on branch `mcarrol2/c-python-parity-fixes` (`Git_delivery/modis_vcf`), copied to `Python_code/modis_vcf`. **Committed locally as `2778628`, not pushed.**
+`modis_vcf/view/rfFitFromPge61.py` on branch `mcarrol2/c-python-parity-fixes` (`Git_delivery/modis_vcf`), copied to `Python_code/modis_vcf`. **Committed locally as `2778628`, not pushed.** (Pushed since: on GitHub as of 2026-10-05.)
 
 - The hand-written `barePreds` list is replaced by `CAttributes.predictorNames(CAttributes.BARE_ATTRIBUTES, CAttributes.periodDays(args.year))`.
 - A new `--year` option (default 2019) sets the period days in those names. `--predictorFile` still overrides the list.

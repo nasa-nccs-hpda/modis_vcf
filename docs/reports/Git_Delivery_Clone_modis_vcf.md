@@ -2,6 +2,8 @@
 
 ## Status (2026-09-30)
 
+**Current state (verified 2026-10-05 with `git ls-remote origin`): everything is pushed.** `origin/mcarrol2/c-python-parity-fixes` = `0959749` (16 commits past `develop`), `origin/mcarrol2/v1.1.0` = `3ec71c1` (22 past `develop`), tag `v1.0.0` -> `16d6474`, tag `v1.1.0` -> `920d06f` (moved from `1ac9bc7`). `develop` is still `b83e302`. **Next: the pull request into `develop` for rlgill** (none open yet). The push and tag notes below are history.
+
 **Pushed 2026-09-30 by the project lead:** `origin/mcarrol2/c-python-parity-fixes` = `335ceb2` (checked with `git ls-remote`). Next: a pull request into `develop` for rlgill. Before the push, the branch was committed locally in the delivery clone. The cluster has no GitHub credentials: the SSH key is rejected (`Permission denied (publickey)`), there is no HTTPS token and no `gh`. The project lead pushes from a terminal with their own credentials (see "To push" below).
 
 - **Clone:** `/explore/nobackup/people/mcarrol2/MOD44B_VCF_Development/AI_code_sync_09152026/Git_delivery/modis_vcf/`
@@ -96,3 +98,26 @@ commands apply. Planned from the office on 2026-10-05.
   left out; one username replaced by "another user").
 - The tag `v1.1.0` still points at `1ac9bc7`. The project lead decided v1.1.0 = uint8 output; moving the tag was blocked by the
   session's permission guard, so the project lead moves it (`Decisions_For_20261005.md`, A1). The push commands above are unchanged.
+
+**2026-10-05: DONE.** The project lead moved the tag `v1.1.0` to `920d06f` and pushed both branches and both tags (verified 2026-10-05 with `git ls-remote origin`).
+
+## 2026-10-07: v1.2.0 (local; the project lead pushes)
+
+- New branch `mcarrol2/v1.2.0` from `mcarrol2/v1.1.0` (`3ec71c1`), one commit `45edf62` "Document v1.2.0: ice training rows for
+  non-vegetated" (README only; no code change: `git diff mcarrol2/v1.1.0 HEAD -- model view` is empty).
+- Local annotated tag `v1.2.0` -> `45edf62`. Maps: `FullRuns/v120_20261007/out/maps/v1.2.0` (built with the code at `920d06f`).
+- Evidence: `Version_v1.2.0_Build_Results.md`, `Ice_Training_Rows_h16v02_Results.md`. Neither is added to the repo's docs snapshot
+  (the ice-rows report has an NGA index section; keep it on ADAPT unless the project lead says otherwise).
+- To push (from the clone, with the project lead's credentials):
+```
+git push -u origin mcarrol2/v1.2.0
+git push origin v1.2.0
+```
+- Then open the pull request into `develop` from `mcarrol2/v1.2.0` (decision V5).
+
+**2026-10-07 afternoon: docs snapshot on `mcarrol2/v1.2.0`** (one commit after `45edf62`; the tag `v1.2.0` stays on `45edf62`).
+- New and changed top-level `Reports/*.md` since `3ec71c1`, with the same rules: one cluster username replaced by "another user".
+- **Left out (NGA rule; footprint metadata stays on ADAPT):** `WV2_Reference_Scenes_Provenance.md`, `Ice_Training_Rows_h16v02_Plan.md`,
+  `Ice_Training_Rows_h16v02_Results.md` (NGA index sections) and `Ice_Extent_MOD44C_Reference_Results.md` (WorldView-2 footprint counts).
+- The F13 folder `AICoE_10142026/` (figures, tables, scripts) is not in the snapshot; it stays local unless the project lead adds it.
+- To push: `git push -u origin mcarrol2/v1.2.0` and `git push origin v1.2.0` (as above).

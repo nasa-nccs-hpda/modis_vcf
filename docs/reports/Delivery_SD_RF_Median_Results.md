@@ -7,7 +7,7 @@
 - **All 63 tiles pass every check.** The delivered code reproduces the aggregation run exactly: tree cover = MEDIAN of the 30 RF trees, non-vegetated = MEAN, both SD layers, sum cap.
 - **MEDIAN tree cover cuts the sum cap by almost 4×:** 472,428 capped pixels across the 63 tiles, against 1,723,065 with MEAN tree cover. Most of the drop is on three tiles: h16v01 (7,649 against 1,014,739), h20v06 (731 against 280,628) and h12v12 (10,217 against 86,086). MEDIAN puts tree cover at 0 where the MEAN gave a few percent of spurious tree cover on snow and desert.
 - On some boreal tiles the cap count rises (for example h11v03: 39,915 against 17,330; h20v02: 74,150 against 30,574), where MEDIAN tree cover is above the MEAN. The mean reduction on capped pixels is 3-14 points.
-- **The branch is ready to push** (7 commits ahead of origin). Push it before the `docs/reports` snapshot gets any older.
+- **The branch is ready to push** (7 commits ahead of origin). Push it before the `docs/reports` snapshot gets any older. **Pushed since: on GitHub as of 2026-10-05.**
 
 ## Checks (`out/summary63.md`, from `scripts/summarize63.py`)
 

@@ -136,7 +136,7 @@ Acceptance: keys and labels identical; unaffected tiles identical cell for cell;
 - held-out labels by bin and region, per tile, with the 15 v ≤ 02 tiles and the 4 lesson-5 tiles (h11v02, h20v02, h21v02, h23v02) on their own lines;
 - maps against C6, C6.1 and the C code (comparisons, not truth);
 - the h16v02 edge and the Greenland ice (exactly 100 share, tree = 0 share);
-- seed yardstick 0.002-0.005.
+- pass rule D9 (b), decided 2026-10-05: bare improves and tree cover is unchanged or better (seed yardstick 0.002-0.005 used only to judge "unchanged").
 
 Then `Composite_Unusable_Inputs_Results.md`.
 
@@ -158,3 +158,27 @@ Then `Composite_Unusable_Inputs_Results.md`.
 - Code: `Python_code/modis_vcf/model/CompositeDayFile.py` (`_computeComposite`, `SUBSTITUTE_PIXEL_VALUE`),
   `ProductTypeMod44.py` (`createQaMask`), `BandDayFile.py` (band 31 clamp), `Metrics.py` (NDVI, zenith-only rule).
   Changes go in a copy in the run folder; the delivery branch is changed only after adoption.
+
+## 9. Decisions (project lead, 2026-10-05)
+
+**Result 2026-10-05 evening: does not pass D9 (b); recommendation: do not adopt.** See `Composite_Unusable_Inputs_Results.md`.
+**Decided 2026-10-05 evening: not adopted.** Fill-only short test (D1 (c), no retraining) running as `FullRuns/EXP_fillonly_20261005`.
+
+- **Accepted as recommended:** D1 (a) A, B, C; D2 (a); D3 (a) 10000; D5 (a); D6 (a); D7 (a); D8 (a) retrain; D10 (b); D11 (a); D12 ask at adoption.
+- **D9: (b), the stricter fill72 rule** (bare helped and tree cover unchanged or better), not "no worse".
+- **D10 in practice:** the overnight count (`FullRuns/EXP_unusable_inputs_count_20261004/out/*_summary.csv`) changes 0% of land on
+  h11v04, h12v09 and h20v06 but 11-35% on the v02 tiles, 60-80% on v00 and 100% on v01 (2 missing files each), so the full test runs.
+- **D4: (a), per band.** The project lead does not want a fill in band 5 alone to discard bands that had good data. Clarified 2026-10-05:
+  compositing is per band (`CompositeDayFile` builds one band at a time from the shared state/solz QA mask), so the proposed test would
+  drop only the band whose value is −28672, for that day; the other bands keep that day. **D4 (a) approved 2026-10-05** on that
+  basis (per-band only; never a whole-pixel drop, which would be the C code's −3 rule, rejected in D7).
+- **Run launched 2026-10-05 11:18** (project lead: ngaproc nodes only; forest nodes busy with other users):
+  `FullRuns/EXP_unusable_inputs_20261005` (EXPERIMENTAL). Pre-launch self-test: the patched composer changes exactly the land pixels the
+  count predicted (h16v02 band 1: 34 in 2019209, 683,774 in 2019305; h12v09: 0), remaining bands running alongside. Attempt 1 stopped
+  in 3 s (metrics root not created; fixed, `status/attempt1_no_metrics_root/`). Gate tiles h12v09, h11v04, h20v06 (h20v06 has bare rows).
+  The 51 tiles the count did not cover are screened in the run; any with changed predictors are rebuilt too. Control for held-out
+  scores: fill72 CTRL (same base split and fit recipe); maps compared with v1.1.0 (cand60med). Estimate about 5-6 h on two nodes.
+- **2026-10-05 14:09: screen of the 51 tiles the count did not cover:** 42 unchanged; 9 rebuilt as well (h08v05, h09v05, h11v10, h19v08,
+  h19v09, h19v12, h20v09, h24v03, h24v04), each with 1-1,044 land pixels changed (at most 0.005%, h19v09), all kind C (−28672 in band 1
+  or band 7 entering the fallback mean). Today's composites reproduced exactly on all 51. 24 rebuilt tiles in all
+  (`manifests/tiles_rebuild.txt`). Expected end about 18:00-18:30 (the 69 maps dominate). Results to be written 2026-10-06.

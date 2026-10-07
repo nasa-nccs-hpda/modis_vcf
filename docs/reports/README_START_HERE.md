@@ -1,11 +1,59 @@
 # Start here: MODIS-VCF development workspace
 
-**START HERE ON 2026-10-05: `Decisions_For_20261005.md` lists every decision waiting for the project lead (push and tag first).**
+**2026-10-06 afternoon: `Band31_Unclamped_Results.md` written. Band 31 unclamped does NOT pass D9 (b): tree held-out +0.022 MAE
+[+0.011, +0.036] (seed change −0.002); bare −0.016 [−0.033, −0.001]; Greenland ice fixed on h16v02 but broken on h16v01/h17v01. Recommendation:
+do not adopt (v1.1.0 unchanged). Decision C7 (summer-snow rule) CLOSED: dropped. Ice training rows on h16v02 approved (T1-T6 as suggested) and
+running as `FullRuns/EXP_ice_rows_h16v02_20261006` -> `Ice_Training_Rows_h16v02_Results.md`.**
+
+**START HERE ON 2026-10-06 (updated 22:05, project lead logged off):** check status of two detached runs, both EXPERIMENTAL:
+(1) `FullRuns/EXP_fillonly_20261005` (fill-only test, expected end ~01:00) -> write its results into `Composite_Unusable_Inputs_Results.md`
+(a new section; Greenland tiles already unchanged: h16v01 <100 154,353 -> 161,530; h17v01 148,200 -> 148,995);
+(2) `FullRuns/EXP_b31_unclamped_20261005` (`Band31_Unclamped_Plan.md`, launched 22:01; self-test + gate due ~23:15-23:45; full run
+~7-9 h) -> `Band31_Unclamped_Results.md`, remembering the caution note (the clamp was a design decision; adopt only with care).
+Earlier note: **START HERE ON 2026-10-06:** (1) DONE 2026-10-05 evening (see the entry below; `Composite_Unusable_Inputs_Results.md`): check status of `FullRuns/EXP_unusable_inputs_20261005` (EXPERIMENTAL; started 2026-10-05 11:18 on
+ngaproc201/202, expected end about 19:00-19:30) and write `Composite_Unusable_Inputs_Results.md` against the D9 (b) rule;
+(2) **the push is DONE** (verified 2026-10-05 with `git ls-remote origin`; tag `v1.1.0` on `920d06f`); still open in section A of `Decisions_For_20261005.md`: A4 (maps on disk) and A5 (pull request).
+
+**2026-10-05 late evening: `Ice_Sheet_Diagnosis_Results.md` written (EXP_icesheet_diag_20261005, read-only, all checks exact).** Two problems:
+the ice margin (MCD12 class-15 pixels that look like ground in summer; probably right as < 100) and interior ice just below 100 (h16v02 1.9 M px),
+driven by the **band-31 solar-zenith clamp** (16000 = 160 K on an emissive band) and by h16v02's ice learning from Canadian tundra rows
+(only h16v01 has ice training rows). H3 (decision 19.6) does not matter. Also: MOD44C inputs on the ice carry solz ~86 in June (all fallback;
+upstream question). **Next: `Band31_Unclamped_Plan.md` (U1-U6), awaiting approval.**
+
+**2026-10-05 late evening: `Ice_Sheet_Diagnosis_Plan.md` written (read-only diagnosis of why the Greenland ice sheet is below 100 bare in v1.1.0;
+the project lead wants a data/pipeline fix, no masks or override rules; MCD12 is a reference only). **E1 approved, E3 yes** (MCD12 ice counts = reference only, not the ice sheet's boundary); E2 withdrawn.**
+
+**2026-10-05 evening (project lead): full unusable-input rule NOT adopted (v1.1.0 unchanged); fill-only short test approved and launched
+(`FullRuns/EXP_fillonly_20261005`, EXPERIMENTAL; −28672 only, v1.1.0 models, 22 tiles; results to write when done).**
+
+**2026-10-05 evening: `Composite_Unusable_Inputs_Results.md` written. EXP_unusable_inputs_20261005 is done and does NOT pass D9 (b).**
+Tree cover is unchanged (−0.001 MAE). Bare is slightly worse: +0.069 MAE [+0.003, +0.159], +0.109 on the rebuilt tiles. The cause is the
+polar-night tiles h12v01, h12v02, h13v01 and h21v01 (+0.31 to +0.46 each). On Greenland the labels and C6 disagree (h16v01 labels better;
+h16v01 and h17v01 worse against C6). Recommendation: do not adopt; options 2-3 in the report. The h15v02 map ran out of memory and was re-run alone; nothing lost.
+
+**2026-10-05 (project lead):**
+- **D1-D12 all decided** (`Composite_Unusable_Inputs_Plan.md` section 9): all as recommended except **D9 = (b), the stricter rule**
+  (bare improves AND tree cover unchanged or better). D4 approved after clarifying that the fill test is per band (a fill in band 5
+  never removes another band's value). The overnight count sent D10 to the full test.
+- **Run launched** on the ngaproc nodes only (forest nodes busy with other users): self-test PASS (56/56 band-periods on h16v02 and h12v09
+  match the count exactly), gate PASS (h12v09, h11v04, h20v06 training rows identical), 2 setup stops fixed (missing folders; nothing lost).
+  The screen of the other 51 tiles added 9 tiles with tiny kind-C changes (at most 0.005% of land); 24 tiles rebuilt.
+- **Update 2026-10-05 evening: A1-A3 DONE** (tag moved to `920d06f`, both branches and tags pushed; verified 2026-10-05 with `git ls-remote origin`). A4 and A5 still open.
+- **Push deferred:** the project lead will get help with Git from someone who knows the NCCS/GitHub setup. Section A of
+  `Decisions_For_20261005.md` still open (A1 tag move, A2 push, A3 WV2 footprint names, A4 maps on disk (suggested: leave), A5 PR).
+- **To-do 21 added:** figures of the code's progression, from the original C code and the incomplete Python to the final version.
+- Still open from `Decisions_For_20261005.md`: D (other years after this run; Quality/Cloud/HDF).
+
 
 Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up; cloudy-pixel experiments of 2026-10-03 written up: V4r blend, snow/low-sun check, QA bits, 60 trees and counts, gated 63-tile blend, h12v09 drop pixels). **Read `Product_Versions_and_Work_Map.md` first:** it defines **v1.0.0** (the current product, called BASE in the cloudy-pixel reports; local tag `v1.0.0` on `16d6474`), **v1.0.1** (EXPERIMENTAL, not adopted: v1.0.0 with tree cover blended with V4R under the gated cloud, cover and snow rules; other layers v1.0.0's; `Gated_V4r_Blend_63Tile_Results.md`), **v0.0.0** (bagged trees, MEAN of 30, bit-15 inputs; the earlier "baseline"; in the project lead's view the closest match to the C code's intent), **v0.0.0-pre.1** (rlgill's incomplete upstream Python) and **v0.0.0-pre.2** (bagged trees on the bits 7-8 aerosol test, the September runs), and sorts the work into experiments to improve v1.0.0 (cloudy pixels, Monte Carlo rerun), validation (NGA WV2, AlphaEarth, lidar) and assessment (held-out labels, map comparisons, stable set, parity). Then read this section, then `Project_Summary_and_Conclusions.md`. The dated status entries are kept word for word under "Status history" at the end.
 
 ## Current state (2026-09-30)
-- **REMINDER FOR THE NEXT SESSION (project lead, 2026-10-01): start by pushing the delivery branch to GitHub** (`Git_delivery/modis_vcf`, branch `mcarrol2/c-python-parity-fixes`, 9 commits ahead as of 2026-10-02 (`13773db` Greenland fix, `16d6474` rounding + v00 rule); the cluster has no GitHub credentials, so the project lead pushes; see `Git_Delivery_Clone_modis_vcf.md`, "To push"). First refresh the `docs/reports` snapshot if it has not been done. Then review the overnight results (to-do items 2-5). **Still not pushed as of 2026-10-02 morning.**
+- **2026-10-07: v1.2.0 BUILT and tagged locally** (`FullRuns/v120_20261007`, all 69 tiles pass; `Version_v1.2.0_Build_Results.md`). Branch
+  `mcarrol2/v1.2.0` + tag `v1.2.0` (`45edf62`) in the delivery clone; **the project lead pushes**, then the PR into `develop`. v00 rule kept
+  (`EXP_v00_norule_20261007`: bare ~100 on ice but the tree model adds 1-2%). Closed today: A4, B6, E12; band 31 unclamped not adopted.
+- **2026-10-07: experiment to do (not yet run): `Tree_Ice_Rows_and_Bare_Priority_Plan.md`** (tree rows = 0 on ice; bare = 100 trusted over small tree).
+- **2026-10-07: NEXT PRIORITY after the v1.2.0 build: figures of the whole process of the past month** (open item F13 in `Decisions_For_20261005.md`).
+- **DONE (verified 2026-10-05 with `git ls-remote origin`): the push.** Remaining: open the pull request into `develop`. *Old reminder:* **REMINDER FOR THE NEXT SESSION (project lead, 2026-10-01): start by pushing the delivery branch to GitHub** (`Git_delivery/modis_vcf`, branch `mcarrol2/c-python-parity-fixes`, 9 commits ahead as of 2026-10-02 (`13773db` Greenland fix, `16d6474` rounding + v00 rule); the cluster has no GitHub credentials, so the project lead pushes; see `Git_Delivery_Clone_modis_vcf.md`, "To push"). First refresh the `docs/reports` snapshot if it has not been done. Then review the overnight results (to-do items 2-5). **Still not pushed as of 2026-10-02 morning.**
 - **2026-10-02 MORNING: overnight results (reports written):**
   - **Delivery (item 1): all 63 tiles pass** (`Delivery_SD_RF_Median_Results.md`). Branch ready to push.
   - **h16v01 (item 3)** (`H16v01_Delivered_Product_Check_Results.md`): MEDIAN solves the tree over-prediction (0.40, C6 MAE 0.44). Bare is still 89.0 against C6 ~98.7 (bias -9.6), so non-tree vegetation is 10.6.
@@ -107,7 +155,7 @@ Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up;
 - **Aerosol QA decision:** B (`state` bits 7-8) and C (`state` bit 15) are equivalent in accuracy, and a tie favours **C**. C is now in the code. Before production, look at h16v01 (snow): C's baseline model is +3.8 MAE there against historical.
 - **Model choice is not settled (corrected 2026-09-30).** XGBoost tunedB is the best Python model only against references built from the historical MOD44B: best C (bit-15) model on 56 of 63 tiles against the historical map (pooled MAE baseline 4.87 / RF 4.20 / XGBoost 3.61), and best on the h11v02 stable historical pixels (2.74 / 2.55 / 2.36). Against the held-out 20% training labels it is **last on every tile** (best: baseline 48, RF 15, XGBoost 0; pooled MAE 7.25 / 7.32 / 8.38). G-LiHT lidar on h11v02 does not separate the models. The references disagree, so by the relative-difference rule no model is chosen yet. The historical product had no working aerosol screen, so references built from it favour whatever resembles it. The non-vegetated layer is still the baseline model.
 - **Model choice (project lead, 2026-09-30):** RF and XGBoost tunedB are close enough to be treated as equivalent. RF is favoured because it can produce the per-pixel SD layer that the historical product has (item 8 below, still to be built).
-- **Code:** the Python changes are **committed on local branch `mcarrol2/c-python-parity-fixes`** (6 commits off `origin/develop` `b83e302`) in `Git_delivery/modis_vcf`. **Pushed to GitHub 2026-09-30** (`335ceb2`; pull request into `develop` still to open). The cluster has no GitHub credentials (`Git_Delivery_Clone_modis_vcf.md`). `Python_code/modis_vcf` matches the branch. **Local commit `2778628` (2026-09-30, not pushed):** the non-vegetated default predictors in `rfFitFromPge61.py` are now C's 21 bare attributes (`NonVegetated_Model_Predictors_C.md`). A second local commit refreshes `docs/reports` with all the reports as of 2026-09-30 ~21:00, with the same redaction of other users' usernames. **The branch is 2 commits ahead of GitHub; the project lead pushes.**
+- **Code:** the Python changes are **committed on local branch `mcarrol2/c-python-parity-fixes`** (6 commits off `origin/develop` `b83e302`) in `Git_delivery/modis_vcf`. **Pushed to GitHub 2026-09-30** (`335ceb2`; pull request into `develop` still to open). The cluster has no GitHub credentials (`Git_Delivery_Clone_modis_vcf.md`). `Python_code/modis_vcf` matches the branch. **Local commit `2778628` (2026-09-30, not pushed):** the non-vegetated default predictors in `rfFitFromPge61.py` are now C's 21 bare attributes (`NonVegetated_Model_Predictors_C.md`). A second local commit refreshes `docs/reports` with all the reports as of 2026-09-30 ~21:00, with the same redaction of other users' usernames. **The branch is 2 commits ahead of GitHub; the project lead pushes.** **Update 2026-10-05: all of it is pushed** (`0959749`; verified 2026-10-05 with `git ls-remote origin`).
 - **Compute:** forest201-205 as before, plus **ngaproc201 and ngaproc202** (24 CPUs, 225 GB each, from 2026-09-30). On those two, ssh needs `-o CheckHostIP=no` (a stale IP entry in `/etc/ssh/ssh_known_hosts`), and singularity needs `module load singularity/4.3.1`. The existing launchers call `singularity` directly and need that line before they will run there.
 
 ## To-do list (updated 2026-10-01 evening, after the project lead's decisions)
@@ -162,7 +210,7 @@ Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up;
      - **Open for the project lead:** whether to pursue the gated blend (e.g. weight 1 at 5+ periods), T60, or the counts; the h10v04 winter firing; non-vegetated.
 
 **Other open items**
-8. **Push the branch and open the pull request** into `develop` for rlgill (`Git_Delivery_Clone_modis_vcf.md`, "To push"). It is 9 commits ahead of GitHub as of 2026-10-02. The `docs/reports` snapshot is deferred (project lead, 2026-10-02: do it later, before the push). **Reminder: do this at the start of the next session.**
+8. **Push: DONE 2026-10-05** (verified 2026-10-05 with `git ls-remote origin`). **Open: the pull request** into `develop`. *Original item:* **Push the branch and open the pull request** into `develop` for rlgill (`Git_Delivery_Clone_modis_vcf.md`, "To push"). It is 9 commits ahead of GitHub as of 2026-10-02. The `docs/reports` snapshot is deferred (project lead, 2026-10-02: do it later, before the push). **Reminder: do this at the start of the next session.**
 9. **Rerun the Monte Carlo predictor selection with all of the new changes to metrics and composites** (bit-15 QA composites, zenith-only NDVI on h16v01), with RF as the model, for **both tree cover and non-vegetated**, and a run-to-run (seed) baseline. No lidar evaluation. The old 2026-09-20 324-metric rasters (~1.2 TB) are deleted at the end. Runs on **ngaproc201/202 only**. Plan: `Monte_Carlo_Rerun_Plan.md` (revised 2026-10-02 with the project lead's decisions: results go to the project lead for review, 63-tile maps if the tile maps complete without error; about 14-19.5 h).
    - **2026-10-02 08:23-19:37: run DONE** (`FullRuns/mc_rerun_20261002`, ngaproc201/202, about 11.25 h; all gates and acceptance tests passed, no failures). Results: `Monte_Carlo_Rerun_Results.md`. **Neither layer's MC set beats C's predictors on held-out labels** (seed yardstick about 0.01-0.02): tree MC top 64 +0.28 MAE (worse in every bin and region; on 63 tiles further from the C code, C6 and C6.1), top 20 +1.49; non-vegetated MC top 64 +0.11 (mixed against references), top 21 +2.15. Top 64 sets are ties under the 1-point rule. The tree ranking reproduces 2026-09-20 (Spearman 0.97, 56/64 shared) and still shares only 19/64 with C's set (bare: 1/21). **Awaiting the project lead: keep or change each layer's predictor set, and go-ahead for step 8 given and done 2026-10-03 (1,076.8 GB of old 2026-09-20 324-metric rasters deleted; list in `mc_rerun_20261002/status/delete_old_metrics324.list`).**
    - **DECIDED 2026-10-04 evening (project lead): keep the C code's predictor sets for both layers** (tree 64, non-vegetated 21).
@@ -192,7 +240,7 @@ Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up;
 18. **2026-10-04 evening:**
     - **v1.1.0 confirmed** by the project lead. Branch `mcarrol2/v1.1.0` and tag `v1.1.0` exist in the Git_delivery clone; the docs
       snapshot is committed. **Push pending (project lead): attempted 2026-10-04 evening and failed; `git ls-remote` shows
-      nothing reached GitHub (branch still `335ceb2`, no tags). To be pushed from the office on 2026-10-05.**
+      nothing reached GitHub (branch still `335ceb2`, no tags). To be pushed from the office on 2026-10-05.** **DONE 2026-10-05** (verified 2026-10-05 with `git ls-remote origin`).
     - **SD maps:** `FullRuns/v110_sd_20261004` DONE 17:55: 69 tiles x 5 layers; the 3 cover layers identical to the candidate maps on
       all 69 tiles; checksums in `manifests/v1.1.0_maps_sha256.txt`.
     - **Snow flag and the ice margin:** the summer snow flag (MOD44C bit 5) separates ice from margin almost perfectly on h16v01
@@ -240,7 +288,7 @@ Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up;
 20. **2026-10-04 evening (project lead), answers to the status check:**
     - **Push:** from the office on 2026-10-05 (unchanged).
     - **Tag `v1.1.0` should mark the uint8 output.** Moving the tag was blocked by the session's permission guard; the project lead moves it
-      (`git tag -f -a v1.1.0 -m "v1.1.0: 60 trees and MEDIAN for both layers (project lead, 2026-10-04)" 920d06f`). It is still on `1ac9bc7`.
+      (`git tag -f -a v1.1.0 -m "v1.1.0: 60 trees and MEDIAN for both layers (project lead, 2026-10-04)" 920d06f`). It is still on `1ac9bc7`. **DONE 2026-10-05: on `920d06f`, pushed.**
     - **Geotransform = MODIS sinusoidal: DONE, commit `920d06f`** on `mcarrol2/v1.1.0` ("Write the MODIS sinusoidal grid into the output
       GeoTIFFs"). `VcfPredict._write` sets the tile's geotransform from its hXXvYY ID and the MODIS sphere (R = 6371007.181 m; the old
       string said WGS84 ellipsoid). Matches the C6.1 MOD44B granules for h08v04, h16v01, h31v11 (corner and pixel size within 1 micrometre,
@@ -260,6 +308,28 @@ Last updated 2026-10-03 afternoon (versions named; Monte Carlo rerun written up;
     - **`MC64_Deep_Dive_Plan.md` written** (to-do 14; not approved; nothing run).
     - **ALL DECISIONS FOR 2026-10-05 are listed in `Decisions_For_20261005.md`** (push and tag, rewriting the on-disk maps, D1-D12 + the D10
       threshold, the summer-snow rule, other years, HDF output).
+21. **Figures of the code's progression (added 2026-10-05, project lead; to do, not planned yet).** A figure set showing how the
+    product changed from the starting point to the final version, whatever that turns out to be: the C code as first compiled and
+    run here, and rlgill's incomplete Python (v0.0.0-pre.1), through v0.0.0-pre.2, v0.0.0, v1.0.0 and v1.1.0, to the final version.
+    Versions and their run folders are defined in `Product_Versions_and_Work_Map.md`. Make it when the final version is settled;
+    write a short plan (tiles, layers, references, which runs hold each version's maps) before making the figures.
+
+    **Partly done 2026-10-07 (F13, project lead):** h12v02 and h09v05 tree and non-vegetated, from the first Python maps to v1.2.0, against
+    the C code and C6, plus h16v02 non-vegetated v1.1.0 to v1.2.0: `AICoE_10142026/fig7_*.png`, `make_tile_evolution.py`,
+    `tile_evolution_stats.csv`.
+22. **If time permits (added 2026-10-07, project lead): run rlgill's Python as found (`develop` `b83e302`, v0.0.0-pre.1) on h12v02 or
+    h09v05**, to show its real errors in the progression figures. No map was ever made with that code (GPU cuML, incomplete), so fig7
+    uses the first Python maps (`Metrics/PyTrackB_2tile`, 2026-09-18) in its place. On a CPU node, with cuML swapped for scikit-learn
+    only where the code cannot run otherwise; if it fails, the failure is the result. About 1-3 h, detached. Write a short plan first.
+
+23. **Revisit later (added 2026-10-07, project lead): the decision not to adopt the cloud variants (V1-V4C, V4R, BLEND-2, v1.0.1).**
+    Goal: better dense-forest tree cover in cloudy areas without really hurting predictions elsewhere. Review findings and a suggested
+    first step (score on dense labels that v1.0.0 under-predicts, plus open-land and clear-pixel checks) are under item E11 in
+    `Decisions_For_20261005.md`. Not scheduled.
+
+24. **NOT ADOPTED, to be revisited (2026-10-07, project lead): cold-ice rule for the ice-sheet interior** (`Cold_Ice_Rule_Check_Results.md`,
+    run `FullRuns/EXP_cold_ice_rule_check_20261007`). Works on the interior by both ice masks; a rule; redundant with v1.2.0 on h16v02; v00
+    low-sun land (non-tree vegetation up to 84, judged artefacts) still unsolved. Decisions item 15.
 
 **Done (from the earlier lists):**
 - NEON lidar evaluation (2026-09-30);
@@ -439,7 +509,7 @@ Every document in `Reports/` and `C_code/pge61/MOD_PR44B_Metrics/` was checked a
 - A search for the superseded phrases (old timings, "not applied", "not executed") finds none in the current-state documents.
 
 ## Suggested wording for a new session
-"First remind me to push the delivery branch to Git (to-do item 8). Then read Reports/README_START_HERE.md (including its 'Resume here' section) and Reports/Project_Summary_and_Conclusions.md, and tell me the open items and what is not done. Do not execute anything without asking."
+"First remind me to open the pull request into develop (to-do item 8; the push is done). Then read Reports/README_START_HERE.md (including its 'Resume here' section) and Reports/Project_Summary_and_Conclusions.md, and tell me the open items and what is not done. Do not execute anything without asking."
 
 ## Status history (newest first; kept word for word)
 
@@ -598,7 +668,7 @@ two-tile test is gone.
 **Environment.**
 - Compute nodes `forest201` to `forest205` (12 cores, 112 GB each); the login nodes have no `singularity`, NumPy or GDAL. Container `/explore/nobackup/projects/ilab/containers/modis-vcf-latest`. Every launcher here binds the project tree read-only plus its own new output folder only.
 - **Usable memory is about 65 to 70 GB per node** when running heavy work, not 105 GB: two 20 GB metric workers plus a 35 GB table build got 9 tiles killed by the memory watchdog (it kills the newest metrics job when free memory drops under 8 GB). A 13 to 15 GB model loads in 1.5 to 2 minutes; predicting with the top-64 model took about 26 GB in total on a node (free memory fell from 101 to 75 GB).
-- **Other users share these nodes.** On 2026-09-20 user `qzhou2` used about 800% CPU on several of them for hours; check `uptime` and free memory before launching, and do not assume the load is yours.
+- **Other users share these nodes.** On 2026-09-20 user `another user` used about 800% CPU on several of them for hours; check `uptime` and free memory before launching, and do not assume the load is yours.
 - Shell pitfalls seen: `noclobber` makes a retried `>` redirect onto an existing log fail at once (use `>>` or a new name); a claim directory left by a stopped runner blocks its tile until removed; `cp` is aliased to interactive (use `\cp -pf`); `ssh` prints a login banner on standard output, so filter output; `pgrep -f` matches the ssh command that ran it; do not edit a `.sh` launcher while it is running.
 - Status: `bash $RUN/code/validation/run_status.sh` reports **only the 63-tile run**. For 2026-09-20 work list `$RUN/status/`: `mc_*` (Monte Carlo), `predict_<label>` and `variant_compare` (map check), `figures_*`, `hist_compare_*`, `p0_*` (table build).
 

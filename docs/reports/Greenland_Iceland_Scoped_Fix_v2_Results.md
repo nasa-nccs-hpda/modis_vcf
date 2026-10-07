@@ -89,7 +89,7 @@ The h16v01 labels (all 0% tree) give a tree MAE of 0.00 for both real and fixed.
 
 **Project lead: adopt the fix for the 6 Greenland tiles with a fixed tile list; exclude Iceland.**
 
-- **Code:** commit `13773db` on `mcarrol2/c-python-parity-fixes` (local, not pushed).
+- **Code:** commit `13773db` on `mcarrol2/c-python-parity-fixes` (local, not pushed; pushed since: on GitHub as of 2026-10-05).
   - `Metrics.ZENITH_ONLY_NDVI_TILES` lists h15v02, h16v00, h16v01, h16v02, h17v00 and h17v01.
   - `Metrics.getNdvi` calls `_applyZenithOnlyNdvi` for those tiles. It reads solar zenith for each day from MOD44CQ and counts a missing day as no valid zenith.
   - Unit test: `model/tests/test_Metrics_zenithOnlyNdvi.py`. It passes, and so do the 5 member-pass tests.
