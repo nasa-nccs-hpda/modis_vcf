@@ -29,7 +29,9 @@ Nothing is running. Every run under `FullRuns/` from 2026-10-03/04 is finished, 
 4. **CLOSED 2026-10-07 (project lead): superseded by the v1.2.0 build** (`Version_v1.2.0_Build_Plan.md`: 69 tiles in uint8/uint16 with the MODIS grid, code at `920d06f`). Rewriting the v1.1.0 maps is needed only if v1.1.0 itself must be distributed. *Original item:* **Rewrite the v1.1.0 maps already on disk?** `FullRuns/cand60med_20261004` and `v110_sd_20261004` are Int16 with no geotransform.
    The code now writes uint8/uint16 with the MODIS grid. Options: (a) **leave them as they are (they are evaluation maps) and use the new
    writer for every new map**; (b) rewrite the 69 tiles × 5 layers in the new format (values are unchanged; about 1-2 h detached).
-5. **Open the pull request into `develop`** for rlgill after the push (to-do 8).
+5. **DEFERRED 2026-10-07 (project lead): open the pull request into `develop` for rlgill after ALL planned experiments are complete** (to-do 8).
+   The v1.2.0 push (`mcarrol2/v1.2.0`, tag `v1.2.0`, snapshot commits `3e4f766`, `41556d0`) is still to do from the office: the cluster has no
+   GitHub credentials (push attempt 2026-10-07 failed: no password prompt; nothing sent).
 
 ## B. Composite unusable inputs (`Composite_Unusable_Inputs_Plan.md`, section 5)
 
@@ -95,11 +97,11 @@ numbers to set the D10 threshold. **Then answer: "D1-D12 default, D10 threshold 
     Must show: "mask solutions" (rules and overrides) replaced by data-driven ones; limitations found in the MOD44C input.
     Folder: `Reports/AICoE_10142026/`. Include the C build challenge: every fix needed just to build the toolkits and C code. Plan: `Process_Figures_Plan.md`.
 
-14. **Experiment to do (2026-10-07, not scheduled; after F13): `Tree_Ice_Rows_and_Bare_Priority_Plan.md`.** Tree rows (tree = 0) on the
+14. **COMBINED with item 15 (project lead, 2026-10-07): run together as one experiment.** **Experiment to do (2026-10-07, not scheduled; after F13): `Tree_Ice_Rows_and_Bare_Priority_Plan.md`.** Tree rows (tree = 0) on the
     h16v02 ice points, and a bare-priority cap (raw bare = 100 -> tree 0), tested first against the held-out labels; goal: retire the v00
     rule with data. Decisions R1-R5 when scheduled.
 
-15. **NOT ADOPTED, to be revisited (project lead, 2026-10-07): cold-ice rule (CR) for the ice-sheet interior.** Bare 90-99 and band 31
+15. **COMBINED with item 14 (project lead, 2026-10-07): revisited inside that experiment (CR + tree as a comparison variant on the ice zones).** **NOT ADOPTED, to be revisited (project lead, 2026-10-07): cold-ice rule (CR) for the ice-sheet interior.** Bare 90-99 and band 31
     ≤ 275 K in at least 3 of 4 late-summer periods → bare 100; on v00 also tree → 0. It takes the interior to 100% by both the MOD44C
     mask and MCD12 permanent ice, on h16v02 and on v00. It is redundant with v1.2.0 on h16v02. It does not touch low-sun artefacts on
     warm v00 land (non-tree vegetation up to 84; judged not real). It is a rule. Revisit with the tree-side experiment (item 14) and
@@ -145,7 +147,7 @@ numbers to set the D10 threshold. **Then answer: "D1-D12 default, D10 threshold 
       the harm elsewhere. Then plan any gate or weight changes.
     Sources: `V4r_Cloud_Blend_Results.md` (correction section, R3), `Gated_V4r_Blend_63Tile_Results.md`, `V4r_Darkest_Red_h12v09_Results.md`;
     figures `AICoE_10142026/fig8a-c`.
-12. Revisit the h16v01 training inputs at the next retrain (decision 19.6).
+12. **CLOSED 2026-10-07 (project lead).** Revisit the h16v01 training inputs at the next retrain (decision 19.6).
     **CLOSED 2026-10-07 (project lead):** answered by `Ice_Sheet_Diagnosis_Results.md` (H3): 25-32% of h16v01's stored predictor cells differ from
     the v1.1.0 metric folder, but the bare model gives the same answer from either (mean 99.998, 0.015% below 100 from both; tree 0).
     Only a consistency item for a future full rebuild of the training tables; v1.2.0 does not touch h16v01's rows.

@@ -39,7 +39,7 @@ All variants keep v1.2.0's bare model (A10S0), code, inputs and flags. Only the 
 - BP is still a post-model rule. It is tested here because the project lead expects bare = 100 to be the more trustworthy prediction. Step
   1 checks that expectation against the labels before any maps are made.
 
-**Added 2026-10-07: a cold-ice rule (CR) was checked and NOT ADOPTED, to be revisited** (`Cold_Ice_Rule_Check_Results.md`). Cold
+**Combined 2026-10-07 (project lead): the cold-ice rule is revisited in this experiment (variant CR + tree).** **Added 2026-10-07: a cold-ice rule (CR) was checked and NOT ADOPTED, to be revisited** (`Cold_Ice_Rule_Check_Results.md`). Cold
 (band 31 ≤ 275 K in 3 of 4 late-summer periods) and bare ≥ 90 → bare 100, tree 0. It reaches 100% on the ice interior by both masks,
 including v00. It leaves low-sun artefacts on warm v00 land untouched. If this plan runs, score CR + tree as a comparison variant on the
 same zones.
