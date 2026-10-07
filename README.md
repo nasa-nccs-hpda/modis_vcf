@@ -40,9 +40,13 @@ singularity build --sandbox /lscratch/$USER/container/modis-vcf-dev docker://nas
 
 ## Fitting and prediction
 
-Version 1.1.0: both layers use a Random Forest of 60 trees (`max_features='sqrt'`, seed 0), fitted on the
-bit-15 QA metrics, and both are combined with the MEDIAN of the trees. (Version 1.0.0 used 30 trees, with the
-MEDIAN for tree cover and the MEAN for non-vegetated.)
+Version 1.2.0: both layers use a Random Forest of 60 trees (`max_features='sqrt'`, seed 0), fitted on the
+bit-15 QA metrics, and both are combined with the MEDIAN of the trees. The non-vegetated training set adds
+10,000 rows labelled 100 on the h16v02 (Greenland) ice sheet, on a regular grid at least 10 km inside the MOD44C
+ice edge, so the model learns what that ice looks like with its real inputs. The tree cover model and the code
+are unchanged from 1.1.0.
+(Version 1.1.0 used the same recipe without the added rows. Version 1.0.0 used 30 trees, with the MEDIAN for
+tree cover and the MEAN for non-vegetated.)
 Tree cover uses its own predictors; non-vegetated uses the C code's 21 bare predictors
 (the default list in `view/rfFitFromPge61.py`).
 
@@ -60,7 +64,7 @@ uint8 (0-100, water 200, out of projection 250, nodata 253) and the SD layers ar
 
 - `--tcAgg` / `--nvAgg` set how each layer's trees are combined: `mean` (the same as
   `predict()`), `mid20` (the mean of the middle 20) or `median`. Defaults are `mean`. The
-  production setting (v1.1.0) is `--tcAgg median --nvAgg median`; v1.0.0 used `--tcAgg median --nvAgg mean`.
+  production setting (v1.1.0 and v1.2.0) is `--tcAgg median --nvAgg median`; v1.0.0 used `--tcAgg median --nvAgg mean`.
 - The SD layers are the population SD of the trees, stored as round(100 x SD), with 0 on
   water and out-of-projection. Use `--noSd` to skip them. Models without ensemble members
   (XGBoost) get no SD and support only `mean`.
