@@ -342,6 +342,11 @@ class Metrics(object):
             
             band = parts[1]
             day = parts[2].split('_')[1] if len(parts) == 3 else None
+
+            # Map the model's yyyyddd to the year these metrics use for that DOY (year N, or N+1 for the days after the turn of
+            # the year), so a model trained on one year's metrics can run on another year's.  Identity when the years match.
+            if day is not None and len(day) == 7:
+                day = str(self.getYearForDay(int(day[4:]))) + day[4:]
         
         return self.getMetricBand(metric, band, day)
         
