@@ -162,18 +162,7 @@ class CompositeDayFile(DayFile):
                 qa = False if self.bandName == ProductType.BAND31 else True
 
                 raster = bdf.raster(applyQa=qa)
-                state = bdf.getState()  # uint16
-                solz = bdf.getSolz()
-
-                # Like pge61's qa and cloud masks, 0 is bad and 1 is good.
-                qa = self._productType.createQaMask(state,
-                                                    solz,
-                                                    BandDayFile.ZENITH_CUTOFF)
-
-                cloud = self._productType.createCloudMask( \
-                    state,
-                    solz,
-                    BandDayFile.ZENITH_CUTOFF)
+                qa, cloud = self._getMasks(bdf, year, day)
 
                 if not self._geoTransform:
                     self._geoTransform = bdf._geoTransform
@@ -203,6 +192,48 @@ class CompositeDayFile(DayFile):
         np.save(self._getCloudMaskName(), cloud)
 
         return comp
+
+    # ------------------------------------------------------------------------
+    # getMasks
+    #
+    # The QA and cloud masks depend only on the day, not on the band, so
+    # State and SolarZenith are read and both masks built once per (product,
+    # tile, year, day) and reused by every band.  Only successful reads are
+    # cached (a RuntimeError still substitutes the day as before).  The cached
+    # arrays are read-only.  The BandDayFile's geotransform (that of the last
+    # subdataset read, SolarZenith) is cached and restored, as before.  The
+    # cache lives for the process, about 92 MB per day; one process per tile
+    # (as in warm_metrics) holds about one year of days.
+    # ------------------------------------------------------------------------
+    _maskCache = {}
+
+    def _getMasks(self, bdf: BandDayFile, year: int, day: int) -> tuple:
+
+        key = (self._productType.productType, self.tid, year, day)
+
+        if key not in CompositeDayFile._maskCache:
+
+            state = bdf.getState()  # uint16
+            solz = bdf.getSolz()
+
+            # Like pge61's qa and cloud masks, 0 is bad and 1 is good.
+            qa = self._productType.createQaMask(state,
+                                                solz,
+                                                BandDayFile.ZENITH_CUTOFF)
+
+            cloud = self._productType.createCloudMask( \
+                state,
+                solz,
+                BandDayFile.ZENITH_CUTOFF)
+
+            qa.setflags(write=False)
+            cloud.setflags(write=False)
+            CompositeDayFile._maskCache[key] = (qa, cloud, bdf._geoTransform)
+
+        qa, cloud, gt = CompositeDayFile._maskCache[key]
+        bdf._geoTransform = gt
+
+        return qa, cloud
 
     # ------------------------------------------------------------------------
     # computeComposite
