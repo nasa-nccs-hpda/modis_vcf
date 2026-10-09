@@ -45,10 +45,15 @@ def main():
                         help='Print descriptions of available metrics ' + \
                              'and exit.')
 
-    # parser.add_argument('--productType',
-    #                     choices=[ProductTypeMod09A.PRODUCT_TYPE,
-    #                              ProductTypeMod44.PRODUCT_TYPE],
-    #                     help='Choose the product type to run.')
+    parser.add_argument('--productType',
+                        choices=[ProductTypeMod09A.PRODUCT_TYPE,
+                                 ProductTypeMod44.PRODUCT_TYPE],
+                        default=ProductTypeMod44.PRODUCT_TYPE,
+                        help='Choose the product type to run.')
+
+    parser.add_argument('--mod09Dir',
+                        type=Path,
+                        help='MOD09A1 input directory (<dir>/<year>/*.hdf)')
 
     parser.add_argument('-t',
                         nargs='+',
@@ -89,7 +94,12 @@ def main():
     #     prodType = ProductTypeMod44(inDir)
     
     modisDir = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
-    prodType = ProductTypeMod44(modisDir)
+
+    # MOD09A1: bands 1-7 from MOD09A1, band 31 from MOD44C.
+    if args.productType == ProductTypeMod09A.PRODUCT_TYPE:
+        prodType = ProductTypeMod09A(args.mod09Dir, modisDir)
+    else:
+        prodType = ProductTypeMod44(modisDir)
     
     # ---
     # Make metrics

@@ -26,6 +26,9 @@ class ProductTypeMod09A(ProductType):
     AERO_CLIMATOLOGY = 0
     AERO_HIGH = 192
     AERO_MASK = 192
+    AERO_LOW = 64
+    AERO_AVERAGE = 128
+    CLOUD_ADJACENT = 8192
     CLOUDY = 1
     CLOUD_INT = 1024
     CLOUD_MIXED = 2
@@ -75,35 +78,58 @@ class ProductTypeMod09A(ProductType):
     # ------------------------------------------------------------------------
     # createQaMask
     #
-    # Reject pixel if:
+    # The MOD09A1 equivalent of the MOD44C rule
+    # (ProductTypeMod44.createQaMask).  Pass a pixel only if:
     #
-    #     Cloud is set to mixed or cloudy
-    #     Cloud shadow is set to “yes”
-    #     Internal cloud is set to “yes”
-    #     Aerosol is set to “high” or “climatology”
-    #     Solar Zenith >72
+    #     cloud state (bits 0-1) is clear and internal cloud (bit 10) is not
+    #     set (MOD44C bits 0-1 carry both)
+    #     no cloud shadow (bit 2)
+    #     not adjacent to cloud (bit 13; MOD44C bit 6)
+    #     aerosol quantity (bits 6-7) is low or average (stands in for
+    #     MOD44C bit 15, decided 2026-10-09: reject climatology and high)
+    #     0 < solar zenith < zenithCutOff
     # ------------------------------------------------------------------------
-    def createQaMask(self, 
+    def createQaMask(self,
                      state: np.ndarray,
                      solz: np.ndarray,
                      zenithCutOff: int) -> np.ndarray:
-        
-        cloudMixed = state & ProductTypeMod09A.CLOUD_MIXED
-        cloudy = state & ProductTypeMod09A.CLOUDY
-        shadow = state & ProductTypeMod09A.CLOUD_SHADOW
-        cloudInternal = state & ProductTypeMod09A.CLOUD_INT
-        aerosol = state & ProductTypeMod09A.AERO_MASK
-        
-        mask = np.where(
-                        (cloudMixed == ProductTypeMod09A.CLOUD_MIXED) |
-                        (cloudy == ProductTypeMod09A.CLOUDY) |
-                        (shadow == ProductTypeMod09A.CLOUD_SHADOW) |
-                        (cloudInternal == ProductTypeMod09A.CLOUD_INT) |
-                        # (aerosol == ProductTypeMod09A.AERO_CLIMATOLOGY) |
-                        (aerosol == ProductTypeMod09A.AERO_HIGH) |
-                        (solz > zenithCutOff),
-                        ProductType.NO_DATA,
-                        1).astype(np.int16)
+
+        s = state.astype(np.int32)
+        cloud = s & 3
+        cloudInternal = s & ProductTypeMod09A.CLOUD_INT
+        shadow = s & ProductTypeMod09A.CLOUD_SHADOW
+        adjacency = s & ProductTypeMod09A.CLOUD_ADJACENT
+        aerosol = s & ProductTypeMod09A.AERO_MASK
+
+        mask = np.where((cloud == 0) &
+                        (cloudInternal == 0) &
+                        (shadow == 0) &
+                        (adjacency == 0) &
+                        ((aerosol == ProductTypeMod09A.AERO_LOW) |
+                         (aerosol == ProductTypeMod09A.AERO_AVERAGE)) &
+                        (solz > 0) &
+                        (solz < zenithCutOff),
+                        1,
+                        0).astype(np.int16)
 
         return mask
-        
+
+    # ------------------------------------------------------------------------
+    # createCloudMask
+    #
+    # Same test as ProductTypeMod44.createCloudMask (1 = not cloudy).
+    # ------------------------------------------------------------------------
+    def createCloudMask(self,
+                        state: np.ndarray,
+                        solz: np.ndarray,
+                        zenithCutOff: int) -> np.ndarray:
+
+        s = state.astype(np.int32)
+
+        mask = np.where(((s & 3) == 0) &
+                        ((s & ProductTypeMod09A.CLOUD_INT) == 0) &
+                        (solz < zenithCutOff),
+                        1,
+                        0).astype(np.int16)
+
+        return mask
