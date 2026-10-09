@@ -596,7 +596,9 @@ class Metrics(object):
             gdBand.WriteArray(metric.value)
             gdBand.SetMetadataItem('Name', metric.name)
             gdBand.SetMetadataItem('Description', metric.desc)
-            gdBand.FlushCache()
+            # No per-band FlushCache: each flush rewrote the TIFF directory and
+            # left stale copies in the file.  The dataset is written once when
+            # closed; values, metadata and layout are unchanged.
             gdBand = None
 
         ds = None
