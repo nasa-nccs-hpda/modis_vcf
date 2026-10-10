@@ -66,6 +66,13 @@ def main():
                         required='True',
                         help='The year to run')
 
+    parser.add_argument('--workers',
+                        type=int,
+                        default=1,
+                        help='Number of processes building the composites ' +
+                             'of a band (default 1: serial).  Results are ' +
+                             'the same for any number.')
+
     args = parser.parse_args()
     
     # ---
@@ -101,6 +108,11 @@ def main():
     else:
         prodType = ProductTypeMod44(modisDir)
     
+    # ---
+    # Composites are built in this many processes.
+    # ---
+    Metrics.compositeWorkers = max(1, args.workers)
+
     # ---
     # Make metrics
     # ---
