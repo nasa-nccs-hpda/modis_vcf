@@ -1,12 +1,15 @@
 
+from concurrent.futures import ProcessPoolExecutor
 import inspect
 import logging
+import multiprocessing
 from collections import namedtuple
 import math
 import os
 from pathlib import Path
 import pickle
 import shutil
+import sys
 
 import numpy as np
 import numpy.ma as ma
@@ -198,6 +201,67 @@ class Metrics(object):
         return threshed
         
     # ------------------------------------------------------------------------
+    # buildCompositesInParallel
+    #
+    # Reading HDF4 is serialized inside one process (GDAL holds a global
+    # lock around the HDF4 library), so the composites of a band are built in
+    # separate processes instead.  Each worker runs the same CompositeDayFile
+    # code and writes the same files (2-Composites and 1-Days); getBandCube
+    # then reads them as usual.  Composite periods share no input days, so
+    # workers never write the same file.  Off when compositeWorkers is 1.
+    # ------------------------------------------------------------------------
+    compositeWorkers: int = 1
+
+    def _buildCompositesInParallel(self, bandName: str) -> None:
+
+        if Metrics.compositeWorkers <= 1:
+            return
+
+        todo = []
+
+        for year, day in self._daysSought:
+
+            cdf = CompositeDayFile().initFromParams(self._productType,
+                                                    bandName,
+                                                    self._tid,
+                                                    year,
+                                                    day,
+                                                    self._compDir,
+                                                    logger=self._logger,
+                                                    dayDir=self._dayDir)
+
+            if not cdf.outName.exists():
+                todo.append((year, day))
+
+        if len(todo) < 2:
+            return
+
+        self._logger.info('Building ' + str(len(todo)) + ' ' + bandName +
+                          ' composites in parallel')
+
+        workers = min(Metrics.compositeWorkers, len(todo))
+        ctx = multiprocessing.get_context('spawn')
+
+        with ProcessPoolExecutor(workers,
+                                 mp_context=ctx,
+                                 initializer=_initCompositeWorker,
+                                 initargs=(self._logger.getEffectiveLevel(),)) \
+                as executor:
+
+            futures = [executor.submit(_buildComposite,
+                                       self._productType,
+                                       bandName,
+                                       self._tid,
+                                       year,
+                                       day,
+                                       self._compDir,
+                                       self._dayDir)
+                       for year, day in todo]
+
+            for future in futures:
+                future.result()
+
+    # ------------------------------------------------------------------------
     # getBandCube
     #
     # Has test
@@ -212,6 +276,8 @@ class Metrics(object):
                                    self._productType.ROWS, 
                                    self._productType.COLS), np.nan)
         
+        self._buildCompositesInParallel(bandName)
+
         xref = {}  # yyyydd: index into cube
         cubeIndex = 0
 
@@ -1228,3 +1294,29 @@ class Metrics(object):
 # ---
 from modis_vcf.model import CMirrorMetrics  # noqa: E402
 CMirrorMetrics.install(Metrics)
+
+
+# ----------------------------------------------------------------------------
+# Workers for Metrics._buildCompositesInParallel (module level, so the spawned
+# processes can import them).
+# ----------------------------------------------------------------------------
+def _initCompositeWorker(level: int) -> None:
+    logging.basicConfig(level=level, stream=sys.stdout)
+
+
+def _buildComposite(productType: ProductType,
+                    bandName: str,
+                    tid: str,
+                    year: int,
+                    day: int,
+                    compDir: Path,
+                    dayDir: Path) -> None:
+
+    CompositeDayFile().initFromParams(productType,
+                                      bandName,
+                                      tid,
+                                      year,
+                                      day,
+                                      compDir,
+                                      logger=logging.getLogger('composite'),
+                                      dayDir=dayDir).raster()
