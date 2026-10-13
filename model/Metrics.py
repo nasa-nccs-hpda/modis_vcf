@@ -423,7 +423,39 @@ class Metrics(object):
         
         year = [yd[0] for yd in self._daysSought if yd[1] == day][0]
         return year
-        
+
+    # ------------------------------------------------------------------------
+    # getPeriodFlags
+    #
+    # The product's Quality and Cloud layers: one bit per composite period,
+    # period 1 in bit 0, in the order of _daysSought.  Quality bit n is set
+    # when period n fell back to the mean of all its input days (no day
+    # passed QA); Cloud bit n when it fell back and none of its days was
+    # clear.  The flags are the same for every band, so Band_1's are used.
+    # ------------------------------------------------------------------------
+    def getPeriodFlags(self) -> (np.ndarray, np.ndarray):
+
+        quality = np.zeros((self._productType.ROWS,
+                            self._productType.COLS), dtype=np.uint8)
+
+        cloud = np.zeros_like(quality)
+
+        for n, (year, day) in enumerate(self._daysSought):
+
+            cdf = CompositeDayFile().initFromParams(self._productType,
+                                                    self._productType.BAND1,
+                                                    self._tid,
+                                                    year,
+                                                    day,
+                                                    self._compDir,
+                                                    logger=self._logger,
+                                                    dayDir=self._dayDir)
+
+            quality |= (cdf.getQaMask().astype(np.uint8) & 1) << n
+            cloud |= (cdf.getCloudMask().astype(np.uint8) & 1) << n
+
+        return quality, cloud
+
     # ------------------------------------------------------------------------
     # getNdvi
     #

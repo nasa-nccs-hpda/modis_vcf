@@ -472,6 +472,22 @@ class VcfPredict(object):
         if sdNonveg is not None:
             self._write(tid, year, 'Percent_NonVegetated_SD', sdNonveg, VcfPredict.SD_DATA_TYPE)
 
+        # ---
+        # Quality and Cloud, as in the historical MOD44B: one bit per composite
+        # period (period 1 in bit 0).  Quality: the period fell back to the mean
+        # of all its days; Cloud: it fell back and no day was clear.  0 on water
+        # and out-of-projection pixels.  No no-data value: every byte is a valid
+        # set of flags.
+        # ---
+        quality, cloud = Metrics(tid,
+                                 year,
+                                 self._productType,
+                                 self._metricsDir,
+                                 self._logger).getPeriodFlags()
+
+        self._write(tid, year, 'Quality', np.where(okMask, quality, 0), noData=False)
+        self._write(tid, year, 'Cloud', np.where(okMask, cloud, 0), noData=False)
+
         return pctTc, pctNonveg, pctNontreeVeg
         
     # ------------------------------------------------------------------------
@@ -491,7 +507,8 @@ class VcfPredict(object):
                year: int, 
                outPrefix: str, 
                raster: np.ndarray,
-               dataType: int = PCT_DATA_TYPE) -> Path:
+               dataType: int = PCT_DATA_TYPE,
+               noData: bool = True) -> Path:
         
         fName = outPrefix + '-' + tid + '-' + str(year)
         outName = Path(self._outDir) / (fName + '.tif')
@@ -517,7 +534,7 @@ class VcfPredict(object):
         ds.SetGeoTransform(VcfPredict._geoTransform(tid, raster.shape))
         band = ds.GetRasterBand(1)
 
-        if dataType == VcfPredict.PCT_DATA_TYPE:
+        if dataType == VcfPredict.PCT_DATA_TYPE and noData:
             band.SetNoDataValue(VcfPredict.PCT_NO_DATA)
 
         band.WriteArray(raster.astype(npType))

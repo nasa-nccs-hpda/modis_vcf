@@ -310,10 +310,13 @@ class CompositeDayFile(DayFile):
         #
         # This uses the same computation as case 2, so there is no need to
         # compute anything.  The only thing that happens is that the cloud
-        # mask is created.  For the input cloud mask, 0 is bad and 1 is good.
-        # For the output cloud mask, 0 is good and 1 is bad.
+        # mask is created.  For the input cloud mask, 0 is bad and 1 is good
+        # (clear: cloud state 0 and solar zenith below the cutoff).  The output
+        # cloud flag is 1 when the composite fell back (case 2) and none of
+        # its input days was clear, as the C code's Cloud bit
+        # (MOD_PR44B1/make_metrics.c).  Missing days add nothing to cloudTotal.
         # ---
-        outCloud = np.where(cloudTotal == 3, 1, 0).astype(np.uint8)
+        outCloud = np.where(goodComp.mask & (cloudTotal == 0), 1, 0).astype(np.uint8)
 
         return comp, outQa, outCloud
 
