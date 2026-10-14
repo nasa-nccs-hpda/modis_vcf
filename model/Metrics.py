@@ -431,7 +431,8 @@ class Metrics(object):
     # period 1 in bit 0, in the order of _daysSought.  Quality bit n is set
     # when period n fell back to the mean of all its input days (no day
     # passed QA); Cloud bit n when it fell back and none of its days was
-    # clear.  The flags are the same for every band, so Band_1's are used.
+    # clear.  The flags are the same for every band, so Band_1's are used,
+    # read from the stored masks when present (no write access needed).
     # ------------------------------------------------------------------------
     def getPeriodFlags(self) -> (np.ndarray, np.ndarray):
 
@@ -451,8 +452,9 @@ class Metrics(object):
                                                     logger=self._logger,
                                                     dayDir=self._dayDir)
 
-            quality |= (cdf.getQaMask().astype(np.uint8) & 1) << n
-            cloud |= (cdf.getCloudMask().astype(np.uint8) & 1) << n
+            qa, cl = cdf.getCompositeMasks()
+            quality |= (qa.astype(np.uint8) & 1) << n
+            cloud |= (cl.astype(np.uint8) & 1) << n
 
         return quality, cloud
 

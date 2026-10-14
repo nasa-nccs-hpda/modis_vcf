@@ -88,21 +88,40 @@ class CompositeDayFile(DayFile):
 
     # ------------------------------------------------------------------------
     # getCloudMaskName
+    #
+    # '-cloudfb': the Cloud flag tied to the fallback (since 986892b).  Files
+    # named '-cloud.npy' were written before that fix with the old, inverted
+    # flag; they are not read.
     # ------------------------------------------------------------------------
     def _getCloudMaskName(self) -> Path:
 
-        n = self.outName.parent / Path(self.outName.stem + '-cloud.npy')
+        n = self.outName.parent / Path(self.outName.stem + '-cloudfb.npy')
         return n
+
+    # ------------------------------------------------------------------------
+    # getCompositeMasks
+    #
+    # The composite's QA (fallback) and Cloud flags.  They are read from the
+    # stored .npy files when both exist; otherwise the composite is built
+    # once to make them (and they are saved, when the folder is writable).
+    # ------------------------------------------------------------------------
+    def getCompositeMasks(self) -> (np.ndarray, np.ndarray):
+
+        qaName = self._getQaMaskName()
+        cloudName = self._getCloudMaskName()
+
+        if qaName.exists() and cloudName.exists():
+            return np.load(qaName), np.load(cloudName)
+
+        self._getRaster()
+        return self._outQa, self._outCloud
 
     # ------------------------------------------------------------------------
     # getCloudMask
     # ------------------------------------------------------------------------
     def getCloudMask(self) -> np.ndarray:
 
-        # Must get the raster to generate the mask.
-        self._getRaster()
-        mask = np.load(self._getCloudMaskName())
-        return mask
+        return self.getCompositeMasks()[1]
 
     # ------------------------------------------------------------------------
     # getQaMaskName
@@ -117,10 +136,7 @@ class CompositeDayFile(DayFile):
     # ------------------------------------------------------------------------
     def getQaMask(self) -> np.ndarray:
 
-        # Must get the raster to generate the mask.
-        self._getRaster()
-        mask = np.load(self._getQaMaskName())
-        return mask
+        return self.getCompositeMasks()[0]
 
     # ------------------------------------------------------------------------
     # getRaster
@@ -187,9 +203,15 @@ class CompositeDayFile(DayFile):
             rastersWithQa.append((raster, qa, cloud))
 
         comp, qa, cloud = self._computeComposite(rastersWithQa)
+        self._outQa, self._outCloud = qa, cloud
 
-        np.save(self._getQaMaskName(), qa)
-        np.save(self._getCloudMaskName(), cloud)
+        # A read-only metrics folder (e.g. a map run) keeps the masks in memory.
+        try:
+            np.save(self._getQaMaskName(), qa)
+            np.save(self._getCloudMaskName(), cloud)
+
+        except OSError as e:
+            self._logger.warning('Composite masks not saved: ' + str(e))
 
         return comp
 

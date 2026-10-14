@@ -288,7 +288,7 @@ class CompositeDayFileTestCase(unittest.TestCase):
     def testGetCloudMaskName(self):
         
         on: Path = self.cdfMod44.outName
-        exp = on.parent / Path(on.stem + '-cloud.npy')
+        exp = on.parent / Path(on.stem + '-cloudfb.npy')
         self.assertEqual(self.cdfMod44._getCloudMaskName(), exp)
         
     # -------------------------------------------------------------------------

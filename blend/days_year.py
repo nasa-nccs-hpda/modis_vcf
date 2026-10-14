@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Rebuild a tile-year's 1-Days and standard composites with the package pipeline (Metrics.getBandCube for the 8 bands), into a
-fresh root. Check: every composite .bin and its -qa.npy / -cloud.npy must equal the stored ones (<ref root>, same layout) byte for byte;
+fresh root. Check: every composite .bin and its -qa.npy / -cloudfb.npy must equal the stored ones (<ref root>, same layout) byte for byte;
 the 1-Days are then the inputs those composites were made from. Exit 1 on any difference.
 Usage: days_year.py <tile> <year> <out root> <ref root>"""
 import filecmp
@@ -25,7 +25,7 @@ m = Metrics(t, y, ProductTypeMod44(MOD44_DIR), root, logging.getLogger('days'))
 for b in BANDS:
     m.getBandCube(b)
 new = root / t / str(y) / '2-Composites'; old = ref / t / str(y) / '2-Composites'
-files = sorted(p.name for p in old.iterdir() if p.name.endswith(('.bin', '-qa.npy', '-cloud.npy')) and '-Band_' in p.name)
+files = sorted(p.name for p in old.iterdir() if p.name.endswith(('.bin', '-qa.npy', '-cloudfb.npy')) and '-Band_' in p.name)
 bad = [f for f in files if not (new / f).exists() or not filecmp.cmp(new / f, old / f, shallow=False)]
 ndays = len(list((root / t / str(y) / '1-Days').iterdir()))
 rep = dict(tile=t, year=y, compared=len(files), differ=len(bad), first_differ=bad[:5], day_files=ndays, seconds=round(time.time() - t0))

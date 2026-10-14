@@ -104,7 +104,7 @@ def main():
             stack = np.stack([x if x is not None else np.zeros((4800, 4800), np.int16) for x in ins])
             picked = np.take_along_axis(stack, pick[None], 0)[0]
             np.where(use, picked, old).astype(np.int16).tofile(OUT / '2-Composites' / ('MOD44-%s-%s-%s.bin' % (T, pk, b)))
-            for suf in ('-qa.npy', '-cloud.npy'):
+            for suf in ('-qa.npy', '-cloudfb.npy'):
                 s = SRC / '2-Composites' / ('MOD44-%s-%s-%s%s' % (T, pk, b, suf))
                 if s.exists():
                     shutil.copy(s, OUT / '2-Composites')
