@@ -49,6 +49,7 @@ def main():
 
     # Random Forest knobs
     ap.add_argument('--nEstimators', type=int, default=30, help='RF: number of trees (default 30, matches the baseline ensemble size). XGBoost: number of boosting rounds (default 500 if unset).')
+    ap.add_argument('--minSamplesLeaf', type=int, default=1, help='RF only: min_samples_leaf (default 1 = sklearn default, as the product models).')
     ap.add_argument('--maxFeatures', default='sqrt', help='RF only: features considered per split (sklearn default is 1.0; textbook RF regression default is 1/3 of features, sqrt is a common alternative).')
 
     # XGBoost knobs
@@ -70,10 +71,11 @@ def main():
     t0 = time.time()
     if args.algo == 'rf':
         from sklearn.ensemble import RandomForestRegressor
-        print('Fitting RandomForestRegressor: n_estimators=%d max_features=%s n_jobs=%d random_state=%s'
-              % (args.nEstimators, args.maxFeatures, args.nJobs, args.randomState))
+        print('Fitting RandomForestRegressor: n_estimators=%d max_features=%s min_samples_leaf=%d n_jobs=%d random_state=%s'
+              % (args.nEstimators, args.maxFeatures, args.minSamplesLeaf, args.nJobs, args.randomState))
         model = RandomForestRegressor(n_estimators=args.nEstimators,
                                        max_features=args.maxFeatures,
+                                       min_samples_leaf=args.minSamplesLeaf,
                                        n_jobs=args.nJobs,
                                        random_state=args.randomState)
     elif args.algo == 'hgb':
