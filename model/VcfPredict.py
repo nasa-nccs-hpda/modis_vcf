@@ -2,6 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import joblib
 import logging
+import os
 from pathlib import Path
 import pickle
 import sys
@@ -21,6 +22,7 @@ from osgeo import gdal_array
 from osgeo import osr
 
 from modis_vcf.model.BandDayFile import BandDayFile
+from modis_vcf.model.CompactForest import CompactForest
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
@@ -90,8 +92,7 @@ class VcfPredict(object):
         self._treeCoverRf: RandomForestRegressor = None
         self._treeCoverTopN: list = None
         
-        with open(treeCoverModelFile, 'rb') as f:
-            self._treeCoverRf: RandomForestRegressor = joblib.load(f)
+        self._treeCoverRf: RandomForestRegressor = VcfPredict._loadModel(treeCoverModelFile)
             
         with open(treeCoverTopNFile, 'rb') as f:
             self._treeCoverTopN = pickle.load(f)
@@ -99,8 +100,7 @@ class VcfPredict(object):
         self._nonvegRf: RandomForestRegressor = None
         self._nonvegTopN: list = None
         
-        with open(nonvegModelFile, 'rb') as f:
-            self._nonvegRf: RandomForestRegressor = joblib.load(f)
+        self._nonvegRf: RandomForestRegressor = VcfPredict._loadModel(nonvegModelFile)
             
         with open(nonvegModelTopNFile, 'rb') as f:
             self._nonvegTopN = pickle.load(f)
@@ -332,6 +332,22 @@ class VcfPredict(object):
         (Reports/Rounding_vs_Truncation_Results.md).
         """
         return np.floor(value + 0.5).astype(np.int16)
+
+    # ------------------------------------------------------------------------
+    # loadModel
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _loadModel(modelFile: Path):
+        """
+        A joblib model file, or a CompactForest directory (the same trees in compact form, identical predictions;
+        Reports/Smaller_RF_Models_Compact_And_Subsample_Plan.md).  VCF_COMPACT_MMAP=1 memory-maps a compact model
+        instead of reading it into memory (whether this becomes the default is decided in the v1.4.1 benchmark).
+        """
+        if CompactForest.isCompact(modelFile):
+            return CompactForest.load(modelFile, mmap=os.environ.get('VCF_COMPACT_MMAP') == '1')
+
+        with open(modelFile, 'rb') as f:
+            return joblib.load(f)
 
     # ------------------------------------------------------------------------
     # members

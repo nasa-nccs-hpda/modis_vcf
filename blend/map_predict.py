@@ -67,7 +67,12 @@ def main():
             raise SystemExit('%s: no band %s (model name %s) in %s.tif' % (T, cy, c, fam))
         X[:, j] = ds.GetRasterBand(bm[cy]).ReadAsArray().ravel()[idx]; src[c] = '%s.tif band %d (%s)' % (fam, bm[cy], cy)
     del bandmap
-    model = joblib.load(a.model / 'pcttree.bin')
+    # A compact copy (<model>/pcttree.cf, model/CompactForest.py) is used when present (identical predictions).
+    if (a.model / 'pcttree.cf').is_dir():
+        from modis_vcf.model.CompactForest import CompactForest
+        model = CompactForest.load(a.model / 'pcttree.cf')
+    else:
+        model = joblib.load(a.model / 'pcttree.bin')
     v = np.empty(len(idx), np.float64)
     step = 2_000_000
     with ThreadPoolExecutor(a.threads) as ex:
