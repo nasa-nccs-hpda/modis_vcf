@@ -72,7 +72,7 @@ def main():
 
     parser.add_argument('--year',
                         type=int,
-                        default=2019,
+                        required=True,
                         help='Year of the training metrics; sets the period ' +
                              'days in the built-in non-vegetated predictor ' +
                              'names.')

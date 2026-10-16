@@ -4,7 +4,7 @@ Metrics.getMetricFromRf (for --year, predictor names keep their 2019 dates and a
 rows are copied from the base split. Train and Test are done in one pass per tile with one Metrics object. Also reports rows whose
 predictors are all missing. Keys: x = raster row, y = column.
   --check : do not write a split; require the recomputed values to equal the base values exactly for every listed tile.
-Usage: recompute_split_onepass.py --base <split dir> --predictors <file> --tiles <file> --root <metrics root> [--year Y] [-o <out dir> | --check]
+Usage: recompute_split_onepass.py --base <split dir> --predictors <file> --tiles <file> --root <metrics root> --year Y [-o <out dir> | --check]
 Writes <out>/{xTrain,xTest}.parq (predictor columns only) and copies {y,keys}{Train,Test}.parq; <out>/recompute.json (changed cells per
 tile and column). Refuses to overwrite."""
 import argparse
@@ -32,7 +32,7 @@ ap.add_argument('--tiles', type=Path, required=True)
 ap.add_argument('--root', type=Path, required=True)
 ap.add_argument('-o', type=Path)
 ap.add_argument('--check', action='store_true')
-ap.add_argument('--year', type=int, default=2019)
+ap.add_argument('--year', type=int, required=True)
 a = ap.parse_args()
 names = a.predictors.read_text().split()
 tiles = a.tiles.read_text().split()

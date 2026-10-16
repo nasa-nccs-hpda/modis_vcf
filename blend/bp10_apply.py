@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """BP10, the last step of v1.4.0 (all tiles): where the bare model's raw value is 100 and the final tree is 1-9: tree = 0, bare = 100,
 non-tree = 0. Elsewhere the input is copied.
-Input: <src>/<layer>-<tile>-2019.tif (blend_year.py output for the blend tiles, the LE0 maps for the others), raw bare
-<raw>/Percent_NonVegetated_Raw-<tile>-2019.tif (rawbare.py; first --raw dir that has the tile). Land = all three layers 0-100; other
+Input: <src>/<layer>-<tile>-<year>.tif (blend_year.py output for the blend tiles, the LE0 maps for the others), raw bare
+<raw>/Percent_NonVegetated_Raw-<tile>-<year>.tif (rawbare.py; first --raw dir that has the tile). Land = all three layers 0-100; other
 codes are copied. Self-test before any change: on land, min(raw, 100 - tree) must equal the input bare (the sum cap), else exit 1.
 No raw file (v00 tiles): layers copied unchanged; the json reports where BP10 could have acted (tree 1-9 and bare = 100 - tree).
-Writes <out>/<3 layers>-<tile>-2019.tif and <json>/<tile>.json.
-Usage: bp10_apply.py --tile T --src <dir> --out <dir> --json <dir> [--raw <dir> ...]"""
+Writes <out>/<3 layers>-<tile>-<year>.tif and <json>/<tile>.json.
+Usage: bp10_apply.py --tile T --year Y --src <dir> --out <dir> --json <dir> [--raw <dir> ...]"""
 import argparse, json, shutil, sys
 from pathlib import Path
 import numpy as np
@@ -17,11 +17,12 @@ LAY = ['Percent_Tree_Cover', 'Percent_NonVegetated', 'Percent_NonTree_Vegetation
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--tile', required=True); ap.add_argument('--src', type=Path, required=True)
+    ap.add_argument('--tile', required=True); ap.add_argument('--year', type=int, required=True)
+    ap.add_argument('--src', type=Path, required=True)
     ap.add_argument('--out', type=Path, required=True); ap.add_argument('--json', type=Path, required=True)
     ap.add_argument('--raw', type=Path, nargs='*', default=[])
     a = ap.parse_args(); t = a.tile
-    nm = lambda lay: '%s-%s-2019.tif' % (lay, t)
+    nm = lambda lay: '%s-%s-%d.tif' % (lay, t, a.year)
     js = a.json / ('%s.json' % t)
     if js.exists() or any((a.out / nm(l)).exists() for l in LAY):
         raise SystemExit('%s: output exists' % t)
