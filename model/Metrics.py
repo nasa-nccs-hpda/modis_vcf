@@ -20,6 +20,7 @@ from osgeo.osr import SpatialReference
 from core.model.GeospatialImageFile import GeospatialImageFile
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompositeDayFile import CompositeDayFile
+from modis_vcf.model import LowSun
 from modis_vcf.model.ProductType import ProductType
 
 
@@ -166,6 +167,12 @@ class Metrics(object):
         # ---
         self.availableMetrics = \
             {m[0]:m[1] for m in members if m[0].startswith('metric')}
+
+        # ---
+        # Low-sun mode: stamp this root, check its cached dailies against the
+        # mode in force, and write the per-day substitution counts (LowSun).
+        # ---
+        LowSun.guard(self)
             
     # ------------------------------------------------------------------------
     # applyThreshold

@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 from modis_vcf.model.VcfPredict import MOD44_DIR
+from modis_vcf.model import LowSun
 from modis_vcf.model.VcfPredict import VcfPredict
 
 
@@ -82,8 +83,32 @@ def main():
                         action='store_true',
                         help='Do not write the Percent_Tree_Cover_SD and Percent_NonVegetated_SD layers.')
 
+
+    parser.add_argument('--lowSun',
+                        choices=['le0', 's70', 'off'],
+                        default=None,
+                        help='Low-sun bright substitution: le0 (default: '
+                             'solar zenith > 70 and <= 0), s70 (> 70 only) or '
+                             'off (v1.3.0).  Unset keeps VCF_LOWSUN_* '
+                             'variables if set (deprecated).')
+
+    parser.add_argument('--lowSunCheck',
+                        choices=['on', 'off'],
+                        default=None,
+                        help='Check cached dailies against the low-sun mode '
+                             '(default on).  Probably unnecessary in '
+                             'production, where every run builds fresh '
+                             'metrics roots.')
+
     args = parser.parse_args()
     
+    # ---
+    # Low-sun mode (passed to composite workers through the environment).
+    # ---
+    LowSun.configure(args.lowSun,
+                     None if args.lowSunCheck is None
+                     else args.lowSunCheck == 'on')
+
     vcfp = VcfPredict(args.tc,
                       args.tcn,
                       args.nv,

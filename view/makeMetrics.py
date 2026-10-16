@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 from modis_vcf.model.Metrics import Metrics
+from modis_vcf.model import LowSun
 from modis_vcf.model.ProductTypeMod09A import ProductTypeMod09A
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
@@ -73,8 +74,32 @@ def main():
                              'of a band (default 1: serial).  Results are ' +
                              'the same for any number.')
 
+
+    parser.add_argument('--lowSun',
+                        choices=['le0', 's70', 'off'],
+                        default=None,
+                        help='Low-sun bright substitution: le0 (default: '
+                             'solar zenith > 70 and <= 0), s70 (> 70 only) or '
+                             'off (v1.3.0).  Unset keeps VCF_LOWSUN_* '
+                             'variables if set (deprecated).')
+
+    parser.add_argument('--lowSunCheck',
+                        choices=['on', 'off'],
+                        default=None,
+                        help='Check cached dailies against the low-sun mode '
+                             '(default on).  Probably unnecessary in '
+                             'production, where every run builds fresh '
+                             'metrics roots.')
+
     args = parser.parse_args()
     
+    # ---
+    # Low-sun mode (passed to composite workers through the environment).
+    # ---
+    LowSun.configure(args.lowSun,
+                     None if args.lowSunCheck is None
+                     else args.lowSunCheck == 'on')
+
     # ---
     # Logging
     # ---

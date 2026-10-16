@@ -8,10 +8,12 @@ composite and map steps.
 
 ## Order for one year
 
-1. **LE0 product** (package): metrics, training splits and model fits as v1.3.0, with `VCF_LOWSUN_T=70 VCF_LOWSUN_LE0=1` set; then the
+1. **LE0 product** (package): metrics, training splits and model fits as v1.3.0, in low-sun mode le0 (the default since v1.4.1;
+   v1.4.0 set `VCF_LOWSUN_T=70 VCF_LOWSUN_LE0=1`); then the
    maps (`view/vcfPredictQueue.py` / `VcfPredict`).
 2. **Raw bare**: `rawbare.py` per tile (the bare model's uncapped value; 2019 only).
-3. **V4r inputs** (blend tiles only, environment variables `VCF_LOWSUN_*` **unset**: the partner model was trained without the substitution):
+3. **V4r inputs** (blend tiles only, **low-sun mode off**: the partner model was trained without the substitution; since v1.4.1 pass
+   `--lowSun off` to these scripts, because the package default is now le0; the cache guard refuses to mix modes on one root):
    `days_year.py` -> `v4r_year.py` (V4r composites + `CUR_ZS` cloud counts) -> `warm_metrics.py`.
 4. **Partner model** (once per training set): `recompute_split_onepass.py` -> `accept_split.py` -> `view/fitAltModel.py` (V4R60: RF,
    60 trees, MEDIAN).

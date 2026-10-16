@@ -18,6 +18,10 @@ import numpy as np
 import pandas as pd
 
 from modis_vcf.model.Metrics import Metrics
+from modis_vcf.model import LowSun
+
+# --lowSun <le0|s70|off> / --lowSunCheck <on|off> (default le0; V4r inputs: off).
+sys.argv = LowSun.configureFromArgv(sys.argv)
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.VcfPredict import MOD44_DIR
 

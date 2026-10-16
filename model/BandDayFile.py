@@ -1,5 +1,4 @@
 
-import os
 
 import numpy as np
 
@@ -7,6 +6,7 @@ from osgeo import gdal
 
 from modis_vcf.model.DayFile import DayFile
 from modis_vcf.model.ProductType import ProductType
+from modis_vcf.model import LowSun
 
 gdal.UseExceptions()
 
@@ -122,22 +122,17 @@ class BandDayFile(DayFile):
         outBand = self._readSubdataset()
 
         # ---
-        # Low-sun bright substitution (v1.4.0; PGE61 fix_bands.c's intent).
-        # When VCF_LOWSUN_T is set (> 0), every Band_1-7 and Band_31 input
-        # whose solar zenith is above VCF_LOWSUN_T becomes ZENITH_CLAMP
-        # (16000).  Only the zenith test triggers it; inputs failing other QA
-        # tests keep their values.  VCF_LOWSUN_LE0=1 also substitutes
-        # solz <= 0 (polar night).  VCF_LOWSUN_TILES (comma list) limits the
-        # tiles; unset = all tiles.  v1.4.0 runs with VCF_LOWSUN_T=70 and
-        # VCF_LOWSUN_LE0=1 on all tiles.  Unset VCF_LOWSUN_T = v1.3.0
-        # behaviour (Band_31 only, > 70).
+        # Low-sun bright substitution (PGE61 fix_bands.c's intent; LE0).
+        # In modes le0 (default) and s70, every Band_1-7 and Band_31 input
+        # whose solar zenith is above 70 becomes ZENITH_CLAMP (16000); le0
+        # also substitutes solz <= 0 (polar night).  Only the zenith test
+        # triggers it; inputs failing other QA tests keep their values.
+        # Mode off = v1.3.0 behaviour (Band_31 only, > 70).  See LowSun.
         # ---
-        lowSunT = int(os.environ.get('VCF_LOWSUN_T', '0') or 0)
-        lowSunTiles = os.environ.get('VCF_LOWSUN_TILES', '')
+        lowSunT, lowSunLe0 = LowSun.settings()
 
-        if lowSunT > 0 and \
-           self.bandName in BandDayFile.LOW_SUN_BANDS and \
-           (not lowSunTiles or self._tid in lowSunTiles.split(',')):
+        if self.bandName in BandDayFile.LOW_SUN_BANDS and \
+           LowSun.appliesTo(self._tid):
 
             productType = self._productType
             bandPt = self._productType.getProductTypeForBand(self.bandName)
@@ -146,10 +141,7 @@ class BandDayFile(DayFile):
                 productType = bandPt
 
             solz = self.getSolz(productType=productType)
-            lowSun = solz > lowSunT
-
-            if os.environ.get('VCF_LOWSUN_LE0', '0') == '1':
-                lowSun |= solz <= 0
+            lowSun = LowSun.mask(solz, lowSunT, lowSunLe0)
 
             return np.where(lowSun, self.ZENITH_CLAMP, outBand)
 
