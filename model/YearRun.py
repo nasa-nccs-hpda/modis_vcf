@@ -24,16 +24,22 @@ import time
 #   metrics:<tile>   the predictor metrics of every model, one tile          []
 #   split:<model>    TrainingManifest.build (S5: tiles in parallel)          [metrics of the manifest's tiles]
 #   fit:<model>      fitAltModel.py, then the compact copy (CompactForest)   [split:<model>]
-#   map:<tile>       vcfPredict, one step (blend A + BP10 inside)            [metrics:<tile>, fit:tree, fit:bare]
+#   map:<tile>       vcfPredict, one step (blend A + BP10 inside)            [metrics:<tile>, fit:tree, fit:bare, fit:partner]
+#                    then, on blend tiles with V4r built in the run, the V4r statistics (model/V4r.py compose)
 # A model can instead be given ready-made (spec "models"/<name>/"fixed"); it then has no split or fit task.
+# Blend A partner (spec "partner"; S7 / D4): V4r composites, counts and V4r metrics are built in metrics:<tile> (model/V4r.py,
+# low-sun mode off) for the partner's blend tiles and, when the partner is fitted, its training tiles; split:partner builds the
+# partner's training rows from the V4r root, fit:partner fits it.
 # metrics, split and fit failures are fatal (they break the year); a map is retried once, then recorded.
 # Every attempt appends one row to <runRoot>/timing/tasks.csv: task, host, start, end, seconds, CPU seconds
 # (user + system, from wait4: the commands and the descendants they reaped), peak RSS of the task's process tree
 # and bytes read / written (/proc/<pid>/io rchar / wchar: through read and write calls, incl. page-cache hits), both sampled every 5 s (short-lived processes may be undercounted), return code.  The partner's V4r metrics and the cloud counts are inputs
-# (blend/v4r_year.py); computing them in the run is S7.
+# (blend/v4r_year.py) only in the "borrowed" partner form below.
 #
 # Spec (JSON): year, runRoot, lowSun, models {tree, bare: {manifest, predictors, trainingType, fit {...}} or
-# {fixed: {model, topN}}}, partner (optional) {model, topN, metricsDir, counts, tiles}, mapTiles,
+# {fixed: {model, topN}}}, partner (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
+# {tiles, fixed: {model, topN}} (fixed model, V4r built in the run) or {tiles, model, topN, metricsDir, counts} (borrowed: no V4r
+# built), mapTiles,
 # metricsTiles (optional; default: the manifests' tiles and mapTiles), workers {metrics, split, mapJobs},
 # fitHosts, slots {host prefix: n}, memGB {task type: GB},
 # cleanup (optional) {mode: after_map (default) | off, keepTiles: [...]}, maxBacklog (optional),
@@ -137,6 +143,10 @@ class YearRun(object):
         self.logger = logger or logging.getLogger('runYear')
         self.models = self.spec['models']
         self.partner = self.spec.get('partner')
+        self.partnerMode = None if not self.partner else 'borrowed' if 'metricsDir' in self.partner else \
+            'fixed' if 'fixed' in self.partner else 'fit'
+        self.v4rRoot = self.root / 'Python' / 'v4r'
+        self.countsDir = self.root / 'out' / 'v4r_counts'
         cleanup = self.spec.get('cleanup', {})
         self.cleanupMode = cleanup.get('mode', 'after_map')
 
@@ -151,9 +161,12 @@ class YearRun(object):
     # ------------------------------------------------------------------------
     # manifest tiles
     # ------------------------------------------------------------------------
+    def _model(self, name: str) -> dict:
+        return self.partner if name == 'partner' else self.models[name]
+
     def _manifestTiles(self, name: str) -> list:
 
-        meta = json.loads(Path(self.models[name]['manifest'] + '.json').read_text())
+        meta = json.loads(Path(self._model(name)['manifest'] + '.json').read_text())
         tiles = set()
 
         for part in meta['parts'].values():
@@ -170,10 +183,16 @@ class YearRun(object):
         mapTiles = list(self.spec['mapTiles'])
         mt = self.spec.get('metricsTiles')
 
+        if self.partnerMode == 'fit':
+            fitted.append('partner')
+
         self.trainingTiles = set().union(*[self._manifestTiles(m) for m in fitted])
+        partnerTiles = set(self.partner['tiles']) if self.partner else set()
+        self.v4rTiles = set() if self.partnerMode in (None, 'borrowed') else \
+            (partnerTiles & set(mapTiles)) | (set(self._manifestTiles('partner')) if self.partnerMode == 'fit' else set())
 
         if mt is None:
-            mt = sorted(set(mapTiles) | self.trainingTiles)
+            mt = sorted(set(mapTiles) | self.trainingTiles | self.v4rTiles)
 
         tasks, deps, kind = [], {}, {}
 
@@ -191,7 +210,8 @@ class YearRun(object):
         for t in mapTiles:
             k = 'map:' + t
             tasks.append(k)
-            deps[k] = (['metrics:' + t] if t in mt else []) + ['fit:' + m for m in fitted]
+            deps[k] = (['metrics:' + t] if t in mt else []) + \
+                ['fit:' + m for m in fitted if m != 'partner' or t in partnerTiles]
             kind[k] = 'map'
 
         return tasks, deps, kind
@@ -245,7 +265,10 @@ class YearRun(object):
     def modelPaths(self, name: str) -> tuple:
         """(model, topN) for vcfPredict: the compact copy of a fitted model, or the fixed one."""
 
-        m = self.models[name]
+        m = self._model(name)
+
+        if name == 'partner' and self.partnerMode == 'borrowed':
+            return m['model'], m['topN']
 
         if 'fixed' in m:
             return m['fixed']['model'], m['fixed']['topN']
@@ -266,12 +289,14 @@ class YearRun(object):
         if kind == 'metrics':
             return [py + ['-m', 'modis_vcf.view.runYear', 'metrics', '--spec', str(self.specFile), '--tile', arg]]
 
-        m = self.models.get(arg, {})
+        m = self._model(arg) if kind in ('split', 'fit') else {}
 
         if kind == 'split':
+            # The partner's rows come from the V4r root, built in mode off (Q3).
+            root, sls = (self.v4rRoot, ['--lowSun', 'off']) if arg == 'partner' else (self.metricsRoot, ls)
             return [py + ['-m', 'modis_vcf.view.trainingManifest', 'build', '--manifest', m['manifest'],
-                          '--predictors', m['predictors'], '--root', str(self.metricsRoot), '-y', str(self.year),
-                          '-o', str(self.root / 'Python' / 'splits' / arg), '--workers', str(w.get('split', 6))] + ls]
+                          '--predictors', m['predictors'], '--root', str(root), '-y', str(self.year),
+                          '-o', str(self.root / 'Python' / 'splits' / arg), '--workers', str(w.get('split', 6))] + sls]
 
         if kind == 'fit':
             s, d, f = self.root / 'Python' / 'splits' / arg, self.root / 'Python' / 'models' / arg, m['fit']
@@ -292,14 +317,25 @@ class YearRun(object):
                         '--nvn', nvn, '-y', str(self.year), '--nJobs', str(w.get('mapJobs', 8)), '--tcAgg', 'median',
                         '--nvAgg', 'median'] + ls
 
-            if self.partner and arg in self.partner['tiles']:
-                cmd += ['--partner', self.partner['model'], '--partnerTopN', self.partner['topN'],
-                        '--partnerMetricsDir', self.partner['metricsDir'], '--counts', self.partner['counts']]
+            blend = self.partner and arg in self.partner['tiles']
+
+            if blend:
+                pm, pn = self.modelPaths('partner')
+                borrowed = self.partnerMode == 'borrowed'
+                cmd += ['--partner', pm, '--partnerTopN', pn,
+                        '--partnerMetricsDir', self.partner['metricsDir'] if borrowed else str(self.v4rRoot),
+                        '--counts', self.partner['counts'] if borrowed else str(self.countsDir)]
 
             if self.spec.get('lowSunCheck') == 'off':
                 cmd += ['--lowSunCheck', 'off']
 
-            return [cmd]
+            cmds = [cmd]
+
+            if blend and arg in self.v4rTiles:
+                cmds.append(py + ['-m', 'modis_vcf.model.V4r', 'compose', arg, str(self.year), str(self.v4rRoot),
+                                  str(self.metricsRoot), str(self.countsDir),
+                                  str(self.root / 'out' / 'maps' / ('Percent_Tree_Cover-%s-%d.tif' % (arg, self.year)))])
+            return cmds
 
         raise ValueError(task)
 
@@ -338,6 +374,36 @@ class YearRun(object):
 
         for n in names:
             mt.getMetricFromRf(n)
+
+        if tile not in self.v4rTiles:
+            return
+
+        # V4r composites and counts (S7), then the partner's predictors on the V4r root (mode off).
+        from modis_vcf.model import V4r
+        done = self.countsDir / ('%s_v4r_build.json' % tile)
+        comp = self.v4rRoot / tile / str(self.year) / '2-Composites'
+
+        if not done.exists():
+            if comp.exists() and any(comp.iterdir()):
+                # An interrupted attempt (e.g. a guard kill): move its partial V4r composites aside, then rebuild.
+                aside = self.root / 'Python' / 'failed_attempts' / ('v4r_%s_%d' % (tile, int(time.time())))
+                aside.mkdir(parents=True)
+                shutil.move(str(comp), str(aside / '2-Composites'))
+            V4r.buildTile(tile, self.year, self.metricsRoot, self.v4rRoot, self.countsDir,
+                          int(self.spec.get('workers', {}).get('v4r', 8)), self.logger)
+
+        p = self.partner
+
+        if 'fixed' in p:
+            with open(p['fixed']['topN'], 'rb') as f:
+                pnames = list(pickle.load(f))
+        else:
+            pnames = Path(p['predictors']).read_text().split()
+
+        vm = Metrics(tile, self.year, ProductTypeMod44(MOD44_DIR), self.v4rRoot, self.logger, lowSun='off')
+
+        for n in pnames:
+            vm.getMetricFromRf(n)
 
     # ------------------------------------------------------------------------
     # start / poll
@@ -454,12 +520,15 @@ class YearRun(object):
             except FileExistsError:
                 continue
 
-            yd = self.metricsRoot / tile / str(self.year)
             freed, gone = 0, []
 
-            for name in ('1-Days', '2-Composites', '3-Metrics'):
+            for base, name in [(b, n) for b in (self.metricsRoot, self.v4rRoot)
+                               for n in ('1-Days', '2-Composites', '3-Metrics')]:
 
-                d = yd / name
+                d = base / tile / str(self.year) / name
+
+                if base == self.v4rRoot:
+                    name = 'v4r/' + name
 
                 if not d.exists() and not d.is_symlink():
                     continue

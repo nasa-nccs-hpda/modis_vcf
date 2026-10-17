@@ -14,10 +14,23 @@ version are fitted with the recipe given here. Maintained with every code commit
 ## Unreleased: v1.4.1 (code tidy-up and production benchmark; in progress)
 
 Goal: the v1.4.0 product from one package, in one driver per year, with exact speed-ups, then a benchmark against the C code (time,
-memory, disk). Every item below is **exact** against v1.4.0 unless stated. v1.4.1 is tagged only when the benchmark passes.
+memory, disk). Every item below is **exact** against v1.4.0 unless stated (S7 changes the 2019 blend layers; see its entry). v1.4.1 is tagged only when the benchmark passes.
 Plan: `Reports/V141_Code_Tidyup_And_Full_Retrain_Plan.md`.
 
-- **Dailies kept in memory** (S6, 2026-10-17; hash filled in by the next commit). `BandDayFile` no longer writes the daily inputs to
+- **V4r inputs and the blend partner built in the year driver** (S7, 2026-10-17; hash filled in by the next commit). `model/V4r.py` makes the blend A
+  partner inputs (V4r composites, snow-aware cloud counts, compose statistics) per tile from the HDF inputs in low-sun mode off,
+  without daily files; the arithmetic is `blend/v4r_year.py`'s. `YearRun` builds them in `metrics:<tile>` for the partner's blend
+  tiles and training tiles, and the partner is either fitted in the run (`split:partner` from the V4r root + `fit:partner`; the
+  default, since a partner is year-specific), given as a fixed model, or borrowed as before (ready-made V4r metrics and counts).
+  About 1.5-2.3 min per tile against about 10 for the v1.4.0 path. **Product change for 2019 blend tiles only:** the V4r composites
+  and counts equal v1.4.0's (0 differences on 4 tiles; h12v09 composites byte-identical; counts equal on 61 of 63 tiles), but a
+  partner refitted from current inputs cannot equal V4R60. V4R60's training rows on h16v01 predate the Greenland zenith fix
+  (`13773db`), and on h24v04 / h27v06 its old build read the 2020065 slot that the pipeline never reads. Held-out: refit vs V4R60
+  +0.004 MAE (95% tile bootstrap [-0.002, +0.012]; +0.001 on the 60 tiles with identical inputs): a tie, accepted by the project lead.
+  On the 4 test maps, tree cover changes on 3.50 M px of h12v09 and 0.10 M px of h20v09 (non-vegetated: 2 and 283 px); h16v02,
+  h17v01 and the SD, Quality and Cloud layers are identical. Tree and bare splits and models remain exact.
+  Evidence: `Reports/V141_S7_Proof_Partner_Diagnosis_Results.md`, plan `Reports/V141_S6_S7_S8_Plan.md`.
+- **Dailies kept in memory** (S6, `50785f2`, 2026-10-17). `BandDayFile` no longer writes the daily inputs to
   `1-Days` (each is read once, by the worker that builds its composite); composites and metrics are written as before, and existing
   daily files are still read. `makeMetrics.py --writeIntermediates` and the year driver's `writeDailiesTiles` write them for
   diagnostics (`VCF_WRITE_DAILIES=1`, seen by the spawned workers); `blend/days_year.py` always writes them (the v1.4.0 V4r path).
