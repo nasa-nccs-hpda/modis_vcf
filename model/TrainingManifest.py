@@ -23,6 +23,8 @@ from modis_vcf.model.Metrics import Metrics
 # manifest whenever the metrics can be rebuilt.
 #
 #   extract(split dir) -> manifest   the sample of an existing split
+#   sample(label files) -> manifest  the sample drawn from the label rasters
+#                                    (fresh-sample mode)
 #   build(manifest)    -> split dir  xTrain / xTest / yTrain / yTest /
 #                                    keysTrain / keysTest, in manifest order
 #
@@ -90,6 +92,99 @@ def extract(splitDir: Path, outFile: Path, version: str, notes: str = '') -> dic
         for k in ('keys', 'y'):
             f = splitDir / (k + part + '.parq')
             meta['source_sha256'][f.name] = _sha256(f)
+
+    m = pd.concat(frames, ignore_index=True)[COLUMNS]
+    m.to_parquet(outFile, index=False)
+    meta['sha256'] = _sha256(outFile)
+    Path(str(outFile) + '.json').write_text(json.dumps(meta, indent=1))
+    return meta
+
+
+# ----------------------------------------------------------------------------
+# sample
+#
+# Fresh-sample mode: the sample drawn from the label rasters by the rule the
+# product's splits were made with.  Every pixel of a label file (uint8,
+# 4800 x 4800, row-major) whose value is not noData is a row: key (tid-year,
+# x = row, y = column), label as int16.  Rows are sorted by key (stable) and
+# a row is held out (Test) when the pandas hash of its key is 0 mod 5.
+# Extra rows (a parquet with tid-year, x, y, label: the h16v02 ice points,
+# label 100) are a label input too; they are split by the same hash and
+# appended after the label-file rows of each part, in their file order.
+# Row ids: 'range' numbers each part from 0; 'position' keeps each label-file
+# row's position in the sorted set (extra rows continue after the last one).
+# ----------------------------------------------------------------------------
+KEY_DTYPES = {'tid-year': object, 'x': np.int64, 'y': np.int64}
+
+
+def _testRows(keys: pd.DataFrame) -> np.ndarray:
+    return (pd.util.hash_pandas_object(keys[['tid-year', 'x', 'y']], index=False) % 5 == 0).to_numpy()
+
+
+def sample(labelFiles: dict, trainingType: str, year: int, outFile: Path, version: str, extra: Path = None,
+           index: str = 'range', noData: int = 255, notes: str = '') -> dict:
+    """Write <outFile> (parquet) and <outFile>.json from label files {tile: path}."""
+
+    outFile = Path(outFile)
+
+    if outFile.exists():
+        raise RuntimeError(str(outFile) + ' exists')
+
+    if index not in ('range', 'position'):
+        raise ValueError('index must be range or position')
+
+    frames, sources = [], {}
+
+    for tile in sorted(labelFiles):
+
+        f = Path(labelFiles[tile])
+        a = np.fromfile(f, np.uint8)
+
+        if a.size != 4800 * 4800:
+            raise RuntimeError(str(f) + ': ' + str(a.size) + ' values, not 4800 x 4800')
+
+        a = a.reshape(4800, 4800)
+        x, y = np.nonzero(a != noData)
+        frames.append(pd.DataFrame({'tid-year': tile + '-' + str(year), 'x': x, 'y': y,
+                                    'label': a[x, y].astype(np.int16)}))
+        sources[tile] = dict(file=str(f), sha256=_sha256(f))
+
+    base = pd.concat(frames, ignore_index=True).astype(KEY_DTYPES)
+    base = base.sort_values(['tid-year', 'x', 'y'], kind='mergesort', ignore_index=True)
+    base['test'] = _testRows(base)
+    base['row'] = np.arange(len(base), dtype=np.int64)
+
+    if extra is not None:
+
+        e = pd.read_parquet(extra)[['tid-year', 'x', 'y', 'label']].astype(KEY_DTYPES)
+        e['label'] = e['label'].astype(np.int16)
+        e['test'] = _testRows(e)
+        e['row'] = len(base) + np.arange(len(e), dtype=np.int64)
+        sources['extra'] = dict(file=str(extra), sha256=_sha256(Path(extra)), rows=len(e))
+        both = pd.concat([base, e], ignore_index=True)
+
+        if both.duplicated(['tid-year', 'x', 'y']).any():
+            raise RuntimeError('extra rows repeat label-file keys')
+
+    else:
+        e = base.iloc[:0]
+
+    frames, meta = [], dict(format=FORMAT, version=version, source='labels', notes=notes, trainingType=trainingType,
+                            created=datetime.datetime.now().isoformat(timespec='seconds'), year=year,
+                            rule=dict(noData=noData, order='key, stable', test='pandas hash of key % 5 == 0',
+                                      extra='appended per part', index=index),
+                            labels=sources, parts={})
+
+    for part, te in (('Train', False), ('Test', True)):
+
+        p = pd.concat([base[base.test == te], e[e.test == te]], ignore_index=True)
+        row = np.arange(len(p), dtype=np.int64) if index == 'range' else p.row.to_numpy(np.int64)
+        df = pd.DataFrame({'part': part, 'row': row, 'tid-year': p['tid-year'].to_numpy(), 'x': p.x.to_numpy(),
+                           'y': p.y.to_numpy(), 'label': p.label.to_numpy()})
+        frames.append(df)
+        tiles = df['tid-year'].str[:6].value_counts().sort_index()
+        meta['parts'][part] = dict(rows=len(df), index='range' if index == 'range' else 'stored', label_dtype='int16',
+                                   rows_per_tile={k: int(v) for k, v in tiles.items()})
 
     m = pd.concat(frames, ignore_index=True)[COLUMNS]
     m.to_parquet(outFile, index=False)

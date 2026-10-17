@@ -15,6 +15,9 @@ from modis_vcf.model.VcfPredict import MOD44_DIR
 # Training sample as a key manifest (model/TrainingManifest.py).
 #
 # trainingManifest.py extract --split <split dir> -o <manifest.parq> --version v1.4.0 [--notes text]
+# trainingManifest.py sample --labels <pattern with {tile}> --tiles <file> --trainingType pcttree|pctbare -y <year>
+#                     -o <manifest.parq> --version <name> [--extra <parquet>] [--index range|position] [--notes text]
+#   fresh-sample mode: the sample drawn from the label rasters (TrainingManifest.sample).
 # trainingManifest.py build --manifest <manifest.parq> --predictors <file> --root <metrics root> [--roots <file>]
 #                     -y <year> -o <split dir> [--tiles <file>] [--keysOnly] [--lowSun le0|s70|off] [--lowSunCheck on|off] [--workers N]
 #   --roots: lines "<tile> <metrics root>" overriding --root for those tiles.
@@ -29,6 +32,17 @@ def main():
     ex.add_argument('-o', type=Path, required=True)
     ex.add_argument('--version', required=True)
     ex.add_argument('--notes', default='')
+
+    sa = sub.add_parser('sample')
+    sa.add_argument('--labels', required=True, help='Label file path with {tile}, e.g. <dir>/{tile}.samp.bin')
+    sa.add_argument('--tiles', type=Path, required=True)
+    sa.add_argument('--trainingType', choices=['pcttree', 'pctbare'], required=True)
+    sa.add_argument('-y', type=int, required=True)
+    sa.add_argument('-o', type=Path, required=True)
+    sa.add_argument('--version', required=True)
+    sa.add_argument('--extra', type=Path, default=None, help='Extra label rows (tid-year, x, y, label), appended.')
+    sa.add_argument('--index', choices=['range', 'position'], default='range')
+    sa.add_argument('--notes', default='')
 
     bu = sub.add_parser('build')
     bu.add_argument('--manifest', type=Path, required=True)
@@ -54,6 +68,15 @@ def main():
     if args.cmd == 'extract':
 
         meta = TrainingManifest.extract(args.split, args.o, args.version, args.notes)
+        logger.info('Manifest ' + str(args.o) + ': ' +
+                    ', '.join(p + ' ' + str(meta['parts'][p]['rows']) for p in meta['parts']))
+        return 0
+
+    if args.cmd == 'sample':
+
+        tiles = args.tiles.read_text().split()
+        meta = TrainingManifest.sample({t: Path(args.labels.format(tile=t)) for t in tiles}, args.trainingType, args.y,
+                                       args.o, args.version, args.extra, args.index, notes=args.notes)
         logger.info('Manifest ' + str(args.o) + ': ' +
                     ', '.join(p + ' ' + str(meta['parts'][p]['rows']) for p in meta['parts']))
         return 0

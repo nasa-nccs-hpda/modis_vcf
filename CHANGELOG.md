@@ -17,7 +17,15 @@ Goal: the v1.4.0 product from one package, in one driver per year, with exact sp
 memory, disk). Every item below is **exact** against v1.4.0 unless stated (S7 changes the 2019 blend layers; see its entry). v1.4.1 is tagged only when the benchmark passes.
 Plan: `Reports/V141_Code_Tidyup_And_Full_Retrain_Plan.md`.
 
-- **V4r inputs and the blend partner built in the year driver** (S7, 2026-10-17; hash filled in by the next commit). `model/V4r.py` makes the blend A
+- **Fresh-sample mode: the training sample drawn from the label rasters** (P4, 2026-10-17; hash filled in by the next commit).
+  `TrainingManifest.sample` / `trainingManifest.py sample` writes a manifest straight from the label files, using the rule the
+  product's splits were made with. Every labelled pixel (value != 255) of each tile is a row, sorted by key (tid-year, x = row,
+  y = column). A row is held out when the pandas hash of its key is 0 mod 5. Extra label rows (`--extra`: the 10,000 h16v02 ice
+  points, label 100, a fixed label input whose predictors each run recomputes) are appended per part. Row ids are `range` (bare) or
+  `position` (tree), as in the v1.4.0 splits. Exact: from the v5.0.3samp tree labels (63 tiles), the 20 legacy bare label files and
+  the ice points, both manifests equal v1.4.0's (values, dtypes, order; 11,440,984 tree and 10,799,061 bare rows), and keys-only
+  splits are byte-identical. About 25 s per manifest. A year can now be built with no input from an earlier version (benchmark arm F). Evidence: `Reports/V141_P4_Fresh_Sample_Results.md`.
+- **V4r inputs and the blend partner built in the year driver** (S7, `548498e`, 2026-10-17). `model/V4r.py` makes the blend A
   partner inputs (V4r composites, snow-aware cloud counts, compose statistics) per tile from the HDF inputs in low-sun mode off,
   without daily files; the arithmetic is `blend/v4r_year.py`'s. `YearRun` builds them in `metrics:<tile>` for the partner's blend
   tiles and training tiles, and the partner is either fitted in the run (`split:partner` from the V4r root + `fit:partner`; the
