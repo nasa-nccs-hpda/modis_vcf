@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Tree-cover map for one tile, one year and one model (the V4R60 partner of blend A).
+"""DEPRECATED since v1.4.1: VcfPredict predicts the partner (--partner, --partnerTopN, --partnerMetricsDir). Kept for one version (to reproduce v1.4.0 runs); to be removed in v1.5.0.
+Tree-cover map for one tile, one year and one model (the V4R60 partner of blend A).
 Features are read from <metricsDir>/<tile>/<year>/3-Metrics/<family>.tif by band name (band metadata 'Description' with spaces -> '-',
 e.g. 'CGreenMean13 NDVI' -> 'CGreenMean13-NDVI'). The model's predictor names carry 2019 dates; year_name() maps them to --year with the
 rule of Metrics.getMetricFromRf / getYearForDay (DOY 65..353 -> year, DOY 33 -> year + 1); identity for 2019. --year is required.

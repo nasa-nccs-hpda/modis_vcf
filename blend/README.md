@@ -6,6 +6,14 @@ with tree and bare models refit on the substituted metrics) + **blend A** (tree 
 scripts with the `modis_vcf` package on the path. In v1.4.1 the V4r composite and the blend are planned to move into the package's own
 composite and map steps.
 
+## Since v1.4.1: one map step
+
+`view/vcfPredict.py` now does steps 2, 5, 6 and 7 below itself (`model/BlendA.py`):
+`vcfPredict.py ... --partner <V4R60 model> --partnerTopN <file> --partnerMetricsDir <V4r metrics root> --counts <counts_snow dir>`
+blends the tree layer on rows v06-v11 and applies BP10 (on by default; `--noBp10`). Steps 3 and 4 (V4r inputs, `--lowSun off`, and the
+partner model) stay as they are. `rawbare.py`, `map_predict.py`, `blend_year.py` and `bp10_apply.py` are DEPRECATED: kept for one version
+to reproduce v1.4.0 runs, to be removed in v1.5.0. The order below is the v1.4.0 one.
+
 ## Order for one year
 
 Since v1.4.1 every script that reads or writes a year's files takes a required `--year` (`blend_year.py`, `map_predict.py`,

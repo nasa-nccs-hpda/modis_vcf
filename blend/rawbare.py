@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""The UNCAPPED non-vegetated layer for one tile-year, from the package's own prediction (VcfPredict._runPrediction, MEDIAN, water
+"""DEPRECATED since v1.4.1: the uncapped non-vegetated value is used inside the map step. Kept for one version (to reproduce v1.4.0 runs); to be removed in v1.5.0.
+The UNCAPPED non-vegetated layer for one tile-year, from the package's own prediction (VcfPredict._runPrediction, MEDIAN, water
 masked), i.e. VcfPredict.runTileForYear without the sum cap. blend_year.py --rawBare and bp10_apply.py read it.
 Built-in self-test (every tile): min(raw, 100 - stored tree) on land must equal the stored capped bare map on every pixel; otherwise
 exit 1. Run in low-sun mode le0 (the default) with the v1.4.0 models. Not for v00 tiles.

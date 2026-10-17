@@ -159,14 +159,24 @@ def mask(solz: np.ndarray, t: int = None, le0: bool = None) -> np.ndarray:
 # ----------------------------------------------------------------------------
 # guard
 # ----------------------------------------------------------------------------
-def guard(metrics) -> None:
-    """Stamp, check and count the low-sun mode of one Metrics root."""
+def guard(metrics, mode: str = None) -> None:
+    """Stamp, check and count the low-sun mode of one Metrics root.  mode
+    names the mode the root must have been built with when it is not the one
+    in force (the blend partner's V4r root: off)."""
 
     root = metrics._outDir
     key = str(root)
     t, le0 = settings()
     tid = metrics._tid
     effective = modeName(t, le0) if appliesTo(tid) else 'off'
+
+    if mode is not None:
+
+        if mode not in MODES:
+            raise ValueError('Low-sun mode must be one of ' + str(list(MODES)))
+
+        effective = mode
+        t, le0 = MODES[mode]
 
     if _guarded.get(key) == effective:
         return

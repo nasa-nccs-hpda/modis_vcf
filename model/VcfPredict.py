@@ -21,6 +21,9 @@ from osgeo import gdal
 from osgeo import gdal_array
 from osgeo import osr
 
+import json
+
+from modis_vcf.model import BlendA
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompactForest import CompactForest
 from modis_vcf.model.Metrics import Metrics
@@ -80,7 +83,13 @@ class VcfPredict(object):
                  nJobs: int = 1,
                  treeCoverAgg: str = 'mean',
                  nonvegAgg: str = 'mean',
-                 writeSd: bool = True):
+                 writeSd: bool = True,
+                 partnerModelFile: Path = None,
+                 partnerTopNFile: Path = None,
+                 partnerMetricsDir: Path = None,
+                 countsDir: Path = None,
+                 partnerAgg: str = 'median',
+                 bp10: bool = True):
 
         # Validate the output directory.
         if outDir is None or not outDir.exists() or not outDir.is_dir():
@@ -123,6 +132,32 @@ class VcfPredict(object):
         self._treeCoverAgg: str = treeCoverAgg
         self._nonvegAgg: str = nonvegAgg
         self._writeSd: bool = writeSd
+
+        # ---
+        # Blend A partner (BlendA): a tree model on the V4r metrics, blended
+        # into the tree layer on rows v06-v11 with the cloud counts in
+        # countsDir.  Without a partner the tree layer is the clear model's.
+        # ---
+        self._partnerRf = None
+        self._partnerTopN: list = None
+        self._partnerMetricsDir: Path = partnerMetricsDir
+        self._countsDir: Path = countsDir
+        self._partnerAgg: str = partnerAgg
+
+        if partnerModelFile is not None:
+
+            if partnerTopNFile is None or partnerMetricsDir is None or countsDir is None:
+                raise ValueError('Blend A needs the partner model, its top-N file, the partner (V4r) metrics '
+                                 'directory and the cloud counts directory.')
+
+            self._partnerRf = VcfPredict._loadModel(partnerModelFile)
+            self._partnerRf.set_params(n_jobs=nJobs)
+
+            with open(partnerTopNFile, 'rb') as f:
+                self._partnerTopN = pickle.load(f)
+
+        # BP10 (BlendA.bp10), the last step of the product since v1.4.0.
+        self._bp10: bool = bp10
 
         # Instantiate the product type for the metrics.
         self._productType = ProductTypeMod44(mod44Dir)
@@ -172,7 +207,8 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     # getMetrics
     # ------------------------------------------------------------------------
-    def _getMetrics(self, tid: str, year: int, rfNames: list) -> pd.DataFrame:
+    def _getMetrics(self, tid: str, year: int, rfNames: list, metricsDir: Path = None,
+                    lowSun: str = None) -> pd.DataFrame:
 
         names = rfNames
         
@@ -181,8 +217,9 @@ class VcfPredict(object):
         mInstance = Metrics(tid, 
                             year, 
                             self._productType, 
-                            self._metricsDir, 
-                            self._logger)
+                            metricsDir or self._metricsDir, 
+                            self._logger,
+                            lowSun=lowSun)
         
         metrics = pd.DataFrame()
         
@@ -219,13 +256,15 @@ class VcfPredict(object):
                        year: int,
                        rf: RandomForestRegressor,
                        topN: list,
-                       agg: str = 'mean') -> tuple:
+                       agg: str = 'mean',
+                       metricsDir: Path = None,
+                       lowSun: str = None) -> tuple:
         """
         Returns (prediction, sd).  prediction is the masked int16 layer; sd is the members' population SD stored
         as round(100 * SD) (0 on water and out-of-projection), or None when the SD is switched off or the model
         has no ensemble members (e.g. XGBoost).
         """
-        X: pd.DataFrame = self._getMetrics(tid, year, topN)
+        X: pd.DataFrame = self._getMetrics(tid, year, topN, metricsDir, lowSun)
 
         # ---
         # Ensemble models: one pass over the members gives the value (combined by agg) and the SD.
@@ -456,6 +495,30 @@ class VcfPredict(object):
         mask: np.ndarray = self._getMask(tid, year)
         okMask = (mask != VcfPredict.MASK_WATER) & (mask != VcfPredict.MASK_OUT_OF_PROJ)
 
+        # ---
+        # Blend A (BlendA.blend) on rows v06-v11 when a partner is given.  The
+        # partner reads its own (V4r, unsubstituted) metrics.  The tree SD
+        # layer stays the clear model's.  The sum cap below then uses the
+        # blended tree, as blend/blend_year.py --rawBare did.
+        # ---
+        chain = dict(tile=tid, year=year, blend=False, bp10=None)
+
+        if self._partnerRf is not None and BlendA.inScope(VcfPredict._vTile(tid)):
+
+            self._logger.info('Blend A: predicting the partner for ' + tid)
+
+            partner, _ = self._runPrediction(tid,
+                                             year,
+                                             self._partnerRf,
+                                             self._partnerTopN,
+                                             self._partnerAgg,
+                                             metricsDir=self._partnerMetricsDir,
+                                             lowSun='off')
+
+            pctTc, _, stats = BlendA.blend(pctTc, partner, BlendA.loadCounts(self._countsDir, tid))
+            chain.update(blend=True, **stats)
+            del partner
+
         pctNonveg: np.ndarray = np.where(okMask,
                                          np.minimum(pctNonvegRaw, 100 - pctTc),
                                          pctNonvegRaw)
@@ -476,6 +539,15 @@ class VcfPredict(object):
 
         pctNontreeVeg: np.ndarray = 100 - pctTc - pctNonveg
         pctNontreeVeg = self._maskPrediction(tid, year, pctNontreeVeg)
+
+        # BP10 (BlendA.bp10) on the final layers, from the uncapped non-vegetated value.
+        if self._bp10:
+
+            pctTc, pctNonveg, pctNontreeVeg, chain['bp10'] = \
+                BlendA.bp10(pctTc, pctNonveg, pctNontreeVeg, pctNonvegRaw)
+
+        if chain['blend'] or self._bp10:
+            (Path(self._outDir) / (tid + '-' + str(year) + '-chain.json')).write_text(json.dumps(chain))
 
         self._write(tid, year, 'Percent_Tree_Cover', pctTc)
         self._write(tid, year, 'Percent_NonVegetated', pctNonveg)

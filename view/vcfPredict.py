@@ -84,6 +84,35 @@ def main():
                         help='Do not write the Percent_Tree_Cover_SD and Percent_NonVegetated_SD layers.')
 
 
+    parser.add_argument('--partner',
+                        type=Path,
+                        default=None,
+                        help='Blend A partner tree model (V4R60; joblib file or compact .cf '
+                             'directory).  With it, the tree layer of tiles in rows v06-v11 '
+                             '(30N-30S) is blended with the partner (model/BlendA.py).')
+
+    parser.add_argument('--partnerTopN',
+                        type=Path,
+                        default=None,
+                        help='The partner model\'s top-N predictor file.')
+
+    parser.add_argument('--partnerMetricsDir',
+                        type=Path,
+                        default=None,
+                        help='Metrics root of the partner\'s V4r composites (built with '
+                             '--lowSun off; blend/v4r_year.py).')
+
+    parser.add_argument('--counts',
+                        type=Path,
+                        default=None,
+                        help='Directory with <tile>_counts_snow.npz (cloud counts CUR_ZS, '
+                             'blend/v4r_year.py) for the year being mapped.')
+
+    parser.add_argument('--noBp10',
+                        action='store_true',
+                        help='Do not apply BP10 (raw non-vegetated 100 and tree 1-9 -> tree 0, '
+                             'non-vegetated 100), the last step of the product since v1.4.0.')
+
     parser.add_argument('--lowSun',
                         choices=['le0', 's70', 'off'],
                         default=None,
@@ -119,7 +148,12 @@ def main():
                       nJobs=args.nJobs,
                       treeCoverAgg=args.tcAgg,
                       nonvegAgg=args.nvAgg,
-                      writeSd=not args.noSd)
+                      writeSd=not args.noSd,
+                      partnerModelFile=args.partner,
+                      partnerTopNFile=args.partnerTopN,
+                      partnerMetricsDir=args.partnerMetricsDir,
+                      countsDir=args.counts,
+                      bp10=not args.noBp10)
 
     vcfp.run(tids=args.t, years=[args.y])
 

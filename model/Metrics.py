@@ -94,7 +94,8 @@ class Metrics(object):
                  productType: ProductType,
                  outDir: Path,
                  logger: logging.RootLogger,
-                 nanThreshold: int = 9999):
+                 nanThreshold: int = 9999,
+                 lowSun: str = None):
 
         # Output directory
         if not outDir or not outDir.exists() or not outDir.is_dir():
@@ -172,7 +173,9 @@ class Metrics(object):
         # Low-sun mode: stamp this root, check its cached dailies against the
         # mode in force, and write the per-day substitution counts (LowSun).
         # ---
-        LowSun.guard(self)
+        # lowSun: the mode this root must have been built with, when it is not
+        # the one in force (the blend partner's V4r root is unsubstituted).
+        LowSun.guard(self, lowSun)
             
     # ------------------------------------------------------------------------
     # applyThreshold

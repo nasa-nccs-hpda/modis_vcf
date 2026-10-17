@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""BP10, the last step of v1.4.0 (all tiles): where the bare model's raw value is 100 and the final tree is 1-9: tree = 0, bare = 100,
+"""DEPRECATED since v1.4.1: VcfPredict applies BP10 by default (--noBp10 to switch it off; model/BlendA.py). Kept for one version (to reproduce v1.4.0 runs); to be removed in v1.5.0.
+BP10, the last step of v1.4.0 (all tiles): where the bare model's raw value is 100 and the final tree is 1-9: tree = 0, bare = 100,
 non-tree = 0. Elsewhere the input is copied.
 Input: <src>/<layer>-<tile>-<year>.tif (blend_year.py output for the blend tiles, the LE0 maps for the others), raw bare
 <raw>/Percent_NonVegetated_Raw-<tile>-<year>.tif (rawbare.py; first --raw dir that has the tile). Land = all three layers 0-100; other

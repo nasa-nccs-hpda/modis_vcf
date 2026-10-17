@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Blend A for one tile-year (tree layer, MODIS rows v06-v11 = 30N-30S):
+"""DEPRECATED since v1.4.1: VcfPredict blends the tree layer (--partner ... --counts; model/BlendA.py). Kept for one version (to reproduce v1.4.0 runs); to be removed in v1.5.0.
+Blend A for one tile-year (tree layer, MODIS rows v06-v11 = 30N-30S):
  tree = floor((1 - w) * clear + w * partner + 0.5), w = cloud_w(CUR_ZS, heavy5) * cover_w(clear, ramp20-50) (gate_common);
         on pixels valid (0-100) in clear and partner; others keep clear. --mask <maps dir> also requires validity in that map's tree
         (the 2019 product used the V1-V4C map here).
