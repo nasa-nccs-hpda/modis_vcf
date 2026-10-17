@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 import sys
 
+from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model import LowSun
 from modis_vcf.model.ProductTypeMod09A import ProductTypeMod09A
@@ -91,7 +92,16 @@ def main():
                              'production, where every run builds fresh '
                              'metrics roots.')
 
+    parser.add_argument('--writeIntermediates',
+                        action='store_true',
+                        help='Also write the daily inputs to 1-Days (for '
+                             'diagnostics).  By default they are kept in '
+                             'memory only; composites and metrics are '
+                             'always written.  Results are the same.')
+
     args = parser.parse_args()
+
+    BandDayFile.setWriteDailies(args.writeIntermediates)
     
     # ---
     # Low-sun mode (passed to composite workers through the environment).

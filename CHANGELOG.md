@@ -17,7 +17,14 @@ Goal: the v1.4.0 product from one package, in one driver per year, with exact sp
 memory, disk). Every item below is **exact** against v1.4.0 unless stated. v1.4.1 is tagged only when the benchmark passes.
 Plan: `Reports/V141_Code_Tidyup_And_Full_Retrain_Plan.md`.
 
-- **Per-tile clean-up of intermediates in the year driver** (S8, 2026-10-17; hash filled in by the next commit). `YearRun` deletes a tile's `1-Days`,
+- **Dailies kept in memory** (S6, 2026-10-17; hash filled in by the next commit). `BandDayFile` no longer writes the daily inputs to
+  `1-Days` (each is read once, by the worker that builds its composite); composites and metrics are written as before, and existing
+  daily files are still read. `makeMetrics.py --writeIntermediates` and the year driver's `writeDailiesTiles` write them for
+  diagnostics (`VCF_WRITE_DAILIES=1`, seen by the spawned workers); `blend/days_year.py` always writes them (the v1.4.0 V4r path).
+  8.48 GB less written per tile (~2.5 TB per 292-tile year); run time unchanged. Exact: composites, metrics and all 7 map layers
+  identical to `532f9eb` on 4 tiles; written dailies byte-identical; a resumed root rebuilds identical composites without dailies; an
+  unstamped root without dailies is still refused. Evidence: `Reports/V141_S6_Dailies_In_Memory_Results.md`.
+- **Per-tile clean-up of intermediates in the year driver** (S8, `532f9eb`, 2026-10-17). `YearRun` deletes a tile's `1-Days`,
   `2-Composites` and `3-Metrics` once every task that reads them is done (its map, and the splits of the manifests it is in); a tile
   whose map failed is kept; only real folders inside the run's metrics root are deleted (links and outside paths refused); stamps and
   low-sun counts stay; each deletion logged with exact bytes (`status/cleanup.log`). Spec `cleanup {mode: after_map | off, keepTiles}`

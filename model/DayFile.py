@@ -201,9 +201,21 @@ class DayFile(ABC):
             
                 self._raster = self._getRaster(applyQa)
                 self._raster = self._raster.astype(self._dtype)
-                self._raster.tofile(self.outName)
+
+                if self._writeCache():
+                    self._raster.tofile(self.outName)
 
         return self._raster
+
+    # ------------------------------------------------------------------------
+    # writeCache
+    #
+    # Whether a computed raster is also written to outName.  Composites always
+    # are; BandDayFile (the dailies) overrides this.  An existing file is
+    # still read either way.
+    # ------------------------------------------------------------------------
+    def _writeCache(self) -> bool:
+        return True
         
     # ------------------------------------------------------------------------
     # tid

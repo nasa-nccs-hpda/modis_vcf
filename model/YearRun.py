@@ -36,7 +36,8 @@ import time
 # {fixed: {model, topN}}}, partner (optional) {model, topN, metricsDir, counts, tiles}, mapTiles,
 # metricsTiles (optional; default: the manifests' tiles and mapTiles), workers {metrics, split, mapJobs},
 # fitHosts, slots {host prefix: n}, memGB {task type: GB},
-# cleanup (optional) {mode: after_map (default) | off, keepTiles: [...]}, maxBacklog (optional).
+# cleanup (optional) {mode: after_map (default) | off, keepTiles: [...]}, maxBacklog (optional),
+# writeDailiesTiles (optional: tiles whose daily inputs are also written to 1-Days; by default none are).
 #
 # Clean-up: once every task that reads a tile's metrics is done (its map, and the splits of the manifests
 # it is in), that tile's 1-Days, 2-Composites and 3-Metrics are deleted, unless the tile is in keepTiles.
@@ -310,11 +311,14 @@ class YearRun(object):
 
         import pickle
         from modis_vcf.model import LowSun
+        from modis_vcf.model.BandDayFile import BandDayFile
         from modis_vcf.model.Metrics import Metrics
         from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
         from modis_vcf.model.VcfPredict import MOD44_DIR
 
         LowSun.configure(self.spec.get('lowSun', 'le0'))
+        # Dailies stay in memory unless the tile is listed for diagnostics (the composite workers inherit this).
+        BandDayFile.setWriteDailies(tile in self.spec.get('writeDailiesTiles', []))
         names = []
 
         for name in ('tree', 'bare'):

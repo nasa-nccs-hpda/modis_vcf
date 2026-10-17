@@ -1,4 +1,4 @@
-
+import os
 
 import numpy as np
 
@@ -33,12 +33,34 @@ class BandDayFile(DayFile):
                      ProductType.BAND4, ProductType.BAND5, ProductType.BAND6,
                      ProductType.BAND7, ProductType.BAND31)
 
+    # ---
+    # The dailies are kept in memory and not written to 1-Days, unless
+    # VCF_WRITE_DAILIES=1 (--writeIntermediates).  Each daily is read once,
+    # by the worker that builds its composite, so writing it only costs disk.
+    # An environment variable, so that spawned composite workers see it.
+    # ---
+    WRITE_DAILIES_ENV = 'VCF_WRITE_DAILIES'
+
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
     def __init__(self):
-        
+
         super(BandDayFile, self).__init__()
+
+    # ------------------------------------------------------------------------
+    # writeDailies
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def setWriteDailies(write: bool) -> None:
+        os.environ[BandDayFile.WRITE_DAILIES_ENV] = '1' if write else '0'
+
+    @staticmethod
+    def writeDailies() -> bool:
+        return os.environ.get(BandDayFile.WRITE_DAILIES_ENV, '0') == '1'
+
+    def _writeCache(self) -> bool:
+        return BandDayFile.writeDailies()
 
     # ------------------------------------------------------------------------
     # getSolz
