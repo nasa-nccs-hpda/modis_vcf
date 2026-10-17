@@ -16,7 +16,7 @@ from modis_vcf.model.VcfPredict import MOD44_DIR
 #
 # trainingManifest.py extract --split <split dir> -o <manifest.parq> --version v1.4.0 [--notes text]
 # trainingManifest.py build --manifest <manifest.parq> --predictors <file> --root <metrics root> [--roots <file>]
-#                     -y <year> -o <split dir> [--tiles <file>] [--keysOnly] [--lowSun le0|s70|off] [--lowSunCheck on|off]
+#                     -y <year> -o <split dir> [--tiles <file>] [--keysOnly] [--lowSun le0|s70|off] [--lowSunCheck on|off] [--workers N]
 #   --roots: lines "<tile> <metrics root>" overriding --root for those tiles.
 # -----------------------------------------------------------------------------
 def main():
@@ -41,6 +41,7 @@ def main():
     bu.add_argument('--keysOnly', action='store_true')
     bu.add_argument('--lowSun', choices=['le0', 's70', 'off'], default=None)
     bu.add_argument('--lowSunCheck', choices=['on', 'off'], default=None)
+    bu.add_argument('--workers', type=int, default=1, help='Processes computing the tiles (same split for any number).')
 
     args = parser.parse_args()
 
@@ -76,7 +77,8 @@ def main():
                            args.o,
                            logger,
                            tiles=tiles,
-                           keysOnly=args.keysOnly)
+                           keysOnly=args.keysOnly,
+                           workers=args.workers)
     return 0
 
 

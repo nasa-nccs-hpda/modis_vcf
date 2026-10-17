@@ -1,7 +1,9 @@
+from concurrent.futures import ProcessPoolExecutor
 import datetime
 import hashlib
 import json
 import logging
+import multiprocessing
 from pathlib import Path
 
 import numpy as np
@@ -110,13 +112,39 @@ def read(manifestFile: Path) -> tuple:
 
 
 # ----------------------------------------------------------------------------
+# _tileFeatures
+#
+# The predictors of one tile's rows, Train and Test in one pass (one Metrics,
+# so each metric file is read once).  Runs in a worker process when build()
+# has workers > 1; the low-sun mode reaches it through the environment.
+# ----------------------------------------------------------------------------
+def _tileFeatures(productType, tid: str, year: int, root: Path, predictors: list, rowsByPart: dict,
+                  lowSun: str = None, logLevel: int = logging.WARNING) -> dict:
+
+    logger = logging.getLogger('trainingManifest.' + tid)
+    logger.setLevel(logLevel)
+    mt = Metrics(tid, year, productType, Path(root), logger, lowSun=lowSun)
+    out = {part: {} for part in rowsByPart}
+
+    for n in predictors:
+
+        band = mt.getMetricFromRf(n)
+
+        for part, (xs, ys) in rowsByPart.items():
+            out[part][n] = band[xs, ys]
+
+    return out
+
+
+# ----------------------------------------------------------------------------
 # build
 # ----------------------------------------------------------------------------
 def build(manifestFile: Path, predictors: list, rootFor, year: int, productType, outDir: Path,
           logger: logging.Logger = None, tiles: list = None, keysOnly: bool = False,
-          lowSun: str = None) -> dict:
+          lowSun: str = None, workers: int = 1) -> dict:
     """Write a split from a manifest.  rootFor(tile) -> metrics root.  tiles limits the rows to those
-    tiles (in manifest order); keysOnly writes keys and labels only (no metrics read)."""
+    tiles (in manifest order); keysOnly writes keys and labels only (no metrics read).  workers > 1
+    computes the tiles in that many processes; the split is the same for any number (S5)."""
 
     logger = logger or logging.getLogger()
     m, meta = read(manifestFile)
@@ -127,7 +155,7 @@ def build(manifestFile: Path, predictors: list, rootFor, year: int, productType,
 
     outDir.mkdir(parents=True)
     label = meta['trainingType']
-    report = {}
+    report, parts = {}, {}
 
     for part in PARTS:
 
@@ -150,32 +178,57 @@ def build(manifestFile: Path, predictors: list, rootFor, year: int, productType,
         y.to_parquet(outDir / ('y' + part + '.parq'))
         report[part] = dict(rows=len(p))
 
-        if keysOnly:
-            continue
+        if not keysOnly:
+            parts[part] = (p, tid, index)
 
-        cols = {}
-        xs, ys = p.x.to_numpy(), p.y.to_numpy()
+    if not keysOnly:
 
-        for t in pd.unique(tid):
+        order = list(pd.unique(np.concatenate([parts[q][1] for q in parts])))
+        jobs = {}
 
-            sel = np.flatnonzero(tid == t)
-            logger.info('Training rows: ' + part + ' ' + t + ' ' + str(len(sel)))
-            mt = Metrics(t, year, productType, Path(rootFor(t)), logger, lowSun=lowSun)
+        for t in order:
+            rows = {}
+            for q, (p, tid, _) in parts.items():
+                sel = np.flatnonzero(tid == t)
+                if len(sel):
+                    rows[q] = (p.x.to_numpy()[sel], p.y.to_numpy()[sel])
+            jobs[t] = rows
 
-            for n in predictors:
+        cols = {q: {} for q in parts}
 
-                v = mt.getMetricFromRf(n)[xs[sel], ys[sel]]
+        def store(t, res):
+            for q, feats in res.items():
+                sel = np.flatnonzero(parts[q][1] == t)
+                for n, v in feats.items():
+                    if n not in cols[q]:
+                        cols[q][n] = np.empty(len(parts[q][0]), dtype=v.dtype)
+                    cols[q][n][sel] = v
 
-                if n not in cols:
-                    cols[n] = np.empty(len(p), dtype=v.dtype)
+        if workers <= 1:
 
-                cols[n][sel] = v
+            for t in order:
+                logger.info('Training rows: ' + t + ' ' + str({q: len(r[0]) for q, r in jobs[t].items()}))
+                store(t, _tileFeatures(productType, t, year, rootFor(t), predictors, jobs[t], lowSun,
+                                       logger.getEffectiveLevel()))
 
-            del mt
+        else:
 
-        pd.DataFrame({n: cols[n] for n in predictors}, index=index).to_parquet(outDir / ('x' + part + '.parq'))
+            logger.info('Training rows: ' + str(len(order)) + ' tiles in ' + str(workers) + ' processes')
+
+            with ProcessPoolExecutor(min(workers, len(order)), mp_context=multiprocessing.get_context('spawn')) as ex:
+
+                futures = {t: ex.submit(_tileFeatures, productType, t, year, rootFor(t), predictors, jobs[t], lowSun)
+                           for t in order}
+
+                for t in order:
+                    store(t, futures[t].result())
+                    logger.info('Training rows: ' + t + ' done')
+
+        for q, (p, _, index) in parts.items():
+            pd.DataFrame({n: cols[q][n] for n in predictors}, index=index).to_parquet(outDir / ('x' + q + '.parq'))
 
     (outDir / 'manifest.json').write_text(json.dumps(dict(manifest=str(manifestFile), manifest_sha256=_sha256(manifestFile),
-                                                          year=year, tiles=tiles, keysOnly=keysOnly, report=report),
+                                                          year=year, tiles=tiles, keysOnly=keysOnly, workers=workers,
+                                                          report=report),
                                                      indent=1))
     return report
