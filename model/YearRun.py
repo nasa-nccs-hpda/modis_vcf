@@ -35,7 +35,15 @@ import time
 # Spec (JSON): year, runRoot, lowSun, models {tree, bare: {manifest, predictors, trainingType, fit {...}} or
 # {fixed: {model, topN}}}, partner (optional) {model, topN, metricsDir, counts, tiles}, mapTiles,
 # metricsTiles (optional; default: the manifests' tiles and mapTiles), workers {metrics, split, mapJobs},
-# fitHosts, slots {host prefix: n}, memGB {task type: GB}.
+# fitHosts, slots {host prefix: n}, memGB {task type: GB},
+# cleanup (optional) {mode: after_map (default) | off, keepTiles: [...]}, maxBacklog (optional).
+#
+# Clean-up: once every task that reads a tile's metrics is done (its map, and the splits of the manifests
+# it is in), that tile's 1-Days, 2-Composites and 3-Metrics are deleted, unless the tile is in keepTiles.
+# A tile whose map failed is kept.  Only real folders inside the run's metrics root are deleted (a
+# symbolic link or a path outside runRoot is refused); the low-sun stamp and counts stay.  Each deletion
+# is logged to status/cleanup.log with the GB freed.  The metrics of training tiles are claimed first, and
+# maxBacklog holds new metrics claims of map-only tiles while that many of them wait for their map.
 # ----------------------------------------------------------------------------
 TIMING_COLUMNS = ['task', 'host', 'attempt', 'start', 'end', 'seconds', 'cpu_seconds', 'peak_rss_gb', 'read_gb',
                   'write_gb', 'rc']
@@ -128,7 +136,16 @@ class YearRun(object):
         self.logger = logger or logging.getLogger('runYear')
         self.models = self.spec['models']
         self.partner = self.spec.get('partner')
+        cleanup = self.spec.get('cleanup', {})
+        self.cleanupMode = cleanup.get('mode', 'after_map')
+
+        if self.cleanupMode not in ('after_map', 'off'):
+            raise ValueError('cleanup mode must be after_map or off')
+
+        self.keepTiles = set(cleanup.get('keepTiles', []))
+        self.maxBacklog = self.spec.get('maxBacklog')
         self.tasks, self.deps, self.kind = self._taskList()
+        self._cleaned = set()
 
     # ------------------------------------------------------------------------
     # manifest tiles
@@ -152,12 +169,15 @@ class YearRun(object):
         mapTiles = list(self.spec['mapTiles'])
         mt = self.spec.get('metricsTiles')
 
+        self.trainingTiles = set().union(*[self._manifestTiles(m) for m in fitted])
+
         if mt is None:
-            mt = sorted(set(mapTiles).union(*[self._manifestTiles(m) for m in fitted]))
+            mt = sorted(set(mapTiles) | self.trainingTiles)
 
         tasks, deps, kind = [], {}, {}
 
-        for t in mt:
+        # Training tiles first, so the splits and fits can start while the map-only tiles are computed.
+        for t in sorted(mt, key=lambda t: t not in self.trainingTiles):
             k = 'metrics:' + t
             tasks.append(k); deps[k] = []; kind[k] = 'metrics'
 
@@ -387,6 +407,103 @@ class YearRun(object):
         return 0
 
     # ------------------------------------------------------------------------
+    # clean-up and backlog
+    # ------------------------------------------------------------------------
+    def _readers(self, tile: str) -> list:
+        """The tasks that read a tile's metrics."""
+
+        k = 'metrics:' + tile
+        return [t for t in self.tasks if k in self.deps[t]]
+
+    def _cleanupLog(self, msg: str) -> None:
+
+        with open(self.st / 'cleanup.log', 'a') as f:
+            f.write('[' + time.strftime('%F %T') + '] ' + self.host + ' ' + msg + '\n')
+
+    def _cleanup(self) -> None:
+        """Delete the intermediates of every tile whose readers are all done (once per tile, over all nodes)."""
+
+        if self.cleanupMode == 'off':
+            return
+
+        rootReal = self.root.resolve()
+
+        for k in self.tasks:
+
+            if self.kind[k] != 'metrics':
+                continue
+
+            tile = k.split(':', 1)[1]
+
+            if tile in self._cleaned or tile in self.keepTiles or not self._done(k):
+                continue
+
+            readers = self._readers(tile)
+
+            if not readers or not all(self._done(t) for t in readers):
+                continue
+
+            self._cleaned.add(tile)
+
+            try:
+                (self.st / 'claims' / ('cleanup_' + tile)).mkdir()
+            except FileExistsError:
+                continue
+
+            yd = self.metricsRoot / tile / str(self.year)
+            freed, gone = 0, []
+
+            for name in ('1-Days', '2-Composites', '3-Metrics'):
+
+                d = yd / name
+
+                if not d.exists() and not d.is_symlink():
+                    continue
+
+                if d.is_symlink() or not d.is_dir() or rootReal not in d.resolve().parents:
+                    self._cleanupLog('REFUSED %s %s (a link, not a folder, or outside the run root)' % (tile, d))
+                    continue
+
+                size = 0
+
+                for dirpath, dirnames, filenames in os.walk(d):
+                    for f in filenames:
+                        try:
+                            size += os.lstat(os.path.join(dirpath, f)).st_size
+                        except OSError:
+                            pass
+
+                shutil.rmtree(d)
+                freed += size
+                gone.append(name)
+
+            self._cleanupLog('%s deleted %s, %.2f GB (%d bytes)' % (tile, ' '.join(gone) or 'nothing', freed / 2 ** 30,
+                                                                     freed))
+            (self.st / ('cleanup_' + tile + '.done')).write_text('%s %.2f GB\n' % (time.strftime('%F %T'),
+                                                                                 freed / 2 ** 30))
+
+    def _backlog(self) -> int:
+        """Map-only tiles whose metrics are claimed or done while their map is not finished."""
+
+        n = 0
+
+        for k in self.tasks:
+
+            if self.kind[k] != 'map':
+                continue
+
+            tile = k.split(':', 1)[1]
+            m = 'metrics:' + tile
+
+            if tile in self.trainingTiles or m not in self.kind or self._finished(k):
+                continue
+
+            if self._done(m) or (self.st / 'claims' / self._key(m)).exists():
+                n += 1
+
+        return n
+
+    # ------------------------------------------------------------------------
     # run (one node's share)
     # ------------------------------------------------------------------------
     def run(self) -> int:
@@ -422,6 +539,7 @@ class YearRun(object):
                 self._mark(t, r['rc'], 'log ' + str(self.logs / ('%s_a%d.log' % (self._key(t), r['attempt']))))
                 self._log(('OK ' if r['rc'] == 0 else 'FAILED ') + t)
 
+            self._cleanup()
             stop = self._fatal()
 
             if stop:
@@ -445,6 +563,10 @@ class YearRun(object):
                     continue
 
                 if not all(self._done(d) for d in self.deps[t]):
+                    continue
+
+                if self.maxBacklog is not None and self.kind[t] == 'metrics' and \
+                   t.split(':', 1)[1] not in self.trainingTiles and self._backlog() >= int(self.maxBacklog):
                     continue
 
                 if self._freeGb() < int(mem.get(self.kind[t], 40)):

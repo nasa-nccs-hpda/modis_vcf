@@ -26,6 +26,9 @@ def main():
         p.add_argument('--spec', type=Path, required=True)
         if name == 'metrics':
             p.add_argument('--tile', required=True)
+        if name == 'run':
+            p.add_argument('--keepIntermediates', action='store_true',
+                           help='Keep every tile\'s 1-Days, 2-Composites and 3-Metrics (no clean-up).')
 
     args = parser.parse_args()
 
@@ -38,6 +41,8 @@ def main():
     yr = YearRun(args.spec, logger)
 
     if args.cmd == 'run':
+        if args.keepIntermediates:
+            yr.cleanupMode = 'off'
         return yr.run()
 
     if args.cmd == 'metrics':

@@ -17,6 +17,14 @@ Goal: the v1.4.0 product from one package, in one driver per year, with exact sp
 memory, disk). Every item below is **exact** against v1.4.0 unless stated. v1.4.1 is tagged only when the benchmark passes.
 Plan: `Reports/V141_Code_Tidyup_And_Full_Retrain_Plan.md`.
 
+- **Per-tile clean-up of intermediates in the year driver** (S8, 2026-10-17; hash filled in by the next commit). `YearRun` deletes a tile's `1-Days`,
+  `2-Composites` and `3-Metrics` once every task that reads them is done (its map, and the splits of the manifests it is in); a tile
+  whose map failed is kept; only real folders inside the run's metrics root are deleted (links and outside paths refused); stamps and
+  low-sun counts stay; each deletion logged with exact bytes (`status/cleanup.log`). Spec `cleanup {mode: after_map | off, keepTiles}`
+  (default after_map) and `maxBacklog` (holds map-only metrics while that many tiles wait for their map); training tiles' metrics run
+  first; `runYear.py run --keepIntermediates` keeps everything. Needed for the global run (a 292-tile year writes ~8-9 TB of
+  intermediates without it). Values unchanged: bare split and refit equal v1.4.0's, 4 maps (28 layers) identical; 22 tiles freed
+  430.9 GB, exactly their size. Evidence: `Reports/V141_S8_Cleanup_Results.md`.
 - **One driver per year** (P5, `f24f68a`, 2026-10-17). `model/YearRun.py` + `view/runYear.py`: metrics -> splits -> fits (+ compact
   copy) -> maps as a task graph shared by the nodes through a status folder (claims, slots, memory floors, fit hosts, retry of maps,
   STOP markers), with per-task timing (wall, CPU, peak RSS, bytes) in `timing/tasks.csv`. A 2019 year built from scratch reproduced
