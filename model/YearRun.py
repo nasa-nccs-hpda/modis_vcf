@@ -1,4 +1,5 @@
 import csv
+import gc
 import json
 import logging
 import os
@@ -375,6 +376,11 @@ class YearRun(object):
 
         for n in names:
             mt.getMetricFromRf(n)
+
+        # Release this phase's composites and metric cache before the V4r build, which needs its own (a Metrics object
+        # may be held in a reference cycle, so collect it now rather than at the next garbage collection).
+        del mt
+        gc.collect()
 
         if tile not in self.v4rTiles:
             return

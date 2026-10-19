@@ -18,7 +18,12 @@ version are fitted with the recipe given here. Maintained with every code commit
 Code changes since v1.5.0, not yet a version (project lead, 2026-10-19: no version name yet; v1.5.1 when it is one). Every item is
 **exact** against v1.5.0 unless stated.
 
-- **Maps predicted a block of lines at a time** (2026-10-19; hash filled in by the next commit). `VcfPredict` predicts the ensemble
+- **The metrics task frees its main-phase data before the V4r build** (2026-10-19; hash filled in by the next commit).
+  `YearRun.warmMetrics` deletes the low-sun (LE0) phase's `Metrics` object and collects it before the V4r composites are built on
+  blend tiles; before, it stayed alive (about 7 GB) through the V4r phase. **Exact:** h12v09's metrics root (composites byte for
+  byte, metrics by value), V4r root and counts equal those of the previous code. Peak of the task 34.8 -> 30.9 GB (main process at
+  the V4r start 7.0 -> 3.4 GB; V4r metrics phase 23.8 -> 17.3 GB), 751 -> 705 s. Evidence: `Reports/Metrics_Memory_M1_Results.md`.
+- **Maps predicted a block of lines at a time** (`13c14fd`, 2026-10-19). `VcfPredict` predicts the ensemble
   members on about 1 M pixels (208 lines) at a time, each block's float32 predictor rows read straight from the metric files
   (`Metrics.iterTableFromRf`: every file opened once, read a block of lines at a time), as the C code predicts pixel by pixel; no
   whole-tile predictor table is held. `getTableFromRf` and the split reader share the same block reading (`_openBands`, `_readBlock`).
