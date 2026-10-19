@@ -2,8 +2,10 @@
 
 Changes to the Python MOD44B (PGE61) code since the start of the 2026 development work, newest first. Each entry says what changed,
 why, and **whether product values change**. "Exact" means proven identical to the previous version (dailies and composites byte for
-byte, metrics and map layers by value) on the named tiles. Commits are on branch `mcarrol2/v1.2.0` of
-`nasa-nccs-hpda/modis_vcf`, which starts from `develop` at `b83e302` (2025-07-18). Evidence is in the development reports
+byte, metrics and map layers by value) on the named tiles. Commits are on branch `mcarrol2/dev` of
+`nasa-nccs-hpda/modis_vcf` (named `mcarrol2/v1.2.0` until 2026-10-19), which starts from `develop` at `b83e302` (2025-07-18). The
+version tags are development milestones on this branch, not releases of the repository: what is released is decided by the
+repository owner through a pull request into `develop`. Evidence is in the development reports
 (`docs/reports/` snapshot, and the project's `Reports/` folder for later ones).
 
 Version names: v1.0.0 is the first product version. Later versions are cumulative. A version tag marks the code; the models of a
