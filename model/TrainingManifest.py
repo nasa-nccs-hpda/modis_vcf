@@ -219,16 +219,8 @@ def _tileFeatures(productType, tid: str, year: int, root: Path, predictors: list
     logger = logging.getLogger('trainingManifest.' + tid)
     logger.setLevel(logLevel)
     mt = Metrics(tid, year, productType, Path(root), logger, lowSun=lowSun)
-    out = {part: {} for part in rowsByPart}
-
-    for n in predictors:
-
-        band = mt.getMetricFromRf(n)
-
-        for part, (xs, ys) in rowsByPart.items():
-            out[part][n] = band[xs, ys]
-
-    return out
+    out = mt.getRowsFromRf(predictors, rowsByPart)
+    return {part: {n: out[part][n] for n in predictors} for part in rowsByPart}
 
 
 # ----------------------------------------------------------------------------

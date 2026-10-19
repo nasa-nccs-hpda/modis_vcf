@@ -11,6 +11,23 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## Unreleased (after v1.5.0)
+
+Code changes since v1.5.0, not yet a version (project lead, 2026-10-19: no version name yet; v1.5.1 when it is one). Every item is
+**exact** against v1.5.0 unless stated.
+
+- **Training rows read from the metric files in blocks, not whole files** (2026-10-19; hash filled in by the next commit).
+  `Metrics.getRowsFromRf` returns the predictor values at given pixels without holding whole metric files: each file is read once
+  with GDAL in blocks of 256 lines, only the bands the predictors need and only lines holding a training pixel, and GDAL's block
+  cache is flushed after each block (the files are pixel-interleaved, so one read gives every band of every pixel in it).
+  `TrainingManifest._tileFeatures` uses it instead of `getMetricFromRf` per predictor, which loaded every band of every file (e.g. all
+  72 of UnsortedMonthlyBands for 24 used) into the read cache and, with a finished tile not freed until garbage collection, made each
+  split worker hold 2-3 tiles at once (108-140 GB per 6-worker split). The name parsing of `getMetricFromRf` moved into `_rfParts` and
+  `_bandName`, which both use; prediction still reads through `getMetricFromRf`. **Exact:** splits (tree, bare, partner), models,
+  metrics and the 7 map layers equal v1.5.0's on 4 map tiles + 15 metrics tiles. Split alone, 13 tiles, 6 workers: tree 38.3 -> 3.6 GB
+  peak and 204 -> 29 s; bare 46.3 -> 4.8 GB and 104 -> 21 s. Evidence: `Reports/Split_Memory_Fix_Proof_Results.md`
+  (`Reports/Split_Memory_Step1_Results.md` for the cause).
+
 ## v1.5.0 (tag `v1.5.0`, 2026-10-19): new bare training set, no code change
 
 **Model change, bare (Percent_NonVegetated) only.** The code is v1.4.1 (`f401421`) unchanged. The bare model is refitted (RF 60

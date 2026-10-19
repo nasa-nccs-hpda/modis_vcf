@@ -376,12 +376,7 @@ class Metrics(object):
                       day: str = None) -> np.ndarray:
         
         metrics: list[Metric] = self.getMetric(metricName)
-        soughtName = self._getBaseName(metricName)
-
-        if bandName:
-            
-            bandName += '-Day_' + day if day is not None else ''
-            soughtName += '-' + bandName
+        soughtName = self._bandName(metricName, bandName, day)
         
         metric: Metric = [m for m in metrics if m.name == soughtName]
         
@@ -393,6 +388,96 @@ class Metrics(object):
         assert len(metric) == 1
             
         return metric[0].value
+
+    # ------------------------------------------------------------------------
+    # _bandName
+    #
+    # The band name (the band's 'Name' metadata item) of a metric's band.
+    # ------------------------------------------------------------------------
+    def _bandName(self, metricName: str, bandName: str, day: str = None) -> str:
+
+        soughtName = self._getBaseName(metricName)
+
+        if bandName:
+
+            bandName += '-Day_' + day if day is not None else ''
+            soughtName += '-' + bandName
+
+        return soughtName
+
+    # ------------------------------------------------------------------------
+    # getRowsFromRf
+    #
+    # The values of RandomForestClassifier-format bands at given pixels only,
+    # without holding whole metric files: each file is read once, a block of
+    # lines at a time, and only the lines holding a pixel are read.  The
+    # values equal getMetricFromRf(name)[xs, ys].  rowsByPart maps a part to
+    # (xs, ys) = (raster rows, columns).  A metric file that does not exist
+    # yet is made and read through getMetricFromRf.
+    # ------------------------------------------------------------------------
+    def getRowsFromRf(self, rfMetricNames: list, rowsByPart: dict, linesPerRead: int = 256) -> dict:
+
+        out = {part: {} for part in rowsByPart}
+        byFile = {}
+
+        for n in rfMetricNames:
+            metric, band, day = self._rfParts(n)
+            byFile.setdefault(metric, []).append((n, self._bandName(metric, band, day)))
+
+        for metric, names in byFile.items():
+
+            path = self._getOutName(metric)
+
+            if not path.exists():
+
+                for n, _ in names:
+                    band = self.getMetricFromRf(n)
+                    for part, (xs, ys) in rowsByPart.items():
+                        out[part][n] = band[xs, ys]
+
+                self._readCache.pop(metric, None)
+                continue
+
+            if self._logger:
+                self._logger.info('Reading rows of ' + str(path))
+
+            ds = gdal.Open(str(path), gdal.GA_ReadOnly)
+            index = {ds.GetRasterBand(i + 1).GetMetadataItem('Name'): i + 1 for i in range(ds.RasterCount)}
+            missing = [s for _, s in names if s not in index]
+
+            if missing:
+                raise RuntimeError('Band ' + str(missing) + ' not in ' + str(metric))
+
+            bandList = [index[s] for _, s in names]
+
+            for part, (xs, ys) in rowsByPart.items():
+                for n, _ in names:
+                    out[part][n] = np.empty(len(xs), dtype=np.int16)
+
+            allXs = np.concatenate([xs for xs, _ in rowsByPart.values()])
+
+            for y0 in range(0, ds.RasterYSize, linesPerRead):
+
+                y1 = min(y0 + linesPerRead, ds.RasterYSize)
+
+                if not np.any((allXs >= y0) & (allXs < y1)):
+                    continue
+
+                block = ds.ReadAsArray(0, y0, ds.RasterXSize, y1 - y0, band_list=bandList)
+                block = block.reshape(len(bandList), y1 - y0, ds.RasterXSize)
+
+                for part, (xs, ys) in rowsByPart.items():
+                    sel = np.flatnonzero((xs >= y0) & (xs < y1))
+                    if len(sel):
+                        for j, (n, _) in enumerate(names):
+                            out[part][n][sel] = block[j, xs[sel] - y0, ys[sel]].astype(np.int16)
+
+                del block
+                ds.FlushCache()   # each block of lines is read once: keep GDAL's block cache empty
+
+            ds = None
+
+        return out
 
     # ------------------------------------------------------------------------
     # getMetricFromRf
@@ -409,6 +494,16 @@ class Metrics(object):
     # ------------------------------------------------------------------------
     def getMetricFromRf(self, rfMetricName: str) -> np.ndarray:
 
+        return self.getMetricBand(*self._rfParts(rfMetricName))
+
+    # ------------------------------------------------------------------------
+    # _rfParts
+    #
+    # The metric, band and day that a RandomForestClassifier-format name
+    # refers to (see getMetricFromRf).
+    # ------------------------------------------------------------------------
+    def _rfParts(self, rfMetricName: str) -> tuple:
+
         parts = rfMetricName.split('-')
         metric = 'metric' + parts[0]
         band = None
@@ -424,7 +519,7 @@ class Metrics(object):
             if day is not None and len(day) == 7:
                 day = str(self.getYearForDay(int(day[4:]))) + day[4:]
         
-        return self.getMetricBand(metric, band, day)
+        return metric, band, day
         
     # ------------------------------------------------------------------------
     # getYearForDay
