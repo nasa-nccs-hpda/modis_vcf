@@ -395,11 +395,12 @@ class VcfPredict(object):
     def _loadModel(modelFile: Path):
         """
         A joblib model file, or a CompactForest directory (the same trees in compact form, identical predictions;
-        Reports/Smaller_RF_Models_Compact_And_Subsample_Plan.md).  VCF_COMPACT_MMAP=1 memory-maps a compact model
-        instead of reading it into memory (whether this becomes the default is decided in the v1.4.1 benchmark).
+        Reports/Smaller_RF_Models_Compact_And_Subsample_Plan.md).  A compact model is memory-mapped by default: map
+        tasks on one node share its pages through the file cache, and its pages are not private memory
+        (Reports/Map_Memory_Proof_Results.md).  VCF_COMPACT_MMAP=0 reads it into memory instead.
         """
         if CompactForest.isCompact(modelFile):
-            return CompactForest.load(modelFile, mmap=os.environ.get('VCF_COMPACT_MMAP') == '1')
+            return CompactForest.load(modelFile, mmap=os.environ.get('VCF_COMPACT_MMAP', '1') != '0')
 
         with open(modelFile, 'rb') as f:
             return joblib.load(f)

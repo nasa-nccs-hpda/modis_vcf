@@ -16,7 +16,11 @@ version are fitted with the recipe given here. Maintained with every code commit
 Code changes since v1.5.0, not yet a version (project lead, 2026-10-19: no version name yet; v1.5.1 when it is one). Every item is
 **exact** against v1.5.0 unless stated.
 
-- **Map inputs read from the metric files in blocks** (2026-10-19; hash filled in by the next commit). `Metrics.getTableFromRf`
+- **Compact models memory-mapped by default** (2026-10-19; hash filled in by the next commit). `VcfPredict._loadModel` maps a
+  compact model's arrays unless `VCF_COMPACT_MMAP=0` (before: only with `VCF_COMPACT_MMAP=1`). Map tasks on one node share the model
+  pages through the file cache, and the pages are not private memory. Identical predictions (v1.4.1 S10; again 2026-10-19: 7 layers on
+  4 tiles). About 3 GB less private memory per map task. Evidence: `Reports/Map_Memory_Proof_Results.md`, `Reports/Map_Block_Prediction_Proof_Results.md`.
+- **Map inputs read from the metric files in blocks** (`d963313`, 2026-10-19). `Metrics.getTableFromRf`
   builds a map's full-tile float32 predictor table (one row per pixel, one column per distinct predictor) a block of 256 lines at a
   time, straight from the metric files, without holding whole files or a second copy; `VcfPredict` uses it for the ensemble-member
   prediction (production: median + SD layers). Before, every band of every metric file was cached, then copied into a DataFrame and
