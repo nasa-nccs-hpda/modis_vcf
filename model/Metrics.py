@@ -422,17 +422,13 @@ class Metrics(object):
         return byFile
 
     # ------------------------------------------------------------------------
-    # _readBlocks
+    # _openBands
     #
-    # Read some bands of one metric file a block of lines at a time, without
-    # holding the whole file: yields (y0, y1, block), block = the bands'
-    # int16 values (as readMetric gives them) of lines y0 to y1 - 1, shaped
-    # (bands, lines, columns).  needLines(y0, y1) can skip a block.  The files
-    # are pixel-interleaved, so one read gives every band of every pixel in
-    # the block; GDAL's block cache is flushed after each block, which is read
-    # once.
+    # Open a metric file for block reads of some of its bands: returns
+    # (dataset, band numbers), the bands found by their 'Name' metadata item
+    # (as readMetric names them).
     # ------------------------------------------------------------------------
-    def _readBlocks(self, path: Path, metric: str, bandNames: list, linesPerRead: int = 256, needLines=None):
+    def _openBands(self, path: Path, metric: str, bandNames: list) -> tuple:
 
         if self._logger:
             self._logger.info('Reading blocks of ' + str(path))
@@ -444,7 +440,34 @@ class Metrics(object):
         if missing:
             raise RuntimeError('Band ' + str(missing) + ' not in ' + str(metric))
 
-        bandList = [index[s] for s in bandNames]
+        return ds, [index[s] for s in bandNames]
+
+    # ------------------------------------------------------------------------
+    # _readBlock
+    #
+    # Lines y0 to y1 - 1 of some bands of an open metric file, as int16 (as
+    # readMetric gives them), shaped (bands, lines, columns).  The files are
+    # pixel-interleaved, so one read gives every band of every pixel in the
+    # block; GDAL's block cache is flushed afterwards (each block is read once).
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _readBlock(ds, bandList: list, y0: int, y1: int) -> np.ndarray:
+
+        block = ds.ReadAsArray(0, y0, ds.RasterXSize, y1 - y0, band_list=bandList)
+        block = block.reshape(len(bandList), y1 - y0, ds.RasterXSize).astype(np.int16, copy=False)
+        ds.FlushCache()
+        return block
+
+    # ------------------------------------------------------------------------
+    # _readBlocks
+    #
+    # Read some bands of one metric file a block of lines at a time, without
+    # holding the whole file: yields (y0, y1, block) (see _readBlock).
+    # needLines(y0, y1) can skip a block.
+    # ------------------------------------------------------------------------
+    def _readBlocks(self, path: Path, metric: str, bandNames: list, linesPerRead: int = 256, needLines=None):
+
+        ds, bandList = self._openBands(path, metric, bandNames)
 
         for y0 in range(0, ds.RasterYSize, linesPerRead):
 
@@ -453,10 +476,7 @@ class Metrics(object):
             if needLines is not None and not needLines(y0, y1):
                 continue
 
-            block = ds.ReadAsArray(0, y0, ds.RasterXSize, y1 - y0, band_list=bandList)
-            yield y0, y1, block.reshape(len(bandList), y1 - y0, ds.RasterXSize).astype(np.int16, copy=False)
-            del block
-            ds.FlushCache()   # each block of lines is read once: keep GDAL's block cache empty
+            yield y0, y1, Metrics._readBlock(ds, bandList, y0, y1)
 
         ds = None
 
@@ -506,23 +526,22 @@ class Metrics(object):
         return out
 
     # ------------------------------------------------------------------------
-    # getTableFromRf
+    # iterTableFromRf
     #
-    # The full-tile predictor table of RandomForestClassifier-format names:
-    # one row per pixel (row-major, as ravel()), one column per distinct name
-    # in the order of first appearance (as a DataFrame built column by
-    # column), in dtype.  It equals that DataFrame's to_numpy(dtype), without
-    # holding whole metric files or a second copy: each file is read once, a
-    # block of lines at a time, straight into the table.  Returns (table,
-    # column names).  A metric file that does not exist yet is made and read
-    # through getMetricFromRf.
+    # The full-tile predictor table of RandomForestClassifier-format names, a
+    # block of lines at a time: yields (r0, r1, table rows r0 to r1 - 1).  Rows
+    # are pixels (row-major, as ravel()), columns the distinct names in the
+    # order of first appearance (as a DataFrame built column by column), in
+    # dtype.  Every metric file is opened once and read a block of lines at a
+    # time, so no whole file or whole table is held.  A metric file that does
+    # not exist yet is made and read through getMetricFromRf.
     # ------------------------------------------------------------------------
-    def getTableFromRf(self, rfMetricNames: list, dtype=np.float32, linesPerRead: int = 256) -> tuple:
+    def iterTableFromRf(self, rfMetricNames: list, dtype=np.float32, linesPerRead: int = 256):
 
         columns = list(dict.fromkeys(rfMetricNames))
         col = {n: j for j, n in enumerate(columns)}
         rows, cols = self._productType.ROWS, self._productType.COLS
-        table = np.empty((rows * cols, len(columns)), dtype=dtype)
+        files, arrays = [], []
 
         for metric, names in self._rfByFile(columns).items():
 
@@ -530,19 +549,50 @@ class Metrics(object):
 
             if not path.exists():
 
-                for n, _ in names:
-                    table[:, col[n]] = self.getMetricFromRf(n).ravel()
-
+                arrays += [(col[n], self.getMetricFromRf(n)) for n, _ in names]
                 self._readCache.pop(metric, None)
                 continue
 
-            for y0, y1, block in self._readBlocks(path, metric, [s for _, s in names], linesPerRead):
+            ds, bandList = self._openBands(path, metric, [s for _, s in names])
 
-                if block.shape[2] != cols:
-                    raise RuntimeError(str(path) + ': ' + str(block.shape[2]) + ' columns, expected ' + str(cols))
+            if ds.RasterXSize != cols or ds.RasterYSize != rows:
+                raise RuntimeError(str(path) + ': ' + str((ds.RasterYSize, ds.RasterXSize)) + ', expected ' + str((rows, cols)))
 
-                for j, (n, _) in enumerate(names):
-                    table[y0 * cols:y1 * cols, col[n]] = block[j].ravel()
+            files.append((ds, bandList, [col[n] for n, _ in names]))
+
+        for y0 in range(0, rows, linesPerRead):
+
+            y1 = min(y0 + linesPerRead, rows)
+            table = np.empty(((y1 - y0) * cols, len(columns)), dtype=dtype)
+
+            for ds, bandList, idx in files:
+
+                block = Metrics._readBlock(ds, bandList, y0, y1)
+
+                for j, c in enumerate(idx):
+                    table[:, c] = block[j].ravel()
+
+            for c, band in arrays:
+                table[:, c] = band[y0:y1].ravel()
+
+            yield y0 * cols, y1 * cols, table
+
+        files = None
+
+    # ------------------------------------------------------------------------
+    # getTableFromRf
+    #
+    # The whole table of iterTableFromRf in one array.  It equals the
+    # DataFrame of getMetricFromRf(name).ravel() columns, to_numpy(dtype).
+    # Returns (table, column names).
+    # ------------------------------------------------------------------------
+    def getTableFromRf(self, rfMetricNames: list, dtype=np.float32, linesPerRead: int = 256) -> tuple:
+
+        columns = list(dict.fromkeys(rfMetricNames))
+        table = np.empty((self._productType.ROWS * self._productType.COLS, len(columns)), dtype=dtype)
+
+        for r0, r1, part in self.iterTableFromRf(columns, dtype, linesPerRead):
+            table[r0:r1] = part
 
         return table, columns
 

@@ -229,16 +229,17 @@ class VcfPredict(object):
         return metrics
         
     # ------------------------------------------------------------------------
-    # getTable
+    # iterTable
     #
-    # The predictors of rfNames as one float32 table (pixels x distinct names),
-    # read in blocks (Metrics.getTableFromRf).  Returns (table, column names).
+    # The predictors of rfNames as float32 table blocks (pixels x distinct
+    # names) of about PREDICT_CHUNK_ROWS rows (Metrics.iterTableFromRf).
     # ------------------------------------------------------------------------
-    def _getTable(self, tid: str, year: int, rfNames: list, metricsDir: Path = None, lowSun: str = None) -> tuple:
+    def _iterTable(self, tid: str, year: int, rfNames: list, metricsDir: Path = None, lowSun: str = None):
 
         self._logger.info('Retrieving metrics (blocks): ' + str(rfNames))
         mInstance = Metrics(tid, year, self._productType, metricsDir or self._metricsDir, self._logger, lowSun=lowSun)
-        return mInstance.getTableFromRf(rfNames, dtype=np.float32)
+        lines = max(1, VcfPredict.PREDICT_CHUNK_ROWS // self._productType.COLS)
+        return mInstance.iterTableFromRf(rfNames, dtype=np.float32, linesPerRead=lines)
 
     # ------------------------------------------------------------------------
     # maskPrediction
@@ -280,17 +281,22 @@ class VcfPredict(object):
         # Ensemble models: one pass over the members gives the value (combined by agg) and the SD.
         # The members' mean equals predict() exactly for Random Forest and BaggingRegressor
         # (Reports/SD_Layer_Results.md), so 'mean' gives the same layer as the predict() path below.
-        # The float32 table is read straight from the metric files in blocks (Metrics.getTableFromRf):
-        # the same values as _getMetrics(...).to_numpy(dtype=np.float32), without whole files or a second copy.
+        # The tile is predicted a block of lines at a time (as the C code predicts pixel by pixel): each
+        # block's float32 predictor rows are read straight from the metric files (Metrics.iterTableFromRf),
+        # the same values as _getMetrics(...).to_numpy(dtype=np.float32), and every pixel's value and SD
+        # depend only on its own row, so the result does not depend on the block size.
         # ---
         if VcfPredict._members(rf) is not None and (self._writeSd or agg != 'mean'):
 
-            X, _ = self._getTable(tid, year, topN, metricsDir, lowSun)
+            self._logger.info('Predicting with the ensemble members (' + agg + '), a block of lines at a time ...')
 
-            self._logger.info('Predicting with the ensemble members (' + agg + ') ...')
+            n = self._productType.ROWS * self._productType.COLS
+            value = np.empty(n, dtype=np.float64)
+            sd = np.empty(n, dtype=np.float64)
 
-            value, sd = VcfPredict._memberPredict(rf, X, agg, self._nJobs)
-            del X
+            for r0, r1, X in self._iterTable(tid, year, topN, metricsDir, lowSun):
+                value[r0:r1], sd[r0:r1] = VcfPredict._memberPredict(rf, X, agg, self._nJobs)
+                del X
 
             prediction = np.clip(VcfPredict._roundValue(value).reshape(self._productType.ROWS,
                                                                        self._productType.COLS), 0, 100)

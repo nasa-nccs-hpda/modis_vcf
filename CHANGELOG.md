@@ -16,7 +16,14 @@ version are fitted with the recipe given here. Maintained with every code commit
 Code changes since v1.5.0, not yet a version (project lead, 2026-10-19: no version name yet; v1.5.1 when it is one). Every item is
 **exact** against v1.5.0 unless stated.
 
-- **Compact models memory-mapped by default** (2026-10-19; hash filled in by the next commit). `VcfPredict._loadModel` maps a
+- **Maps predicted a block of lines at a time** (2026-10-19; hash filled in by the next commit). `VcfPredict` predicts the ensemble
+  members on about 1 M pixels (208 lines) at a time, each block's float32 predictor rows read straight from the metric files
+  (`Metrics.iterTableFromRf`: every file opened once, read a block of lines at a time), as the C code predicts pixel by pixel; no
+  whole-tile predictor table is held. `getTableFromRf` and the split reader share the same block reading (`_openBands`, `_readBlock`).
+  **Exact:** 7 map layers on h12v09, h17v01, h16v02, h20v09 equal v1.5.0's, also with two map tasks at once; splits unchanged. Map task
+  peak (with memory-mapped models) 7.3-8.6 -> 2.4-3.5 GB (from 18.0-18.6 GB at v1.5.0), same time; two tasks on one node 4.7 GB.
+  Evidence: `Reports/Map_Block_Prediction_Proof_Results.md`.
+- **Compact models memory-mapped by default** (`f91a599`, 2026-10-19). `VcfPredict._loadModel` maps a
   compact model's arrays unless `VCF_COMPACT_MMAP=0` (before: only with `VCF_COMPACT_MMAP=1`). Map tasks on one node share the model
   pages through the file cache, and the pages are not private memory. Identical predictions (v1.4.1 S10; again 2026-10-19: 7 layers on
   4 tiles). About 3 GB less private memory per map task. Evidence: `Reports/Map_Memory_Proof_Results.md`, `Reports/Map_Block_Prediction_Proof_Results.md`.
