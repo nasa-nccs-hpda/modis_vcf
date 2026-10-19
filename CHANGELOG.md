@@ -16,7 +16,15 @@ version are fitted with the recipe given here. Maintained with every code commit
 Code changes since v1.5.0, not yet a version (project lead, 2026-10-19: no version name yet; v1.5.1 when it is one). Every item is
 **exact** against v1.5.0 unless stated.
 
-- **A stopped run ends every process of its tasks** (2026-10-19; hash filled in by the next commit). `YearRun` starts each task in
+- **Map inputs read from the metric files in blocks** (2026-10-19; hash filled in by the next commit). `Metrics.getTableFromRf`
+  builds a map's full-tile float32 predictor table (one row per pixel, one column per distinct predictor) a block of 256 lines at a
+  time, straight from the metric files, without holding whole files or a second copy; `VcfPredict` uses it for the ensemble-member
+  prediction (production: median + SD layers). Before, every band of every metric file was cached, then copied into a DataFrame and
+  again into a float32 array. The block reading is shared with `getRowsFromRf` (`_rfByFile`, `_readBlocks`). **Exact:** the 7 map
+  layers equal v1.5.0's on h12v09, h17v01, h16v02, h20v09 (blend on h12v09, h20v09); the tree and bare splits are unchanged. Map task
+  peak 18.0-18.6 -> 9.6-10.4 GB. With `VCF_COMPACT_MMAP=1` (memory-mapped compact models, already available): 7.3-8.6 GB, and two map
+  tasks on one node 14.4 GB instead of 21 GB. Evidence: `Reports/Map_Memory_Proof_Results.md`.
+- **A stopped run ends every process of its tasks** (`3414283`, 2026-10-19). `YearRun` starts each task in
   its own session (process group) and, on STOP, sends the group SIGTERM, then SIGKILL to whatever is left after 30 s; before, only
   the task's first process got SIGTERM, and a split's pool workers were left running (once 215 GB of orphans held a node).
   `TrainingManifest.build` terminates its pool workers on any exception, and `view/trainingManifest.py` turns SIGTERM into a normal

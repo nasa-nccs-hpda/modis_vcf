@@ -406,6 +406,61 @@ class Metrics(object):
         return soughtName
 
     # ------------------------------------------------------------------------
+    # _rfByFile
+    #
+    # RandomForestClassifier-format names grouped by metric file:
+    # {metric: [(name, band name), ...]}, in the names' order.
+    # ------------------------------------------------------------------------
+    def _rfByFile(self, rfMetricNames: list) -> dict:
+
+        byFile = {}
+
+        for n in rfMetricNames:
+            metric, band, day = self._rfParts(n)
+            byFile.setdefault(metric, []).append((n, self._bandName(metric, band, day)))
+
+        return byFile
+
+    # ------------------------------------------------------------------------
+    # _readBlocks
+    #
+    # Read some bands of one metric file a block of lines at a time, without
+    # holding the whole file: yields (y0, y1, block), block = the bands'
+    # int16 values (as readMetric gives them) of lines y0 to y1 - 1, shaped
+    # (bands, lines, columns).  needLines(y0, y1) can skip a block.  The files
+    # are pixel-interleaved, so one read gives every band of every pixel in
+    # the block; GDAL's block cache is flushed after each block, which is read
+    # once.
+    # ------------------------------------------------------------------------
+    def _readBlocks(self, path: Path, metric: str, bandNames: list, linesPerRead: int = 256, needLines=None):
+
+        if self._logger:
+            self._logger.info('Reading blocks of ' + str(path))
+
+        ds = gdal.Open(str(path), gdal.GA_ReadOnly)
+        index = {ds.GetRasterBand(i + 1).GetMetadataItem('Name'): i + 1 for i in range(ds.RasterCount)}
+        missing = [s for s in bandNames if s not in index]
+
+        if missing:
+            raise RuntimeError('Band ' + str(missing) + ' not in ' + str(metric))
+
+        bandList = [index[s] for s in bandNames]
+
+        for y0 in range(0, ds.RasterYSize, linesPerRead):
+
+            y1 = min(y0 + linesPerRead, ds.RasterYSize)
+
+            if needLines is not None and not needLines(y0, y1):
+                continue
+
+            block = ds.ReadAsArray(0, y0, ds.RasterXSize, y1 - y0, band_list=bandList)
+            yield y0, y1, block.reshape(len(bandList), y1 - y0, ds.RasterXSize).astype(np.int16, copy=False)
+            del block
+            ds.FlushCache()   # each block of lines is read once: keep GDAL's block cache empty
+
+        ds = None
+
+    # ------------------------------------------------------------------------
     # getRowsFromRf
     #
     # The values of RandomForestClassifier-format bands at given pixels only,
@@ -418,13 +473,8 @@ class Metrics(object):
     def getRowsFromRf(self, rfMetricNames: list, rowsByPart: dict, linesPerRead: int = 256) -> dict:
 
         out = {part: {} for part in rowsByPart}
-        byFile = {}
 
-        for n in rfMetricNames:
-            metric, band, day = self._rfParts(n)
-            byFile.setdefault(metric, []).append((n, self._bandName(metric, band, day)))
-
-        for metric, names in byFile.items():
+        for metric, names in self._rfByFile(rfMetricNames).items():
 
             path = self._getOutName(metric)
 
@@ -438,46 +488,63 @@ class Metrics(object):
                 self._readCache.pop(metric, None)
                 continue
 
-            if self._logger:
-                self._logger.info('Reading rows of ' + str(path))
-
-            ds = gdal.Open(str(path), gdal.GA_ReadOnly)
-            index = {ds.GetRasterBand(i + 1).GetMetadataItem('Name'): i + 1 for i in range(ds.RasterCount)}
-            missing = [s for _, s in names if s not in index]
-
-            if missing:
-                raise RuntimeError('Band ' + str(missing) + ' not in ' + str(metric))
-
-            bandList = [index[s] for _, s in names]
-
             for part, (xs, ys) in rowsByPart.items():
                 for n, _ in names:
                     out[part][n] = np.empty(len(xs), dtype=np.int16)
 
             allXs = np.concatenate([xs for xs, _ in rowsByPart.values()])
+            need = lambda y0, y1: np.any((allXs >= y0) & (allXs < y1))
 
-            for y0 in range(0, ds.RasterYSize, linesPerRead):
-
-                y1 = min(y0 + linesPerRead, ds.RasterYSize)
-
-                if not np.any((allXs >= y0) & (allXs < y1)):
-                    continue
-
-                block = ds.ReadAsArray(0, y0, ds.RasterXSize, y1 - y0, band_list=bandList)
-                block = block.reshape(len(bandList), y1 - y0, ds.RasterXSize)
+            for y0, y1, block in self._readBlocks(path, metric, [s for _, s in names], linesPerRead, need):
 
                 for part, (xs, ys) in rowsByPart.items():
                     sel = np.flatnonzero((xs >= y0) & (xs < y1))
                     if len(sel):
                         for j, (n, _) in enumerate(names):
-                            out[part][n][sel] = block[j, xs[sel] - y0, ys[sel]].astype(np.int16)
-
-                del block
-                ds.FlushCache()   # each block of lines is read once: keep GDAL's block cache empty
-
-            ds = None
+                            out[part][n][sel] = block[j, xs[sel] - y0, ys[sel]]
 
         return out
+
+    # ------------------------------------------------------------------------
+    # getTableFromRf
+    #
+    # The full-tile predictor table of RandomForestClassifier-format names:
+    # one row per pixel (row-major, as ravel()), one column per distinct name
+    # in the order of first appearance (as a DataFrame built column by
+    # column), in dtype.  It equals that DataFrame's to_numpy(dtype), without
+    # holding whole metric files or a second copy: each file is read once, a
+    # block of lines at a time, straight into the table.  Returns (table,
+    # column names).  A metric file that does not exist yet is made and read
+    # through getMetricFromRf.
+    # ------------------------------------------------------------------------
+    def getTableFromRf(self, rfMetricNames: list, dtype=np.float32, linesPerRead: int = 256) -> tuple:
+
+        columns = list(dict.fromkeys(rfMetricNames))
+        col = {n: j for j, n in enumerate(columns)}
+        rows, cols = self._productType.ROWS, self._productType.COLS
+        table = np.empty((rows * cols, len(columns)), dtype=dtype)
+
+        for metric, names in self._rfByFile(columns).items():
+
+            path = self._getOutName(metric)
+
+            if not path.exists():
+
+                for n, _ in names:
+                    table[:, col[n]] = self.getMetricFromRf(n).ravel()
+
+                self._readCache.pop(metric, None)
+                continue
+
+            for y0, y1, block in self._readBlocks(path, metric, [s for _, s in names], linesPerRead):
+
+                if block.shape[2] != cols:
+                    raise RuntimeError(str(path) + ': ' + str(block.shape[2]) + ' columns, expected ' + str(cols))
+
+                for j, (n, _) in enumerate(names):
+                    table[y0 * cols:y1 * cols, col[n]] = block[j].ravel()
+
+        return table, columns
 
     # ------------------------------------------------------------------------
     # getMetricFromRf

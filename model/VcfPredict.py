@@ -229,6 +229,18 @@ class VcfPredict(object):
         return metrics
         
     # ------------------------------------------------------------------------
+    # getTable
+    #
+    # The predictors of rfNames as one float32 table (pixels x distinct names),
+    # read in blocks (Metrics.getTableFromRf).  Returns (table, column names).
+    # ------------------------------------------------------------------------
+    def _getTable(self, tid: str, year: int, rfNames: list, metricsDir: Path = None, lowSun: str = None) -> tuple:
+
+        self._logger.info('Retrieving metrics (blocks): ' + str(rfNames))
+        mInstance = Metrics(tid, year, self._productType, metricsDir or self._metricsDir, self._logger, lowSun=lowSun)
+        return mInstance.getTableFromRf(rfNames, dtype=np.float32)
+
+    # ------------------------------------------------------------------------
     # maskPrediction
     # ------------------------------------------------------------------------
     def _maskPrediction(self, 
@@ -264,18 +276,20 @@ class VcfPredict(object):
         as round(100 * SD) (0 on water and out-of-projection), or None when the SD is switched off or the model
         has no ensemble members (e.g. XGBoost).
         """
-        X: pd.DataFrame = self._getMetrics(tid, year, topN, metricsDir, lowSun)
-
         # ---
         # Ensemble models: one pass over the members gives the value (combined by agg) and the SD.
         # The members' mean equals predict() exactly for Random Forest and BaggingRegressor
         # (Reports/SD_Layer_Results.md), so 'mean' gives the same layer as the predict() path below.
+        # The float32 table is read straight from the metric files in blocks (Metrics.getTableFromRf):
+        # the same values as _getMetrics(...).to_numpy(dtype=np.float32), without whole files or a second copy.
         # ---
         if VcfPredict._members(rf) is not None and (self._writeSd or agg != 'mean'):
 
+            X, _ = self._getTable(tid, year, topN, metricsDir, lowSun)
+
             self._logger.info('Predicting with the ensemble members (' + agg + ') ...')
 
-            value, sd = VcfPredict._memberPredict(rf, X.to_numpy(dtype=np.float32), agg, self._nJobs)
+            value, sd = VcfPredict._memberPredict(rf, X, agg, self._nJobs)
             del X
 
             prediction = np.clip(VcfPredict._roundValue(value).reshape(self._productType.ROWS,
@@ -294,6 +308,8 @@ class VcfPredict(object):
                 sdRaster = np.where(outside, 0, sdRaster).astype(np.int16)
 
             return maskedPred, sdRaster
+
+        X: pd.DataFrame = self._getMetrics(tid, year, topN, metricsDir, lowSun)
 
         if self._writeSd:
             self._logger.info(type(rf).__name__ + ' has no ensemble members: SD layer skipped.')
