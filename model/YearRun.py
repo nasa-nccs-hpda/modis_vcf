@@ -4,6 +4,7 @@ import logging
 import os
 from pathlib import Path
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -414,9 +415,49 @@ class YearRun(object):
         cmds = self._commands(task)
         self._log('START %s attempt %d (free %d GB)' % (task, attempt, self._freeGb()))
         p = subprocess.Popen(cmds[0], stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                             cwd=str(self.root / 'out'))
+                             cwd=str(self.root / 'out'), start_new_session=True)
         return dict(task=task, attempt=attempt, cmds=cmds, i=0, proc=p, log=log, start=time.time(),
                     peak=0, seen={}, cpu=0.0)
+
+    def _kill(self, r: dict, grace: float = 30.0) -> None:
+        """End a running task and everything it started: each task runs in its own process group (session), which
+        gets SIGTERM, then SIGKILL for whatever is left after the grace period.  A split's pool workers are in the
+        group, so none of them is left holding memory after a stop."""
+
+        pid = r['proc'].pid
+
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+
+        end = time.time() + grace
+
+        while time.time() < end:
+
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                pass
+
+            try:
+                os.killpg(pid, 0)
+            except ProcessLookupError:
+                self._log('ended %s (process group %d)' % (r['task'], pid))
+                return
+
+            time.sleep(1)
+
+        try:
+            os.killpg(pid, signal.SIGKILL)
+            self._log('killed %s (process group %d) after %d s' % (r['task'], pid, grace))
+        except ProcessLookupError:
+            pass
+
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
 
     def _poll(self, r: dict) -> bool:
         """Sample the task's process tree; start its next command when one ends; True when the task ended."""
@@ -440,7 +481,7 @@ class YearRun(object):
         if rc == 0 and r['i'] + 1 < len(r['cmds']):
             r['i'] += 1
             r['proc'] = subprocess.Popen(r['cmds'][r['i']], stdout=r['log'], stderr=subprocess.STDOUT,
-                                         stdin=subprocess.DEVNULL, cwd=str(self.root / 'out'))
+                                         stdin=subprocess.DEVNULL, cwd=str(self.root / 'out'), start_new_session=True)
             return False
 
         r['rc'] = rc
@@ -617,7 +658,7 @@ class YearRun(object):
 
             if stop:
                 for r in running:
-                    r['proc'].terminate()
+                    self._kill(r)
                 self._log('stopped: ' + stop)
                 return 1
 

@@ -302,7 +302,9 @@ def build(manifestFile: Path, predictors: list, rootFor, year: int, productType,
 
             logger.info('Training rows: ' + str(len(order)) + ' tiles in ' + str(workers) + ' processes')
 
-            with ProcessPoolExecutor(min(workers, len(order)), mp_context=multiprocessing.get_context('spawn')) as ex:
+            ex = ProcessPoolExecutor(min(workers, len(order)), mp_context=multiprocessing.get_context('spawn'))
+
+            try:
 
                 futures = {t: ex.submit(_tileFeatures, productType, t, year, rootFor(t), predictors, jobs[t], lowSun)
                            for t in order}
@@ -310,6 +312,18 @@ def build(manifestFile: Path, predictors: list, rootFor, year: int, productType,
                 for t in order:
                     store(t, futures[t].result())
                     logger.info('Training rows: ' + t + ' done')
+
+            except BaseException:
+
+                # A stop or a failure: drop the tiles not started and end the workers now, so that no worker
+                # outlives the split (shutdown(wait=True) would wait for the running tiles).
+                for proc in list((getattr(ex, '_processes', None) or {}).values()):
+                    proc.terminate()
+
+                ex.shutdown(wait=False, cancel_futures=True)
+                raise
+
+            ex.shutdown()
 
         for q, (p, _, index) in parts.items():
             pd.DataFrame({n: cols[q][n] for n in predictors}, index=index).to_parquet(outDir / ('x' + q + '.parq'))

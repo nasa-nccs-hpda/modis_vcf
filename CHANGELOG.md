@@ -16,7 +16,14 @@ version are fitted with the recipe given here. Maintained with every code commit
 Code changes since v1.5.0, not yet a version (project lead, 2026-10-19: no version name yet; v1.5.1 when it is one). Every item is
 **exact** against v1.5.0 unless stated.
 
-- **Training rows read from the metric files in blocks, not whole files** (2026-10-19; hash filled in by the next commit).
+- **A stopped run ends every process of its tasks** (2026-10-19; hash filled in by the next commit). `YearRun` starts each task in
+  its own session (process group) and, on STOP, sends the group SIGTERM, then SIGKILL to whatever is left after 30 s; before, only
+  the task's first process got SIGTERM, and a split's pool workers were left running (once 215 GB of orphans held a node).
+  `TrainingManifest.build` terminates its pool workers on any exception, and `view/trainingManifest.py` turns SIGTERM into a normal
+  exit so that path runs. Values unchanged (in the same proof). Stop test: STOP during a 6-worker tree split; 60 s later no process
+  of the split's group and none under the run root was left (the group needed the SIGKILL after the 30 s grace). Evidence:
+  `Reports/Split_Memory_Fix_Proof_Results.md`.
+- **Training rows read from the metric files in blocks, not whole files** (`ae17543`, 2026-10-19).
   `Metrics.getRowsFromRf` returns the predictor values at given pixels without holding whole metric files: each file is read once
   with GDAL in blocks of 256 lines, only the bands the predictors need and only lines holding a training pixel, and GDAL's block
   cache is flushed after each block (the files are pixel-interleaved, so one read gives every band of every pixel in it).

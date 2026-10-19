@@ -1,6 +1,7 @@
 import argparse
 import logging
 from pathlib import Path
+import signal
 import sys
 
 from modis_vcf.model import LowSun
@@ -23,6 +24,9 @@ from modis_vcf.model.VcfPredict import MOD44_DIR
 #   --roots: lines "<tile> <metrics root>" overriding --root for those tiles.
 # -----------------------------------------------------------------------------
 def main():
+
+    # SIGTERM (a stopped run) ends the build through its clean-up path, which also ends the split's workers.
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
 
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='cmd', required=True)
