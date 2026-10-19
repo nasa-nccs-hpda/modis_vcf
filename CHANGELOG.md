@@ -11,13 +11,36 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
-## Unreleased: v1.4.1 (code tidy-up and production benchmark; in progress)
+## v1.5.0 (tag `v1.5.0`, 2026-10-19): new bare training set, no code change
+
+**Model change, bare (Percent_NonVegetated) only.** The code is v1.4.1 (`f401421`) unchanged. The bare model is refitted (RF 60
+trees, sqrt, leaf 1, seed 0, the 21 v1.4.1 bare predictors) on 33 label tiles instead of 20:
+- v1.4.1's 20 tiles;
+- plus 13 legacy bare label tiles (h08v06 h09v06 h13v02 h17v07 h18v08 h20v07 h21v07 h21v09 h26v03 h26v04 h27v03 h30v11 h31v09),
+  with h10v02 and h21v08 left out;
+- plus the 10,000 h16v02 ice points, re-sampled from that year's metrics.
+
+The manifest is drawn with the fresh-sample mode (P4). The tree model and the blend partner are v1.4.1's, unchanged.
+
+Effects (2019, 69 product tiles, against v1.4.1):
+- Quality, Cloud and tree SD are identical. Tree cover changes only through the bare-dependent rules (BP10: 19,960 px; blend raw-bare
+  cap), with 0 other tree differences.
+- Bare: mean −0.91 (tile range −14.4 to +1.6). The lowering is on the pattern-A tiles (South America, central and southern Africa,
+  Australia), which all move closer to ESA WorldCover.
+- Held-out bare MAE (old 21-tile set): 3.8022 vs 3.7942 (+0.008; tile bootstrap 95% CI [0.000, +0.017]), accepted as a tie by the
+  project lead.
+- Ice tiles are unchanged within limits.
+
+Run: `FullRuns/v150_20261018` (84 maps). The models are not in the package. Evidence: `Reports/Version_v1.5.0_Build_Results.md`,
+plan `Reports/Version_v1.5.0_Build_Plan.md`, candidate `Reports/T2c_Drop_h10v02_Results.md`.
+
+## v1.4.1 (tag on `f401421`, 2026-10-18): code tidy-up and production benchmark
 
 Goal: the v1.4.0 product from one package, in one driver per year, with exact speed-ups, then a benchmark against the C code (time,
-memory, disk). Every item below is **exact** against v1.4.0 unless stated (S7 changes the 2019 blend layers; see its entry). v1.4.1 is tagged only when the benchmark passes.
+memory, disk). Every item below is **exact** against v1.4.0 unless stated (S7 changes the 2019 blend layers; see its entry). Tagged 2026-10-18 after the parity run (benchmark arm F PASS with the h19v12 exception, `Reports/V141_Production_Benchmark_Results.md`).
 Plan: `Reports/V141_Code_Tidyup_And_Full_Retrain_Plan.md`.
 
-- **Fresh-sample mode: the training sample drawn from the label rasters** (P4, 2026-10-17; hash filled in by the next commit).
+- **Fresh-sample mode: the training sample drawn from the label rasters** (P4, `f401421`, 2026-10-17).
   `TrainingManifest.sample` / `trainingManifest.py sample` writes a manifest straight from the label files, using the rule the
   product's splits were made with. Every labelled pixel (value != 255) of each tile is a row, sorted by key (tid-year, x = row,
   y = column). A row is held out when the pandas hash of its key is 0 mod 5. Extra label rows (`--extra`: the 10,000 h16v02 ice
