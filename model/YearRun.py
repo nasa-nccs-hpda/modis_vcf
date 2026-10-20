@@ -40,7 +40,7 @@ from modis_vcf.model import RuleTile
 # Every attempt appends one row to <runRoot>/timing/tasks.csv: task, host, start, end, seconds, CPU seconds
 # (user + system, from wait4: the commands and the descendants they reaped), peak RSS of the task's process tree
 # and bytes read / written (/proc/<pid>/io rchar / wchar: through read and write calls, incl. page-cache hits), both sampled every 5 s (short-lived processes may be undercounted), return code.  The partner's V4r metrics and the cloud counts are inputs
-# (blend/v4r_year.py) only in the "borrowed" partner form below.
+# made elsewhere only in the "borrowed" partner form below.
 #
 # Spec (JSON): year, runRoot, lowSun, models {tree, bare: {manifest, predictors, trainingType, fit {...}} or
 # {fixed: {model, topN}}}, partner (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run),

@@ -101,13 +101,13 @@ def main():
                         type=Path,
                         default=None,
                         help='Metrics root of the partner\'s V4r composites (built with '
-                             '--lowSun off; blend/v4r_year.py).')
+                             '--lowSun off; model/V4r.py).')
 
     parser.add_argument('--counts',
                         type=Path,
                         default=None,
                         help='Directory with <tile>_counts_snow.npz (cloud counts CUR_ZS, '
-                             'blend/v4r_year.py) for the year being mapped.')
+                             'model/V4r.py) for the year being mapped.')
 
     parser.add_argument('--noBp10',
                         action='store_true',

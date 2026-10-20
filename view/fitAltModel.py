@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Fit a Random Forest, XGBoost, or Histogram Gradient Boosting model, as an alternative to the
-BaggingRegressor(DecisionTreeRegressor()) model from rfFitFromPge61.py. It takes the same predictors
+BaggingRegressor(DecisionTreeRegressor()) model of the 2025 code (rfFitFromPge61.py, removed in v1.5.2). It takes the same predictors
 and xTrain/yTrain, and writes the same output files (<trainingType>.bin and <trainingType>TopN.bin).
 
-RF and XGBoost models run through the existing predict path (vcfPredictQueue.py -> VcfPredict.py)
+RF and XGBoost models run through the existing predict path (vcfPredict.py -> VcfPredict.py)
 unchanged: it only calls joblib.load, .set_params(n_jobs=...) and .predict(). XGBoost can predict
 outside 0-100; VcfPredict clamps before applying the water/out-of-projection codes.
 HistGradientBoostingRegressor has no n_jobs parameter, so VcfPredict's .set_params(n_jobs=...) would
 fail on an hgb model; hgb is for held-out scoring only.
 
-In the 2026 MODIS-VCF evaluation (docs/reports/Regression_Tree_Methods_RF_XGBoost_Results.md), XGBoost
+In the 2026 MODIS-VCF evaluation (Regression_Tree_Methods_RF_XGBoost_Results.md, project reports), XGBoost
 "tunedB" (below) was the most accurate of the three Python models against the historical MOD44B.
 
 Usage (tree cover; nonveg is the same with --trainingType pctbare and its own training data):

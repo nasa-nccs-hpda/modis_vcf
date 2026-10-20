@@ -48,7 +48,7 @@ are unchanged from 1.1.0.
 (Version 1.1.0 used the same recipe without the added rows. Version 1.0.0 used 30 trees, with the MEDIAN for
 tree cover and the MEAN for non-vegetated.)
 Tree cover uses its own predictors; non-vegetated uses the C code's 21 bare predictors
-(the default list in `view/rfFitFromPge61.py`).
+(listed in the version's predictor file).
 
 ```bash
 python view/fitAltModel.py --algo rf --nEstimators 60 --maxFeatures sqrt --randomState 0 \
@@ -56,7 +56,7 @@ python view/fitAltModel.py --algo rf --nEstimators 60 --maxFeatures sqrt --rando
     --xTrainPath xTrain.parq --yTrainPath yTrain.parq -o <modelDir>
 ```
 
-`view/vcfPredict.py` (or `view/vcfPredictQueue.py` for many tiles) writes `Percent_Tree_Cover`,
+`view/vcfPredict.py` writes `Percent_Tree_Cover`,
 `Percent_NonVegetated` and `Percent_NonTree_Vegetation`, plus the two SD layers
 `Percent_Tree_Cover_SD` and `Percent_NonVegetated_SD`.
 Each is a single-band LZW GeoTIFF. As in the historical MOD44B, the three percent layers are

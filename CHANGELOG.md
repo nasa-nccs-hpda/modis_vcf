@@ -6,7 +6,7 @@ byte, metrics and map layers by value) on the named tiles. Commits are on branch
 `nasa-nccs-hpda/modis_vcf` (named `mcarrol2/v1.2.0` until 2026-10-19), which starts from `develop` at `b83e302` (2025-07-18). The
 version tags are development milestones on this branch, not releases of the repository: what is released is decided by the
 repository owner through a pull request into `develop`. Evidence is in the development reports
-(`docs/reports/` snapshot, and the project's `Reports/` folder for later ones).
+(the project's `Reports/` folder; a snapshot up to 2026-10-19 is in `docs/reports/` at tag `v1.5.1`).
 
 Version names: v1.0.0 is the first product version. Later versions are cumulative. A version tag marks the code; the models of a
 version are fitted with the recipe given here. Maintained with every code commit (see the end of this file).
@@ -15,7 +15,13 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased (v1.5.2: MODAPS delivery clean-up)
 
-- **Clean sweep: files an operational run does not use removed** (2026-10-20; hash filled in by the next commit). Project lead,
+- **Comments and help text that named removed files** (2026-10-20; hash filled in by the next commit). `model/BlendA.py`,
+  `model/CompositeDayFile.py`, `model/VcfPredict.py`, `model/YearRun.py`, `view/vcfPredict.py`, `view/fitAltModel.py` and
+  `README.md` named `blend/` scripts, `rfFitFromPge61.py`, `vcfPredictQueue.py` or `docs/reports/`; they now name the package step
+  (e.g. the cloud counts come from `model/V4r.py` in the metrics task) or say where the old file is (tag `v1.5.1`). `model/V4r.py`'s
+  comments follow with its own change. **No value change**: comments, docstrings, `--help` strings and one error message only (the
+  code is identical with string constants ignored).
+- **Clean sweep: files an operational run does not use removed** (`2345db1`, 2026-10-20). Project lead,
   2026-10-20: v1.5.2 holds only what production runs plus the options kept as testing only (GPU Monte Carlo, MOD09A1 input,
   xgboost), so the MODAPS team sees what they run. Tag `v1.5.1` and the history keep everything. Removed (366 files): `blend/`
   (v1.4.0 standalone chain, replaced by the package steps; its last gap, the acceptance test, is the entry below); rlgill's 2024-25

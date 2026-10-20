@@ -8,18 +8,18 @@ import numpy as np
 #
 # The v1.4.0 map steps after the two models, moved into the package (v1.4.1):
 #
-# Blend A (tree layer, MODIS tile rows v06-v11 = 30N-30S), from
-# blend/blend_year.py and blend/gate_common.py:
+# Blend A (tree layer, MODIS tile rows v06-v11 = 30N-30S), from v1.4.0's
+# blend_year.py and gate_common.py (blend/, removed in v1.5.2; at tag v1.5.1):
 #   tree = floor((1 - w) * clear + w * partner + 0.5) on pixels valid (0-100)
 #   in both, w = cloud weight x cover weight:
 #   cloud weight = CUR_ZS / 8 where CUR_ZS >= 5 of the 8 periods, else 0
 #   (CUR_ZS: periods whose composite fell back to an all-cloudy mean, with no
-#   input of sun zenith 0-65, snow picks not counted; blend/v4r_year.py);
+#   input of sun zenith 0-65, snow picks not counted; model/V4r.py);
 #   cover weight = clip((clear - 20) / 30, 0, 1).
 #   The partner (V4R60) is a tree model fitted on the V4r composites, which
 #   are built without the low-sun substitution.
 #
-# BP10, from blend/bp10_apply.py (every tile): where the bare model's uncapped
+# BP10, from v1.4.0's bp10_apply.py (every tile): where the bare model's uncapped
 # value is 100 and the final tree is 1-9, tree = 0, non-vegetated = 100,
 # non-tree vegetation = 0.
 # ----------------------------------------------------------------------------
@@ -43,13 +43,13 @@ def inScope(vTile: int) -> bool:
 # ----------------------------------------------------------------------------
 def loadCounts(countsDir: Path, tid: str) -> np.ndarray:
     """CUR_ZS from <countsDir>/<tile>_counts_snow.npz (written by
-    blend/v4r_year.py for the year being mapped)."""
+    model/V4r.py in the metrics task for the year being mapped)."""
 
     f = Path(countsDir) / (tid + '_counts_snow.npz')
 
     if not f.exists():
         raise RuntimeError('Blend A needs the cloud counts ' + str(f) +
-                           ' (blend/v4r_year.py for this tile-year).')
+                           ' (model/V4r.py, metrics task, for this tile-year).')
 
     return np.load(f)[COUNTS_KEY]
 

@@ -561,7 +561,7 @@ class VcfPredict(object):
         # Blend A (BlendA.blend) on rows v06-v11 when a partner is given.  The
         # partner reads its own (V4r, unsubstituted) metrics.  The tree SD
         # layer stays the clear model's.  The sum cap below then uses the
-        # blended tree, as blend/blend_year.py --rawBare did.
+        # blended tree, as v1.4.0's blend_year.py --rawBare did.
         # ---
         chain = dict(tile=tid, year=year, blend=False, bp10=None)
 

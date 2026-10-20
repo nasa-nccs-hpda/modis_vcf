@@ -225,7 +225,7 @@ class CompositeDayFile(DayFile):
     # arrays are read-only.  The BandDayFile's geotransform (that of the last
     # subdataset read, SolarZenith) is cached and restored, as before.  The
     # cache lives for the process, about 92 MB per day; one process per tile
-    # (as in warm_metrics) holds about one year of days.
+    # (as in the V4r metrics step) holds about one year of days.
     # ------------------------------------------------------------------------
     _maskCache = {}
 
