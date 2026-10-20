@@ -13,6 +13,18 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## Unreleased (v1.5.2: MODAPS delivery clean-up)
+
+- **Partner split acceptance test moved into the package** (2026-10-20; hash filled in by the next commit).
+  `TrainingManifest.accept` and `trainingManifest.py accept` replace `blend/accept_split.py`, the one v1.4.0 `blend/` script with no
+  package equivalent: the blend A partner's split (V4r root, low-sun off) must have the same keys and labels as the standard split
+  of the same manifest, and at rows V4r never replaced, every predictor must equal the standard value. Unlike the old script, the
+  value check skips tiles with low-sun substitution (since v1.4.0 the standard split is LE0 there, so values differ by design); it
+  reports which tiles it compared. Exit 1 on FAIL. Needed by MODAPS, who refit the partner every year (`Reports/MODAPS_Delivery_Plan.md`,
+  section 7.1). **No value change** (a check only; nothing calls it in a run). Evidence: on the global 2019 v1.5.1 splits, old and
+  new give the same rows, keys, labels and replaced shares; new PASS (27 tiles value-compared, 0 differing cells); standard = bare
+  split gives FAIL, exit 1 (`FullRuns/EXP_accept_proof_20261020/out/compare.txt`).
+
 ## v1.5.1 (tag `v1.5.1`, 2026-10-19): memory fixes and the v15-v17 rule tiles
 
 v1.5.0's models with less memory per task, and rows v15-v17 mapped by rule (project lead, 2026-10-19). The models are v1.5.0's

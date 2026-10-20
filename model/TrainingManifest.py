@@ -27,11 +27,13 @@ from modis_vcf.model.Metrics import Metrics
 #                                    (fresh-sample mode)
 #   build(manifest)    -> split dir  xTrain / xTest / yTrain / yTest /
 #                                    keysTrain / keysTest, in manifest order
+#   accept(partner split, standard split) -> report   the partner split's
+#                                    acceptance test (PASS / FAIL)
 #
 # Keys: x = raster row, y = column (arr[x, y]).  The h16v02 ice rows of the
 # bare sample are rows like any other; each version re-samples them, so each
 # version has its own manifest.  Manifests are written next to each version's
-# models; the current product's is also kept in the package (data/).
+# models.
 # ----------------------------------------------------------------------------
 PARTS = ('Train', 'Test')
 COLUMNS = ['part', 'row', 'tid-year', 'x', 'y', 'label']
@@ -333,3 +335,76 @@ def build(manifestFile: Path, predictors: list, rootFor, year: int, productType,
                                                           report=report),
                                                      indent=1))
     return report
+
+
+# ----------------------------------------------------------------------------
+# accept
+#
+# Acceptance test of the blend A partner's split (built from the V4r metrics
+# root, low-sun mode off) against the standard split of the same manifest:
+#   - every tile: keys and labels equal (the V4r rows are the standard rows);
+#   - tiles with no low-sun substitution (lowsun_counts.csv of the standard
+#     root sums to 0): at rows whose pixel V4r never replaced (used count 0),
+#     every predictor equals the standard value (NaN = NaN).  On the other
+#     tiles the standard split is LE0 and the V4r split mode off, so their
+#     values differ by design and are not compared.
+# Reports the share of rows replaced and of their cells changed.  Writes
+# <outFile> (JSON) and returns it; RESULT is PASS or FAIL.
+# ----------------------------------------------------------------------------
+def accept(v4rSplit: Path, stdSplit: Path, countsDir: Path, stdRootFor, year: int, outFile: Path) -> dict:
+
+    v4rSplit, stdSplit, countsDir = Path(v4rSplit), Path(stdSplit), Path(countsDir)
+    rep, ok, subst = {}, True, {}
+
+    def substituted(t):
+        if t not in subst:
+            f = Path(stdRootFor(t)) / t / str(year) / 'lowsun_counts.csv'
+            subst[t] = int(pd.read_csv(f)['substituted'].sum()) if f.exists() else None
+        return subst[t]
+
+    for part in PARTS:
+
+        K = pd.read_parquet(stdSplit / ('keys%s.parq' % part))
+        Kn = pd.read_parquet(v4rSplit / ('keys%s.parq' % part))
+        sameKeys = K.equals(Kn)
+        sameLabels = bool(pd.read_parquet(stdSplit / ('y%s.parq' % part)).equals(
+            pd.read_parquet(v4rSplit / ('y%s.parq' % part))))
+        ok &= sameKeys and sameLabels
+        rec = dict(rows=len(K), keys_equal=bool(sameKeys), labels_equal=sameLabels)
+
+        if sameKeys:
+
+            Xn = pd.read_parquet(v4rSplit / ('x%s.parq' % part))
+            missing = [c for c in Xn.columns if c not in pd.read_parquet(stdSplit / ('x%s.parq' % part)).columns]
+
+            if missing:
+                raise RuntimeError('Standard split has no column ' + ', '.join(missing))
+
+            Xo = pd.read_parquet(stdSplit / ('x%s.parq' % part), columns=list(Xn.columns))
+            tl = K['tid-year'].str[:6].to_numpy()
+            used = np.zeros(len(K), np.uint8)
+            compared = np.zeros(len(K), bool)
+
+            for t in np.unique(tl):
+                m = tl == t
+                u = np.load(countsDir / ('%s_v4r_used_count.npy' % t))
+                used[m] = u[K.x.to_numpy()[m], K.y.to_numpy()[m]]
+                compared[m] = substituted(t) == 0
+
+            a, b = Xn.to_numpy(np.float64), Xo.to_numpy(np.float64)
+            same = (a == b) | (np.isnan(a) & np.isnan(b))
+            bad0 = int((~same[(used == 0) & compared]).sum())
+            ok &= bad0 == 0
+            rec.update(rows_replaced=int((used > 0).sum()), share_rows_replaced=float((used > 0).mean()),
+                       rows_value_compared=int(((used == 0) & compared).sum()),
+                       cells_differ_where_unreplaced=bad0,
+                       share_cells_changed_where_replaced=float((~same[used > 0]).mean()) if (used > 0).any() else 0.0)
+
+        rep[part] = rec
+
+    rep['tiles_value_compared'] = sorted(t for t, s in subst.items() if s == 0)
+    rep['tiles_not_value_compared'] = {t: ('no lowsun_counts.csv' if s is None else '%d substituted' % s)
+                                       for t, s in sorted(subst.items()) if s != 0}
+    rep['RESULT'] = 'PASS' if ok else 'FAIL'
+    Path(outFile).write_text(json.dumps(rep, indent=1))
+    return rep
