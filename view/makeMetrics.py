@@ -10,6 +10,7 @@ from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model import LowSun
 from modis_vcf.model.ProductTypeMod09A import ProductTypeMod09A
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
+from modis_vcf.model.Settings import MOD09A1_DIR, MOD44_DIR
 
 
 # -----------------------------------------------------------------------------
@@ -28,9 +29,6 @@ def main():
     
     desc = 'Use this application to compute metrics.'
     parser = argparse.ArgumentParser(description=desc)
-
-    inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
-    inDir09 = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
 
     parser.add_argument('-m',
                         type=str,
@@ -55,6 +53,7 @@ def main():
 
     parser.add_argument('--mod09Dir',
                         type=Path,
+                        default=MOD09A1_DIR,
                         help='MOD09A1 input directory (<dir>/<year>/*.hdf)')
 
     parser.add_argument('-t',
@@ -124,18 +123,7 @@ def main():
     #
     # This can be accomplished with registration, instead of this hard coding.
     # ---
-    # inDir = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD44C')
-    # inDir09 = Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
-    # prodType = None
-    #
-    # if args.productType == ProductTypeMod09A.PRODUCT_TYPE:
-    #
-    #     prodType = ProductTypeMod09A(inDir09, inDir)
-    #
-    # else:
-    #     prodType = ProductTypeMod44(inDir)
-    
-    modisDir = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
+    modisDir = MOD44_DIR
 
     # MOD09A1: bands 1-7 from MOD09A1, band 31 from MOD44C.
     if args.productType == ProductTypeMod09A.PRODUCT_TYPE:

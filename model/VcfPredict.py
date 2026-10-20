@@ -30,9 +30,7 @@ from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
 from modis_vcf.model import RuleTile
-
-MOD44_DIR = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
-MOD44W_DIR = Path('/css/modis/Collection6.1/L3/MOD44W-LandWaterMask')
+from modis_vcf.model.Settings import MOD44_DIR, MOD44W_DIR   # also imported from here by other modules
 
 
 # ----------------------------------------------------------------------------

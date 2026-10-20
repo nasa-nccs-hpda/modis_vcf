@@ -15,7 +15,11 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased (v1.5.2: MODAPS delivery clean-up)
 
-- **No dependency on ilab `core`** (2026-10-20; hash filled in by the next commit). `Metrics.readMetric` opened metric GeoTIFFs through `core`'s
+- **Input locations in `model/Settings.py`** (2026-10-20; hash filled in by the next commit). MOD44C, MOD44W and MOD09A1 folders from `VCF_MOD44_DIR`,
+  `VCF_MOD44W_DIR`, `VCF_MOD09A1_DIR`, with the NCCS ADAPT paths as defaults (our runs unchanged); `VcfPredict` re-exports
+  `MOD44_DIR` / `MOD44W_DIR`; `view/makeMetrics.py` uses them (its own hard-coded paths removed; `--mod09Dir` defaults to the
+  setting). **Exact.**
+- **No dependency on ilab `core`** (`69bffd4`, 2026-10-20). `Metrics.readMetric` opened metric GeoTIFFs through `core`'s
   `GeospatialImageFile` (the package's only use of `core`); it now opens them with GDAL, with the same checks (file exists, GDAL opens
   it, valid spatial reference). The project lead chose this over copying the class (MODAPS delivery, plan step 4.2). **Exact.**
 - **Comments and help text that named removed files** (`cd33f97`, 2026-10-20). `model/BlendA.py`,
