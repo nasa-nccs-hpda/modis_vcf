@@ -1,0 +1,11 @@
+# Optional packages, for testing only (not used by the production chain):
+#   xgboost: view/fitAltModel.py --algo xgb
+#   conda env update -n modis_vcf -f environment-optional.yml
+# The GPU Monte Carlo predictor search (model/MonteCarloSimGpu.py, view/monteCarloSimGpu*.py) needs NVIDIA RAPIDS
+# (cuml, cudf, cupy 23.12) on a GPU node; it is not part of this file (see docs/BUILD.md).
+name: modis_vcf
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - xgboost=1.7.6

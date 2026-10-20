@@ -1,0 +1,21 @@
+# modis_vcf (MODIS VCF / MOD44B, Python) environment: conda-forge only.
+# Pinned to the versions the v1.5.x products were made with (docs/BUILD.md).
+# scikit-learn is pinned exactly: fitted forests and their predictions depend on it.
+#   conda env create -f environment.yml
+name: modis_vcf
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.10
+  - python_abi=*=*_cp310    # CPython (otherwise the solver may pick graalpy)
+  - numpy=1.24.4
+  - scipy=1.12.0
+  - scikit-learn=1.2.0
+  - joblib=1.3.2
+  - threadpoolctl=3.2.0
+  - pandas=2.2.3
+  - pyarrow=18.1.0
+  - numba=0.61.0            # compact forests (model/CompactForest.py)
+  - llvmlite=0.44.0
+  - gdal=3.8.5              # needs the HDF4 driver (MOD44C, MOD44W); the conda-forge build has it

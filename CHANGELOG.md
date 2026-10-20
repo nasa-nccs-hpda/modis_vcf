@@ -15,7 +15,14 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased (v1.5.2: MODAPS delivery clean-up)
 
-- **Unit tests** (2026-10-20; hash filled in by the next commit). `model/tests/h08v04-2019-pcttree-training+obsForRF.parq.skip` restored (the sweep
+- **Conda environment and documentation** (2026-10-20; hash filled in by the next commit). `environment.yml` (conda-forge only, pinned to the product
+  versions; GDAL 3.8.5 for 3.8.4; numba 0.61.0 for the compact forests) and `environment-optional.yml` (xgboost); `docs/BUILD.md`,
+  `ALGORITHM.md`, `RUNNING.md`, `TRAINING_LABELS.md` (the label archive set 7.0.1 and the h16v02 row-order note); the v1.5.x predictor
+  lists `docs/predictors_tree.txt` (64) and `docs/predictors_bare.txt` (21); README rewritten. **Proof** of the v1.5.2 code in this
+  environment (activated; no container, no `core`) against the global 2019 v1.5.1 run on h12v09, h17v01, h16v02, h20v09: composites
+  byte for byte, metrics and the 7 map layers by value, V4r inputs, the split rows of those tiles and the three refitted models
+  byte-identical; `compose.json` differs in its land / dense statistics only (C1) (`FullRuns/EXP_modaps_cleanenv2_20261020/out/compare.txt` + `compare_addendum.txt`).
+- **Unit tests** (`4fa8a85`, 2026-10-20). `model/tests/h08v04-2019-pcttree-training+obsForRF.parq.skip` restored (the sweep
   removed it as unused, but `test_MasterTraining` uses it). `test_VcfPredict_roundingHighLat` brought up to date with v1.4.1-v1.5.1
   (stand-ins for the blend partner, BP10, `chain.json`, Quality / Cloud and the rule-tile guard; assertions unchanged). The 8 test
   files that read no NCCS data pass in the clean conda environment. No code change.

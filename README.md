@@ -1,85 +1,43 @@
-# MODIS Vegetation Continuous Fields
+# MODIS Vegetation Continuous Fields (modis_vcf)
 
-## Overview
+Python code for the MODIS Vegetation Continuous Fields product (MOD44B, Terra): yearly percent tree cover, percent non-vegetated
+(bare) and percent non-tree vegetation for every MODIS land tile on the 250 m sinusoidal grid, with SD, Quality and Cloud layers. It
+replaces the operational C code (PGE61) and reads the same inputs, MOD44CH / MOD44CQ (PGE72) and MOD44W.
 
-Proportional estimates of cover are developed from global training data derived using 
-high-resolution imagery. The training data and phenological metrics are used with a 
-regression tree to derive percent cover globally. The model is then used to estimate 
-areal proportions of life form, leaf type, and leaf longevity. The current V004 
-collection of the yearly MODIS Vegetation Continuous Fields (VCF) product contains 
-only percent tree cover, with the other layers to follow in later releases.
+Version: **v1.5.2** (see `CHANGELOG.md`).
 
-The data layers in the VCF product are generated on an annual basis from monthly 
-composites of 500-m Surface Reflectance data. Compositing is based on the second 
-darkest albedo to remove clouds and cloud shadow. For more information refer to
-the [MODIS VCF user manual](https://modis.gsfc.nasa.gov/data/dataprod/mod44.php).
+## Documentation
 
-## Installation
+| Document | For |
+|---|---|
+| [docs/BUILD.md](docs/BUILD.md) | the conda environment, installation, input locations, checks, tests |
+| [docs/ALGORITHM.md](docs/ALGORITHM.md) | what the product is and how each step computes it |
+| [docs/RUNNING.md](docs/RUNNING.md) | running a year: the commands, the year driver, resources |
+| [docs/TRAINING_LABELS.md](docs/TRAINING_LABELS.md) | the training labels (delivered as a separate archive) |
+| [CHANGELOG.md](CHANGELOG.md) | every change since the 2026 development started, with evidence |
 
-The following library is intended to be used to accelerate the production 
-development of MODIS VCF products. All dependencies have been housed inside
-OCI Docker containers that can be directly used with Docker, Singularity, Podman,
-among others.
+## Layout
 
-Note: PIP installations do not include CUDA libraries for GPU support. 
-Make sure NVIDIA libraries are installed locally in the system if not using conda/mamba.
+| Path | What |
+|---|---|
+| `model/` | the algorithm: inputs and QA (`BandDayFile`, `CompositeDayFile`, `LowSun`), metrics (`Metrics`, `CMirrorMetrics`), training (`TrainingManifest`), prediction and rules (`VcfPredict`, `BlendA`, `V4r`, `RuleTile`, `CompactForest`), the year driver (`YearRun`), input locations (`Settings`) |
+| `view/` | command-line entry points: `runYear`, `trainingManifest`, `fitAltModel`, `vcfPredict`, `makeMetrics` |
+| `model/tests/` | unit tests |
+| `docs/` | documentation and the predictor lists (`predictors_tree.txt`, `predictors_bare.txt`) |
+| `environment.yml`, `environment-optional.yml` | conda environments |
 
-## Production Container
+Testing only, not part of the production chain: the GPU Monte Carlo predictor search (`model/MonteCarloSim*.py`,
+`model/MasterTraining.py`, `model/Trial.py`, `model/TrainingType.py`, `view/monteCarloSim*.py`), the MOD09A1 input
+(`model/ProductTypeMod09A.py`, `makeMetrics.py --productType`) and the XGBoost / HGB models (`fitAltModel.py --algo xgb|hgb`).
 
-```bash
-module load singularity
-singularity build --sandbox /lscratch/$USER/container/modis-vcf docker://nasanccs/modis-vcf:latest
-```
-
-## Development Container
-
-```bash
-module load singularity
-singularity build --sandbox /lscratch/$USER/container/modis-vcf-dev docker://nasanccs/modis-vcf:dev
-```
-
-## Fitting and prediction
-
-Version 1.2.0: both layers use a Random Forest of 60 trees (`max_features='sqrt'`, seed 0), fitted on the
-bit-15 QA metrics, and both are combined with the MEDIAN of the trees. The non-vegetated training set adds
-10,000 rows labelled 100 on the h16v02 (Greenland) ice sheet, on a regular grid at least 10 km inside the MOD44C
-ice edge, so the model learns what that ice looks like with its real inputs. The tree cover model and the code
-are unchanged from 1.1.0.
-(Version 1.1.0 used the same recipe without the added rows. Version 1.0.0 used 30 trees, with the MEDIAN for
-tree cover and the MEAN for non-vegetated.)
-Tree cover uses its own predictors; non-vegetated uses the C code's 21 bare predictors
-(listed in the version's predictor file).
+## Quick start
 
 ```bash
-python view/fitAltModel.py --algo rf --nEstimators 60 --maxFeatures sqrt --randomState 0 \
-    --trainingType pcttree --predictorFile <predictors.txt> \
-    --xTrainPath xTrain.parq --yTrainPath yTrain.parq -o <modelDir>
+conda env create -f environment.yml && conda activate modis_vcf
+export PYTHONPATH=<parent folder of modis_vcf>
+export VCF_MOD44_DIR=<MOD44C folder> VCF_MOD44W_DIR=<MOD44W folder>
+python -m modis_vcf.view.runYear run --spec spec.json          # docs/RUNNING.md
 ```
-
-`view/vcfPredict.py` writes `Percent_Tree_Cover`,
-`Percent_NonVegetated` and `Percent_NonTree_Vegetation`, plus the two SD layers
-`Percent_Tree_Cover_SD` and `Percent_NonVegetated_SD`.
-Each is a single-band LZW GeoTIFF. As in the historical MOD44B, the three percent layers are
-uint8 (0-100, water 200, out of projection 250, nodata 253) and the SD layers are uint16.
-
-- `--tcAgg` / `--nvAgg` set how each layer's trees are combined: `mean` (the same as
-  `predict()`), `mid20` (the mean of the middle 20) or `median`. Defaults are `mean`. The
-  production setting (v1.1.0 and v1.2.0) is `--tcAgg median --nvAgg median`; v1.0.0 used `--tcAgg median --nvAgg mean`.
-- The SD layers are the population SD of the trees, stored as round(100 x SD), with 0 on
-  water and out-of-projection. Use `--noSd` to skip them. Models without ensemble members
-  (XGBoost) get no SD and support only `mean`.
-- A process needs about 45 GB of memory per tile with 30-tree models and about 80 GB with the 60-tree models, and most of the run time is spent reading
-  the metrics.
-
-## Additional Projects
-
-### Validation of MODIS VCF training with Very High Resolution Imagery
-
-Below is the documentation to reproduce the validation of MODIS VCF training
-data using Very High Resolution imagery. The following directions are meant to 
-assist in reproducing these steps for a future validation sceneario. The process
-is not fully automated given the need to select based on operator experience, the
-best scenes to work with. This documentation is work in progress.
 
 ## Contributors
 
@@ -87,10 +45,6 @@ best scenes to work with. This documentation is work in progress.
 - Roger L Gill, roger.l.gill@nasa.gov
 - Savannah L Strong, savannah.strong@nasa.gov
 - Jordan Alexis Caraballo-Vega, jordan.a.caraballo-vega@nasa.gov
-
-## Contributing
-
-Please see our guide for contributing to modis_vcf.
 
 ## References
 
