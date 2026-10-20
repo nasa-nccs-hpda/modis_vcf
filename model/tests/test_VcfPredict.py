@@ -4,9 +4,10 @@ import unittest
 
 import numpy as np
 
-from modis_vcf.model.Band import Band
 from modis_vcf.model.TrainingType import TrainingType
 from modis_vcf.model.VcfPredict import VcfPredict
+
+ROWS = COLS = 4800   # MODIS 500 m tile
 
 
 # -----------------------------------------------------------------------------
@@ -111,7 +112,7 @@ class VcfPredictTestCase(unittest.TestCase):
         # Run Random Forest.
         prediction: np.ndarray = self._vcfp._treeCoverRf.predict(X). \
                                  astype(np.int16). \
-                                 reshape(Band.ROWS, Band.COLS)
+                                 reshape(ROWS, COLS)
 
         maskedPred: np.ndarray = self._vcfp._maskPrediction(self._tids[1],
                                                             self._years[1],
@@ -167,7 +168,7 @@ class VcfPredictTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testRunPredictionClamps(self):
 
-        rows = Band.ROWS * Band.COLS
+        rows = ROWS * COLS
         outOfRange = np.linspace(-30, 130, rows).astype(np.float64)
 
         class FakeRegressor:

@@ -15,7 +15,21 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased (v1.5.2: MODAPS delivery clean-up)
 
-- **Partner split acceptance test moved into the package** (2026-10-20; hash filled in by the next commit).
+- **Clean sweep: files an operational run does not use removed** (2026-10-20; hash filled in by the next commit). Project lead,
+  2026-10-20: v1.5.2 holds only what production runs plus the options kept as testing only (GPU Monte Carlo, MOD09A1 input,
+  xgboost), so the MODAPS team sees what they run. Tag `v1.5.1` and the history keep everything. Removed (366 files): `blend/`
+  (v1.4.0 standalone chain, replaced by the package steps; its last gap, the acceptance test, is the entry below); rlgill's 2024-25
+  training path (`model/BuildTraining.py`, `view/buildTraining.py`, `masterTraining.py`, `trainingStatus.py`, `parquetToCsv.py`;
+  replaced by `TrainingManifest`); `view/rfFitFromPge61.py`, `view/vcfPredictQueue.py`, `view/stateDump.py`, `view/stateDump2.py`;
+  `model/CEquivalentMetrics.py`, `model/Utils.py`, `model/ProductTypeMod09G.py`, `model/Band.py` and their tests; `projects/`
+  (Weka reproduction), `notebooks/`, `view/editLabeledTraining.ipynb`; `data/` (a 2025 copy of label files nothing reads; the
+  labels are delivered as a separate tar); `docs/reports/` (snapshot of the internal reports; new docs follow); the ilab
+  `requirements/Dockerfile` and Docker Hub CI (MODAPS uses no containers; a conda `environment.yml` follows).
+  `model/tests/test_VcfPredict.py` uses 4800 x 4800 directly instead of `Band.ROWS`/`Band.COLS`. **No value change** (no
+  production module changed). Check: every kept module imports and every kept command's `--help` runs in the ilab container,
+  except the 3 GPU Monte Carlo modules, which need CuPy on a GPU node (unchanged) (`FullRuns/EXP_sweep_import_20261020/out/check.txt`).
+  The full exactness proof runs on the finished v1.5.2 tree (`Reports/MODAPS_Delivery_Plan.md`, step 5).
+- **Partner split acceptance test moved into the package** (`949f414`, 2026-10-20).
   `TrainingManifest.accept` and `trainingManifest.py accept` replace `blend/accept_split.py`, the one v1.4.0 `blend/` script with no
   package equivalent: the blend A partner's split (V4r root, low-sun off) must have the same keys and labels as the standard split
   of the same manifest, and at rows V4r never replaced, every predictor must equal the standard value. Unlike the old script, the
