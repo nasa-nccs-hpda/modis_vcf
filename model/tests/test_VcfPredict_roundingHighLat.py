@@ -1,4 +1,5 @@
 import logging
+import tempfile
 import unittest
 from unittest import mock
 
@@ -29,21 +30,36 @@ class VcfPredictRoundingHighLatTestCase(unittest.TestCase):
         vp = VcfPredict.__new__(VcfPredict)
         vp._logger = logging.getLogger('test')
         vp._waterMasks = {tid + '2019': VcfPredictRoundingHighLatTestCase.MASK}
-        vp._treeCoverRf = vp._treeCoverTopN = vp._nonvegRf = vp._nonvegTopN = None
+        # Stand-in models (_runPrediction is mocked); None would mean "no models" (rule tiles only).
+        vp._treeCoverRf = vp._nonvegRf = object()
+        vp._treeCoverTopN = vp._nonvegTopN = None
+        vp._partnerRf = None   # no blend A
+        vp._bp10 = False       # the rules under test only
         vp._treeCoverAgg = vp._nonvegAgg = 'mean'
+        vp._outDir = self._tmp.name     # <tile>-<year>-chain.json
+        vp._productType = vp._metricsDir = None
 
         tc = vp._maskPrediction(tid, 2019, np.array([[30, 0], [70, 0]], dtype=np.int16))
         nv = vp._maskPrediction(tid, 2019, np.array([[50, 0], [40, 0]], dtype=np.int16))
         sd = np.array([[500, 0], [700, 0]], dtype=np.int16)
         written = {}
+        flags = mock.Mock()
+        flags.return_value.getPeriodFlags.return_value = (np.zeros((2, 2), np.uint8), np.zeros((2, 2), np.uint8))
 
         with mock.patch.object(VcfPredict, '_runPrediction', side_effect=[(tc, sd), (nv, sd)]), \
              mock.patch.object(VcfPredict, '_write',
-                               side_effect=lambda t, y, name, a: written.__setitem__(name, a)):
+                               side_effect=lambda t, y, name, a, *args, **kw: written.__setitem__(name, a)), \
+             mock.patch('modis_vcf.model.VcfPredict.Metrics', flags):   # Quality / Cloud read no metrics
 
             vp.runTileForYear(tid, 2019)
 
         return written
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+
+    def tearDown(self):
+        self._tmp.cleanup()
 
     # -------------------------------------------------------------------------
     # testRoundValue

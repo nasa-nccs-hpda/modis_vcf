@@ -15,7 +15,11 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased (v1.5.2: MODAPS delivery clean-up)
 
-- **Blend A compose statistics without C6** (2026-10-20; hash filled in by the next commit). `V4r.composeStats` read C6 MOD44B for its land and dense
+- **Unit tests** (2026-10-20; hash filled in by the next commit). `model/tests/h08v04-2019-pcttree-training+obsForRF.parq.skip` restored (the sweep
+  removed it as unused, but `test_MasterTraining` uses it). `test_VcfPredict_roundingHighLat` brought up to date with v1.4.1-v1.5.1
+  (stand-ins for the blend partner, BP10, `chain.json`, Quality / Cloud and the rule-tile guard; assertions unchanged). The 8 test
+  files that read no NCCS data pass in the clean conda environment. No code change.
+- **Blend A compose statistics without C6** (`8bce306`, 2026-10-20). `V4r.composeStats` read C6 MOD44B for its land and dense
   pixels; they now come from the run's own tree map (land = map <= 100, dense = 60-100). Project lead, C1. `<tile>_compose.json` is
   diagnostic only (nothing reads it back): its land / dense / gate statistics change, **no product value changes**.
 - **Tiles with no MOD44W skipped and listed** (`4f2790f`, 2026-10-20). `YearRun` gives such a tile no tasks, writes it to
