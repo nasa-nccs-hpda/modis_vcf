@@ -13,12 +13,13 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
-## Unreleased (after v1.5.0)
+## v1.5.1 (tag `v1.5.1`, 2026-10-19): memory fixes and the v15-v17 rule tiles
 
-Code changes since v1.5.0, not yet a version (project lead, 2026-10-19: no version name yet; v1.5.1 when it is one). Every item is
-**exact** against v1.5.0 unless stated.
+v1.5.0's models with less memory per task, and rows v15-v17 mapped by rule (project lead, 2026-10-19). The models are v1.5.0's
+(no refit). Every item is **exact** against v1.5.0 except the v15-v17 tiles, which are new. Memory per task (ngaproc, 2019): split
+~10x less, map 18 -> 2.4-3.5 GB, metrics 34.8 -> 30.9 GB on a blend tile (`Reports/Run_Cost_Reference.md`).
 
-- **Rows v15-v17 mapped by rule (Antarctica)** (2026-10-19; hash filled in by the next commit). There is no MOD44C for
+- **Rows v15-v17 mapped by rule (Antarctica)** (`2f162db`, 2026-10-19). There is no MOD44C for
   these tiles, so `model/RuleTile.py` marks them and `VcfPredict.forRuleTiles` writes their 7 layers from MOD44W alone, with no
   metrics and no models: land tree cover 0, non-vegetated 100, non-tree vegetation 0, both SD layers 0, Quality and Cloud with all 8
   period bits set (255; as on a v00 tile's periods without input); water 200 and out-of-projection 250 in the cover layers, 0 in the
