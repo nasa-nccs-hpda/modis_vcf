@@ -15,7 +15,10 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased (v1.5.2: MODAPS delivery clean-up)
 
-- **Comments and help text that named removed files** (2026-10-20; hash filled in by the next commit). `model/BlendA.py`,
+- **No dependency on ilab `core`** (2026-10-20; hash filled in by the next commit). `Metrics.readMetric` opened metric GeoTIFFs through `core`'s
+  `GeospatialImageFile` (the package's only use of `core`); it now opens them with GDAL, with the same checks (file exists, GDAL opens
+  it, valid spatial reference). The project lead chose this over copying the class (MODAPS delivery, plan step 4.2). **Exact.**
+- **Comments and help text that named removed files** (`cd33f97`, 2026-10-20). `model/BlendA.py`,
   `model/CompositeDayFile.py`, `model/VcfPredict.py`, `model/YearRun.py`, `view/vcfPredict.py`, `view/fitAltModel.py` and
   `README.md` named `blend/` scripts, `rfFitFromPge61.py`, `vcfPredictQueue.py` or `docs/reports/`; they now name the package step
   (e.g. the cloud counts come from `model/V4r.py` in the metrics task) or say where the old file is (tag `v1.5.1`). `model/V4r.py`'s

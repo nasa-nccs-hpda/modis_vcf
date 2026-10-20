@@ -17,7 +17,6 @@ import numpy.ma as ma
 from osgeo import gdal
 from osgeo.osr import SpatialReference
 
-from core.model.GeospatialImageFile import GeospatialImageFile
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompositeDayFile import CompositeDayFile
 from modis_vcf.model import LowSun
@@ -870,14 +869,34 @@ class Metrics(object):
         if self._logger:
             self._logger.info('Reading ' + str(metricPath))
             
-        gif = GeospatialImageFile(str(metricPath))
-        
+        # ---
+        # Opened as ilab core's GeospatialImageFile did (the package no
+        # longer depends on core): the file must exist, GDAL must open it,
+        # and it must have a valid spatial reference.
+        # ---
+        if not os.path.exists(metricPath):
+            raise RuntimeError(str(metricPath) + ' does not exist.')
+
+        ds = gdal.Open(str(metricPath), gdal.GA_ReadOnly)
+
+        if not ds:
+            raise RuntimeError('GDAL could not open ' + str(metricPath) + '.')
+
+        srs = ds.GetSpatialRef()
+
+        if not srs or srs.Validate() != 0:
+
+            srs = SpatialReference()
+
+            if not ds.GetProjection() or srs.ImportFromWkt(ds.GetProjection()) != 0 or srs.Validate() != 0:
+                raise RuntimeError('Spatial reference for ' + str(metricPath) + ' is invalid.')
+
         metrics: list[Metric] = []
-        numBands = gif.getDataset().RasterCount
-        
+        numBands = ds.RasterCount
+
         for bandIndex in range(numBands):
-            
-            bandDs = gif.getDataset().GetRasterBand(bandIndex+1)
+
+            bandDs = ds.GetRasterBand(bandIndex+1)
             value = bandDs.ReadAsArray().astype(np.int16)
             name = bandDs.GetMetadataItem('Name')
             desc = bandDs.GetMetadataItem('Description')
