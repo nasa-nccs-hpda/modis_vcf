@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+from modis_vcf.model import RuleTile
+
 
 # ----------------------------------------------------------------------------
 # YearRun
@@ -28,6 +30,8 @@ import time
 #   fit:<model>      fitAltModel.py, then the compact copy (CompactForest)   [split:<model>]
 #   map:<tile>       vcfPredict, one step (blend A + BP10 inside)            [metrics:<tile>, fit:tree, fit:bare, fit:partner]
 #                    then, on blend tiles with V4r built in the run, the V4r statistics (model/V4r.py compose)
+#                    A rule tile (model/RuleTile.py, rows v15-v17: no MOD44C) has only its map task, written from MOD44W
+#                    with no metrics and no models                                        []
 # A model can instead be given ready-made (spec "models"/<name>/"fixed"); it then has no split or fit task.
 # Blend A partner (spec "partner"; S7 / D4): V4r composites, counts and V4r metrics are built in metrics:<tile> (model/V4r.py,
 # low-sun mode off) for the partner's blend tiles and, when the partner is fitted, its training tiles; split:partner builds the
@@ -183,6 +187,7 @@ class YearRun(object):
 
         fitted = [m for m in ('tree', 'bare') if 'fixed' not in self.models[m]]
         mapTiles = list(self.spec['mapTiles'])
+        self.ruleTiles = {t for t in mapTiles if RuleTile.isRuleTile(t)}
         mt = self.spec.get('metricsTiles')
 
         if self.partnerMode == 'fit':
@@ -194,7 +199,7 @@ class YearRun(object):
             (partnerTiles & set(mapTiles)) | (set(self._manifestTiles('partner')) if self.partnerMode == 'fit' else set())
 
         if mt is None:
-            mt = sorted(set(mapTiles) | self.trainingTiles | self.v4rTiles)
+            mt = sorted((set(mapTiles) - self.ruleTiles) | self.trainingTiles | self.v4rTiles)
 
         tasks, deps, kind = [], {}, {}
 
@@ -212,7 +217,7 @@ class YearRun(object):
         for t in mapTiles:
             k = 'map:' + t
             tasks.append(k)
-            deps[k] = (['metrics:' + t] if t in mt else []) + \
+            deps[k] = [] if t in self.ruleTiles else (['metrics:' + t] if t in mt else []) + \
                 ['fit:' + m for m in fitted if m != 'partner' or t in partnerTiles]
             kind[k] = 'map'
 
@@ -310,6 +315,10 @@ class YearRun(object):
                           '--minSamplesLeaf', str(f.get('minSamplesLeaf', 1))],
                     py + ['-m', 'modis_vcf.model.CompactForest', str(d / (m['trainingType'] + '.bin')),
                           str(d / (m['trainingType'] + '.cf'))]]
+
+        if kind == 'map' and arg in self.ruleTiles:
+            return [py + ['-m', 'modis_vcf.view.vcfPredict', '-o', str(self.root / 'out' / 'maps'), '-t', arg,
+                          '-y', str(self.year)]]
 
         if kind == 'map':
             tc, tcn = self.modelPaths('tree')

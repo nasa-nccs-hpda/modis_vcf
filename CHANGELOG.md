@@ -18,7 +18,16 @@ version are fitted with the recipe given here. Maintained with every code commit
 Code changes since v1.5.0, not yet a version (project lead, 2026-10-19: no version name yet; v1.5.1 when it is one). Every item is
 **exact** against v1.5.0 unless stated.
 
-- **The metrics task frees its main-phase data before the V4r build** (2026-10-19; hash filled in by the next commit).
+- **Rows v15-v17 mapped by rule (Antarctica)** (2026-10-19; hash filled in by the next commit). There is no MOD44C for
+  these tiles, so `model/RuleTile.py` marks them and `VcfPredict.forRuleTiles` writes their 7 layers from MOD44W alone, with no
+  metrics and no models: land tree cover 0, non-vegetated 100, non-tree vegetation 0, both SD layers 0, Quality and Cloud with all 8
+  period bits set (255; as on a v00 tile's periods without input); water 200 and out-of-projection 250 in the cover layers, 0 in the
+  others. `YearRun` gives a rule tile only its map task (no metrics task, no model dependencies); `view/vcfPredict.py` needs the
+  model files only for other tiles. MOD44W has 27 tiles in these rows (h14v15 and h17v15 are all water). Project lead, 2026-10-19
+  (to-do 26, global plan G14). **Product change for rows v15-v17 only** (new tiles; never mapped before; C6 has none). **Exact** on
+  every other tile: 7 layers on h12v09, h17v01, h16v02, h20v09 equal the previous code's, and the run driver's tasks, dependencies
+  and commands are identical. Evidence: `Reports/V15_V17_Rule_Tiles_Results.md` (`FullRuns/EXP_ruletiles_20261019`).
+- **The metrics task frees its main-phase data before the V4r build** (`607d667`, 2026-10-19).
   `YearRun.warmMetrics` deletes the low-sun (LE0) phase's `Metrics` object and collects it before the V4r composites are built on
   blend tiles; before, it stayed alive (about 7 GB) through the V4r phase. **Exact:** h12v09's metrics root (composites byte for
   byte, metrics by value), V4r root and counts equal those of the previous code. Peak of the task 34.8 -> 30.9 GB (main process at

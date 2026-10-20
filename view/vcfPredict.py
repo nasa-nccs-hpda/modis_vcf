@@ -6,6 +6,7 @@ import sys
 
 from modis_vcf.model.VcfPredict import MOD44_DIR
 from modis_vcf.model import LowSun
+from modis_vcf.model import RuleTile
 from modis_vcf.model.VcfPredict import VcfPredict
 
 
@@ -34,12 +35,12 @@ def main():
                         help='Path to MODIS image directory.')
 
     parser.add_argument('--nv',
-                        required=True,
+                        required=False,
                         type=Path,
-                        help='Path to non-vegetated model.')
+                        help='Path to non-vegetated model (not needed for rule tiles, rows v15-v17).')
 
     parser.add_argument('--nvn',
-                        required=True,
+                        required=False,
                         type=Path,
                         help='Path to non-vegetated top-N predictors.')
 
@@ -50,12 +51,12 @@ def main():
                              'the form h##v## h##v##')
 
     parser.add_argument('--tc',
-                        required=True,
+                        required=False,
                         type=Path,
-                        help='Path to tree-cover model.')
+                        help='Path to tree-cover model (not needed for rule tiles, rows v15-v17).')
 
     parser.add_argument('--tcn',
-                        required=True,
+                        required=False,
                         type=Path,
                         help='Path to tree-cover top-N predictors.')
 
@@ -130,7 +131,23 @@ def main():
                              'metrics roots.')
 
     args = parser.parse_args()
-    
+
+    # ---
+    # Rule tiles (rows v15-v17, model/RuleTile.py) are written from MOD44W
+    # alone; every other tile needs the four model files.
+    # ---
+    ruleTids = [t for t in args.t if RuleTile.isRuleTile(t)]
+    tids = [t for t in args.t if not RuleTile.isRuleTile(t)]
+
+    if tids and None in (args.tc, args.tcn, args.nv, args.nvn):
+        parser.error('--tc, --tcn, --nv and --nvn are required for ' + ' '.join(tids))
+
+    if ruleTids:
+        VcfPredict.forRuleTiles(args.o, writeSd=not args.noSd).run(tids=ruleTids, years=[args.y])
+
+    if not tids:
+        return 0
+
     # ---
     # Low-sun mode (passed to composite workers through the environment).
     # ---
@@ -155,7 +172,7 @@ def main():
                       countsDir=args.counts,
                       bp10=not args.noBp10)
 
-    vcfp.run(tids=args.t, years=[args.y])
+    vcfp.run(tids=tids, years=[args.y])
 
 
 # -----------------------------------------------------------------------------

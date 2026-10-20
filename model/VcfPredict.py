@@ -29,7 +29,8 @@ from modis_vcf.model.CompactForest import CompactForest
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
- 
+from modis_vcf.model import RuleTile
+
 MOD44_DIR = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 MOD44W_DIR = Path('/css/modis/Collection6.1/L3/MOD44W-LandWaterMask')
 
@@ -168,8 +169,40 @@ class VcfPredict(object):
         self._waterMasks = {}  # {tidyear: water mask}
         
         # Instantiate the logger.
+        self._logger: logging.RootLogger = VcfPredict._defaultLogger(logger)
+
+    # ------------------------------------------------------------------------
+    # forRuleTiles
+    # ------------------------------------------------------------------------
+    @classmethod
+    def forRuleTiles(cls,
+                     outDir: Path,
+                     mod44wDir: Path = MOD44W_DIR,
+                     logger: logging.RootLogger = None,
+                     writeSd: bool = True) -> 'VcfPredict':
+        """A VcfPredict without models or metrics, for the rule tiles only (RuleTile: rows v15-v17)."""
+
+        if outDir is None or not outDir.exists() or not outDir.is_dir():
+            raise RuntimeError('A valid output directory must be provided.')
+
+        vcfp = cls.__new__(cls)
+        vcfp._outDir = outDir
+        vcfp._treeCoverRf = None
+        vcfp._writeSd = writeSd
+        vcfp._productTypeM44W = ProductTypeMod44W(mod44wDir)
+        vcfp._waterMasks = {}
+        vcfp._logger = VcfPredict._defaultLogger(logger)
+
+        return vcfp
+
+    # ------------------------------------------------------------------------
+    # defaultLogger
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _defaultLogger(logger: logging.RootLogger = None) -> logging.RootLogger:
+
         if not logger:
-            
+
             logger = logging.getLogger()
             logger.setLevel(logging.INFO)
 
@@ -179,7 +212,7 @@ class VcfPredict(object):
                 ch.setLevel(logging.INFO)
                 logger.addHandler(ch)
 
-        self._logger: logging.RootLogger = logger
+        return logger
 
     # ------------------------------------------------------------------------
     # getMask
@@ -492,7 +525,13 @@ class VcfPredict(object):
     def runTileForYear(self, tid: str, year: int) -> list[np.ndarray]:
 
         self._logger.info('Running ' + tid + ' for ' + str(year))
-        
+
+        if RuleTile.isRuleTile(tid):
+            return self._runRuleTile(tid, year)
+
+        if self._treeCoverRf is None:
+            raise ValueError(tid + ' is not a rule tile, and this VcfPredict has no models (forRuleTiles).')
+
         pctTc, sdTc = self._runPrediction(tid,
                                           year,
                                           self._treeCoverRf,
@@ -600,7 +639,37 @@ class VcfPredict(object):
         self._write(tid, year, 'Cloud', np.where(okMask, cloud, 0), noData=False)
 
         return pctTc, pctNonveg, pctNontreeVeg
-        
+
+    # ------------------------------------------------------------------------
+    # runRuleTile
+    # ------------------------------------------------------------------------
+    def _runRuleTile(self, tid: str, year: int) -> list[np.ndarray]:
+        """The 7 layers of a rule tile (RuleTile) from MOD44W alone: no metrics, no models."""
+
+        self._logger.info('Rule tile: ' + tid + ' (no MOD44C): land set to tree 0, non-vegetated 100 from MOD44W.')
+
+        mask: np.ndarray = self._getMask(tid, year)
+        okMask = (mask != VcfPredict.MASK_WATER) & (mask != VcfPredict.MASK_OUT_OF_PROJ)
+        zero = np.zeros(mask.shape, dtype=np.int16)
+
+        pctTc = self._maskPrediction(tid, year, zero)
+        pctNonveg = self._maskPrediction(tid, year, zero + 100)
+        pctNontreeVeg = self._maskPrediction(tid, year, zero)
+
+        self._write(tid, year, 'Percent_Tree_Cover', pctTc)
+        self._write(tid, year, 'Percent_NonVegetated', pctNonveg)
+        self._write(tid, year, 'Percent_NonTree_Vegetation', pctNontreeVeg)
+
+        if self._writeSd:
+            self._write(tid, year, 'Percent_Tree_Cover_SD', zero, VcfPredict.SD_DATA_TYPE)
+            self._write(tid, year, 'Percent_NonVegetated_SD', zero, VcfPredict.SD_DATA_TYPE)
+
+        flags = np.where(okMask, RuleTile.ALL_PERIODS, 0)
+        self._write(tid, year, 'Quality', flags, noData=False)
+        self._write(tid, year, 'Cloud', flags, noData=False)
+
+        return pctTc, pctNonveg, pctNontreeVeg
+
     # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
