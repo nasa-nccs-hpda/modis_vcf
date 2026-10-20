@@ -15,7 +15,10 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased (v1.5.2: MODAPS delivery clean-up)
 
-- **Tiles with no MOD44W skipped and listed** (2026-10-20; hash filled in by the next commit). `YearRun` gives such a tile no tasks, writes it to
+- **Blend A compose statistics without C6** (2026-10-20; hash filled in by the next commit). `V4r.composeStats` read C6 MOD44B for its land and dense
+  pixels; they now come from the run's own tree map (land = map <= 100, dense = 60-100). Project lead, C1. `<tile>_compose.json` is
+  diagnostic only (nothing reads it back): its land / dense / gate statistics change, **no product value changes**.
+- **Tiles with no MOD44W skipped and listed** (`4f2790f`, 2026-10-20). `YearRun` gives such a tile no tasks, writes it to
   `status/skipped_no_mod44w.txt` and logs a warning, instead of a map task that failed twice (h18v14 in 2019). Project lead, Q4 (skip
   and log). **Exact** on every other tile.
 - **Input locations in `model/Settings.py`** (`6f42ab4`, 2026-10-20). MOD44C, MOD44W and MOD09A1 folders from `VCF_MOD44_DIR`,

@@ -1,6 +1,7 @@
 """V4r composites and snow-aware cloud counts in the package (blend A partner inputs), from the HDF inputs, without daily files.
 
-The arithmetic is blend/v4r_year.py's, unchanged; only the source of the inputs differs.  v4r_year.py read the unsubstituted
+The arithmetic is v1.4.0's blend/v4r_year.py's (the script was removed in v1.5.2; it is at tag v1.5.1), unchanged; only the
+source of the inputs differs.  v4r_year.py read the unsubstituted
 (low-sun mode off) dailies and standard composites of a separate mode-off root.  Here each period's inputs are read directly
 in mode off (BandDayFile, as that root was built), the mode-off standard composite is made with CompositeDayFile's own
 compositing, and the V4r composite, masks and counts are written.  Periods are independent and run in parallel processes.
@@ -22,7 +23,7 @@ stamp 'off' on that root, and in <counts dir>: <tile>_counts_snow.npz (CUR_Z, CU
 
 Usage: python -m modis_vcf.model.V4r build <tile> <year> <standard metrics root> <v4r metrics root> <counts dir> [workers]
        python -m modis_vcf.model.V4r compose <tile> <year> <v4r metrics root> <standard metrics root> <counts dir> <tree map>
-         (after the map: v4r_year.py's <tile>_compose.json statistics; decision D5)
+         (after the map: <tile>_compose.json statistics from the tree map, no C6; decision D5)
 """
 import json
 import logging
@@ -263,27 +264,19 @@ def buildTile(tile: str, year: int, stdRoot: Path, v4rRoot: Path, countsDir: Pat
 # composeStats (after the map; decision D5)
 # ----------------------------------------------------------------------------
 def composeStats(tile: str, year: int, v4rRoot: Path, stdRoot: Path, countsDir: Path, treeMap: Path) -> dict:
-    """v4r_year.py's <tile>_compose.json statistics, from the saved per-period bits, the V4r composites, the standard
-    composites' fallback flags, the year's tree map (land) and C6 (dense), as v4r_year.py computed them.  The alignment
+    """<tile>_compose.json statistics (diagnostic only; nothing reads them back), from the saved per-period bits, the V4r
+    composites, the standard composites' fallback flags and the year's tree map: land = map <= 100, dense = map 60-100.
+    No external reference is read (until v1.5.1, land and dense also used C6 MOD44B when present).  The alignment
     figure is the build's (all fallback pixels, not land only)."""
 
-    import glob
     from osgeo import gdal
     countsDir = Path(countsDir)
     S = slots(year)
     vc = Path(v4rRoot) / tile / str(year) / '2-Composites'
     sc = Path(stdRoot) / tile / str(year) / '2-Composites'
-    H = None
-    hf = sorted(glob.glob('/css/modis/Collection6/L3/MOD44B-VCF/%d/065/MOD44B.A%d065.%s.006.*.hdf' % (year, year, tile)))
-
-    if hf:
-        for n, _ in gdal.Open(hf[0]).GetSubDatasets():
-            if n.replace('"', '').endswith(':Percent_Tree_Cover'):
-                H = gdal.Open(n).ReadAsArray().astype(int)
-
     G = gdal.Open(str(treeMap)).ReadAsArray()
-    land = (G <= 100) & ((H <= 100) if H is not None else True)
-    dense = land & (H >= 60) if H is not None else np.zeros_like(land)
+    land = G <= 100
+    dense = land & (G >= 60)
     sets = dict(land=land, dense=dense)
     bits = np.load(countsDir / ('%s_v4r_periods.npz' % tile))
     build = json.loads((countsDir / ('%s_v4r_build.json' % tile)).read_text())
