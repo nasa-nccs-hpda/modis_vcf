@@ -15,7 +15,10 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased (v1.5.2: MODAPS delivery clean-up)
 
-- **Input locations in `model/Settings.py`** (2026-10-20; hash filled in by the next commit). MOD44C, MOD44W and MOD09A1 folders from `VCF_MOD44_DIR`,
+- **Tiles with no MOD44W skipped and listed** (2026-10-20; hash filled in by the next commit). `YearRun` gives such a tile no tasks, writes it to
+  `status/skipped_no_mod44w.txt` and logs a warning, instead of a map task that failed twice (h18v14 in 2019). Project lead, Q4 (skip
+  and log). **Exact** on every other tile.
+- **Input locations in `model/Settings.py`** (`6f42ab4`, 2026-10-20). MOD44C, MOD44W and MOD09A1 folders from `VCF_MOD44_DIR`,
   `VCF_MOD44W_DIR`, `VCF_MOD09A1_DIR`, with the NCCS ADAPT paths as defaults (our runs unchanged); `VcfPredict` re-exports
   `MOD44_DIR` / `MOD44W_DIR`; `view/makeMetrics.py` uses them (its own hard-coded paths removed; `--mod09Dir` defaults to the
   setting). **Exact.**

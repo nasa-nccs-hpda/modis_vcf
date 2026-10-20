@@ -186,7 +186,7 @@ class YearRun(object):
     def _taskList(self) -> tuple:
 
         fitted = [m for m in ('tree', 'bare') if 'fixed' not in self.models[m]]
-        mapTiles = list(self.spec['mapTiles'])
+        mapTiles = self._withMod44w(list(self.spec['mapTiles']))
         self.ruleTiles = {t for t in mapTiles if RuleTile.isRuleTile(t)}
         mt = self.spec.get('metricsTiles')
 
@@ -222,6 +222,33 @@ class YearRun(object):
             kind[k] = 'map'
 
         return tasks, deps, kind
+
+    # ------------------------------------------------------------------------
+    # withMod44w
+    #
+    # A tile with no MOD44W file for the year cannot be masked, so it gets no
+    # map task: it is skipped (not failed) and listed in
+    # status/skipped_no_mod44w.txt (h18v14 in 2019).
+    # ------------------------------------------------------------------------
+    def _withMod44w(self, tiles: list) -> list:
+
+        from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
+        from modis_vcf.model.Settings import MOD44W_DIR
+
+        pt, missing = ProductTypeMod44W(MOD44W_DIR), []
+
+        for t in tiles:
+            try:
+                pt.findFile(t, self.year, 1, ProductTypeMod44W.WATER_MASK)
+            except RuntimeError:
+                missing.append(t)
+
+        if missing:
+            (self.st / 'skipped_no_mod44w.txt').write_text(
+                ''.join(t + ' no MOD44W in ' + str(MOD44W_DIR / str(self.year) / '001') + '\n' for t in missing))
+            self.logger.warning('No MOD44W, map skipped: ' + ' '.join(missing))
+
+        return [t for t in tiles if t not in missing]
 
     # ------------------------------------------------------------------------
     # file names
