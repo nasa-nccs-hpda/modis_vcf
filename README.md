@@ -4,7 +4,7 @@ Python code for the MODIS Vegetation Continuous Fields product (MOD44B, Terra): 
 (bare) and percent non-tree vegetation for every MODIS land tile on the 250 m sinusoidal grid, with SD, Quality and Cloud layers. It
 replaces the operational C code (PGE61) and reads the same inputs, MOD44CH / MOD44CQ (PGE72) and MOD44W.
 
-Version: **v1.5.2** (see `CHANGELOG.md`).
+Version: **v1.6.0** (see `CHANGELOG.md`).
 
 ## Documentation
 

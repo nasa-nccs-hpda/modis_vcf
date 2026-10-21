@@ -1,4 +1,4 @@
-# Running a year (modis_vcf v1.5.2)
+# Running a year (modis_vcf v1.6.0)
 
 One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 day 065 to 2020 day 049) goes through five steps:
 
@@ -27,7 +27,7 @@ A manifest lists every training pixel (tile-year, row, column, label) and whethe
 
 ```bash
 python -m modis_vcf.view.trainingManifest sample --labels '<labels>/pcttree/VCF_training_pcttree_{tile}.7.0.1.out' \
-    --tiles tree_tiles.txt --trainingType pcttree -y 2021 --index position -o manifest_tree_2021.parq --version v1.5.2-2021
+    --tiles tree_tiles.txt --trainingType pcttree -y 2021 --index position -o manifest_tree_2021.parq --version v1.6.0-2021
 python -m modis_vcf.view.trainingManifest sample --labels '<labels>/pctbare/VCF_training_pctbare_{tile}.<7.0.0 or 7.0.1>.out' ...
 ```
 

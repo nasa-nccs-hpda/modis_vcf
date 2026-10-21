@@ -1,4 +1,4 @@
-# Training labels (set 7.0.1, modis_vcf v1.5.2)
+# Training labels (set 7.0.1, modis_vcf v1.6.0)
 
 The labels are delivered separately from the code, as `VCF_training_labels_7.0.1.tar.gz` (83 MB; `.sha256` next to it). The archive
 has its own `README.md` and a `MANIFEST.csv` (every file's name, original name, sha256, size and number of labelled pixels).

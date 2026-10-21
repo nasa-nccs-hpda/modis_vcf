@@ -609,3 +609,40 @@ class CompositeDayFileTestCase(unittest.TestCase):
         r3 = cdf.raster()
         self.assertTrue(np.array_equal(r1, r3, equal_nan=True))
         
+
+# -----------------------------------------------------------------------------
+# class FillMissingTestCase
+#
+# No input files needed.
+# python -m unittest modis_vcf.model.tests.test_CompositeDayFile.FillMissingTestCase
+# -----------------------------------------------------------------------------
+class FillMissingTestCase(unittest.TestCase):
+
+    # -------------------------------------------------------------------------
+    # testFillMissing
+    # -------------------------------------------------------------------------
+    def testFillMissing(self):
+
+        clamp = BandDayFile.ZENITH_CLAMP
+        sub = CompositeDayFile.SUBSTITUTE_PIXEL_VALUE
+        a = np.array([[clamp, clamp], [500, clamp]], dtype=np.int16)
+        b = np.array([[clamp, 700], [clamp, clamp]], dtype=np.int16)
+        gone = np.full((2, 2), sub, dtype=np.int16)
+        q = np.ones((2, 2), dtype=np.int16)
+        z = np.zeros((2, 2), dtype=np.int16)
+
+        out = CompositeDayFile.fillMissing([(a, q, q), (gone, z, z), (b, q, q)],
+                                           [False, True, False])
+
+        # Present inputs are unchanged.
+        self.assertIs(out[0][0], a)
+        self.assertIs(out[2][0], b)
+
+        # The missing input is 16000 only where every present input is.
+        expected = np.array([[clamp, sub], [sub, clamp]], dtype=np.int16)
+        self.assertTrue(np.array_equal(out[1][0], expected))
+        self.assertEqual(out[1][0].dtype, np.int16)
+
+        # Its masks stay all bad.
+        self.assertIs(out[1][1], z)
+        self.assertIs(out[1][2], z)

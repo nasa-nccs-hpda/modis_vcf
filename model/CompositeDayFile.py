@@ -154,12 +154,14 @@ class CompositeDayFile(DayFile):
         # their composite value later.  PGE61 uses two masks.
         # ---
         rastersWithQa = []
+        missing = []  # True where the input day is missing
 
         for year, day in daysToFind:
 
             raster: np.ndarray = None
             qa: np.ndarray = None
             cloud: np.ndarray = None
+            isMissing = False
 
             bdf = BandDayFile().initFromParams(self.productType,
                                                self.bandName,
@@ -199,8 +201,18 @@ class CompositeDayFile(DayFile):
                 # ---
                 qa = np.zeros_like(raster)
                 cloud = np.zeros_like(raster)
+                isMissing = True
 
             rastersWithQa.append((raster, qa, cloud))
+            missing.append(isMissing)
+
+        if any(missing) and not all(missing):
+
+            rastersWithQa = CompositeDayFile.fillMissing(rastersWithQa,
+                                                         missing)
+
+            self._logger.info(str(sum(missing)) + ' missing input(s) in ' +
+                              self._myName())
 
         comp, qa, cloud = self._computeComposite(rastersWithQa)
         self._outQa, self._outCloud = qa, cloud
@@ -214,6 +226,32 @@ class CompositeDayFile(DayFile):
             self._logger.warning('Composite masks not saved: ' + str(e))
 
         return comp
+
+    # ------------------------------------------------------------------------
+    # fillMissing
+    #
+    # A missing input day enters the composite as the substitute value,
+    # 10000, except where every present input of the composite is the
+    # low-sun value, 16000 (polar night under LowSun le0): there it enters
+    # as 16000.  Without this, tiles whose polar-night granules are missing
+    # (every v01 tile in 2019) composite their winter periods lower than
+    # tiles whose polar-night granules exist, which made a step in the bare
+    # map at the v01 / v02 boundary.  The masks of the missing day are kept
+    # (all bad).  Only called when some, but not all, inputs are missing.
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def fillMissing(rastersWithQa: list, missing: list) -> list:
+
+        present = [r for (r, _, _), m in zip(rastersWithQa, missing) if not m]
+        clamp = BandDayFile.ZENITH_CLAMP
+
+        fill = np.where(np.logical_and.reduce([r == clamp for r in present]),
+                        clamp,
+                        CompositeDayFile.SUBSTITUTE_PIXEL_VALUE). \
+            astype(present[0].dtype)
+
+        return [(fill, q, c) if m else (r, q, c)
+                for (r, q, c), m in zip(rastersWithQa, missing)]
 
     # ------------------------------------------------------------------------
     # getMasks

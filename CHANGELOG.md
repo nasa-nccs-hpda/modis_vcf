@@ -13,6 +13,18 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## v1.6.0 (in progress): winter fill for missing inputs, models refitted
+
+- **Missing inputs at polar night** (`model/CompositeDayFile.py`, `fillMissing`; F3, 2026-10-21; hash filled in by the next commit). A missing MOD44C granule used to enter its 48-day
+  period as 10000 at every pixel. In polar night the granules that exist are set to 16000 by the low-sun substitution (LE0), so a
+  tile with a missing polar-night granule composited its winter periods lower (e.g. 14000 instead of 16000) than a neighbour without
+  the gap. Every v01 tile lacks MOD44CQ days 337 and 353 in 2019, and percent bare showed a step of about 17 points where v01 meets
+  v02. Now a missing granule is 16000 wherever every present input of its period is 16000, and 10000 elsewhere, as before; its masks
+  stay all bad. **Product change** on tiles with a missing input (composites change only at those pixels); **exact** on tiles with
+  all inputs. Tests: `FillMissingTestCase` in `model/tests/test_CompositeDayFile.py`. The models must be refitted with this code
+  (the v01 training tiles' predictors change); v1.6.0's models are.
+- This is the first version delivered to MODAPS (v1.5.2 was not sent).
+
 ## v1.5.2 (tag `v1.5.2`, 2026-10-21): MODAPS delivery clean-up
 
 - **Conda environment and documentation** (`e4f77c4`, 2026-10-20). `environment.yml` (conda-forge only, pinned to the product

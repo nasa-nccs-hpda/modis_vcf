@@ -1,4 +1,4 @@
-# How the MODIS VCF product is made (modis_vcf v1.5.2)
+# How the MODIS VCF product is made (modis_vcf v1.6.0)
 
 This describes what the code computes, in the order it runs, for a reader who knows remote sensing but not this algorithm. File and
 function names point to where each step lives. How to run each step is in [RUNNING.md](RUNNING.md); the training labels are in
@@ -53,7 +53,10 @@ band, band 31 included.
 **Low-sun substitution (LE0, `model/LowSun.py`).** Inputs of bands 1-7 and 31 with solar zenith above 70, or at or below 0 (polar
 night), are replaced by 16000 before compositing. This is the intent of the operational C code (`fix_bands.c`) and stops dark,
 low-sun values from looking like forest at high latitude. Every metrics folder records the mode (`lowsun.json`) and how many pixels
-were replaced per day (`lowsun_counts.csv`). A missing granule becomes an all-"substitute" day (10000) with no good pixels.
+were replaced per day (`lowsun_counts.csv`). A missing granule becomes a day with no good pixels. Its value is 10000 ("substitute"), except where every input of the period that
+is present was set to 16000 by the low-sun substitution: there the missing day is 16000 as well (`CompositeDayFile.fillMissing`).
+Without this, tiles whose polar-night granules are missing (every v01 tile in 2019 lacks days 337 and 353) got darker winter periods
+than their neighbours whose polar-night granules exist, which showed as a step in percent bare at the v01 / v02 boundary.
 
 ## 4. Composite periods (8 per year)
 
