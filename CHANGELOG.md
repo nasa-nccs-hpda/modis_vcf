@@ -13,9 +13,9 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
-## Unreleased (v1.5.2: MODAPS delivery clean-up)
+## v1.5.2 (tag `v1.5.2`, 2026-10-21): MODAPS delivery clean-up
 
-- **Conda environment and documentation** (2026-10-20; hash filled in by the next commit). `environment.yml` (conda-forge only, pinned to the product
+- **Conda environment and documentation** (`e4f77c4`, 2026-10-20). `environment.yml` (conda-forge only, pinned to the product
   versions; GDAL 3.8.5 for 3.8.4; numba 0.61.0 for the compact forests) and `environment-optional.yml` (xgboost); `docs/BUILD.md`,
   `ALGORITHM.md`, `RUNNING.md`, `TRAINING_LABELS.md` (the label archive set 7.0.1 and the h16v02 row-order note); the v1.5.x predictor
   lists `docs/predictors_tree.txt` (64) and `docs/predictors_bare.txt` (21); README rewritten. **Proof** of the v1.5.2 code in this
