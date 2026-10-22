@@ -13,7 +13,7 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
-## v1.6.0 (in progress): winter fill for missing inputs, models refitted
+## v1.6.0 (tag `v1.6.0`, 2026-10-22): winter fill for missing inputs, models refitted
 
 - **Missing inputs at polar night** (`model/CompositeDayFile.py`, `fillMissing`; F3, `ed0c13f`, 2026-10-21). A missing MOD44C granule used to enter its 48-day
   period as 10000 at every pixel. In polar night the granules that exist are set to 16000 by the low-sun substitution (LE0), so a
@@ -29,7 +29,10 @@ version are fitted with the recipe given here. Maintained with every code commit
   layers identical to v1.5.1 on every tile. Away from the boundary, unlabelled drylands moved by 0.5-2 points of bare (refit
   sensitivity far from the labels; see `docs/ALGORITHM.md`, section 10).
 - **Known limitations** written up in `docs/ALGORITHM.md` section 10 (regions far from the labels, low SD is not correctness,
-  regional label conventions) (2026-10-22; hash filled in by the next commit).
+  regional label conventions) (`bf9f597`, 2026-10-22).
+- **Clean-environment proof** (2026-10-22). The v1.6.0 code in the conda environment of `docs/BUILD.md` (no container) reproduced the
+  global 2019 v1.6.0 run with its fitted models on h12v01 and h12v09: composites byte for byte (V4r composites too), metrics and the 7
+  map layers by value. `docs/BUILD.md` section 6.
 - This is the version prepared for MODAPS (v1.5.2 was not sent); the hand-over has not happened yet.
 
 ## v1.5.2 (tag `v1.5.2`, 2026-10-21): MODAPS delivery clean-up
