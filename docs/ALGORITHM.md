@@ -135,3 +135,16 @@ The C code trains M5P model trees (Weka) and is the source of the historical MOD
 derived metrics (the C-mirror metrics are bit-identical), and differs in: Random Forest models with the median of the trees; the SD,
 Quality and Cloud layers; low-sun substitution as the C code intended; blend A; BP10; the Greenland ice training points; the
 v15-v17 rule tiles. The development history and evidence are in `CHANGELOG.md`.
+
+## 10. Known limitations
+
+- **Regions far from the training labels.** The bare labels cover 34 tiles and the tree labels 63. Many drylands have no bare label
+  within several hundred to a few thousand kilometres (for example Patagonia, the Monte, the Sahel edge, India and Pakistan, north-west
+  Mexico, the Kazakh and Mongolian steppes, the Tibetan plateau). There the models extrapolate: the spread between the trees (the SD
+  layers) is high, and the values move by a point or two whenever the training changes, including the yearly refit. In 2019 the
+  v1.6.0 refit raised bare by 0.5-2 points on 11 such dryland tiles compared with v1.5.1.
+- **A low SD does not mean a correct value.** The SD shows how much the trees disagree. Where the labels themselves follow a different
+  convention, the trees agree on it and the SD is low.
+- **Label conventions differ by region.** Pure desert is labelled 100 in the Sahara and Arabia but about 40-80 in the southern
+  hemisphere deserts; lichen and prostrate-shrub tundra is about half bare in the North American and Greenland labels but low in the
+  Siberian ones. The maps follow the labels in each region.

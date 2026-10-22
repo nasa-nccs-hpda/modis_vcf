@@ -15,7 +15,7 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## v1.6.0 (in progress): winter fill for missing inputs, models refitted
 
-- **Missing inputs at polar night** (`model/CompositeDayFile.py`, `fillMissing`; F3, 2026-10-21; hash filled in by the next commit). A missing MOD44C granule used to enter its 48-day
+- **Missing inputs at polar night** (`model/CompositeDayFile.py`, `fillMissing`; F3, `ed0c13f`, 2026-10-21). A missing MOD44C granule used to enter its 48-day
   period as 10000 at every pixel. In polar night the granules that exist are set to 16000 by the low-sun substitution (LE0), so a
   tile with a missing polar-night granule composited its winter periods lower (e.g. 14000 instead of 16000) than a neighbour without
   the gap. Every v01 tile lacks MOD44CQ days 337 and 353 in 2019, and percent bare showed a step of about 17 points where v01 meets
@@ -23,7 +23,14 @@ version are fitted with the recipe given here. Maintained with every code commit
   stay all bad. **Product change** on tiles with a missing input (composites change only at those pixels); **exact** on tiles with
   all inputs. Tests: `FillMissingTestCase` in `model/tests/test_CompositeDayFile.py`. The models must be refitted with this code
   (the v01 training tiles' predictors change); v1.6.0's models are.
-- This is the first version delivered to MODAPS (v1.5.2 was not sent).
+- **Global 2019 build and acceptance** (2026-10-22). All 318 tiles of 2019 mapped with this code and freshly fitted models. The
+  bare step at the v01 / v02 boundary went from about −17 to −0.4 points (11 of 12 tile columns within ±5). Held-out labels: tree a
+  tie (+0.0014 MAE); bare +0.047 MAE, all of it in the v01 and v02 rows. Greenland ice interior unchanged (100%). Quality and Cloud
+  layers identical to v1.5.1 on every tile. Away from the boundary, unlabelled drylands moved by 0.5-2 points of bare (refit
+  sensitivity far from the labels; see `docs/ALGORITHM.md`, section 10).
+- **Known limitations** written up in `docs/ALGORITHM.md` section 10 (regions far from the labels, low SD is not correctness,
+  regional label conventions) (2026-10-22; hash filled in by the next commit).
+- This is the version prepared for MODAPS (v1.5.2 was not sent); the hand-over has not happened yet.
 
 ## v1.5.2 (tag `v1.5.2`, 2026-10-21): MODAPS delivery clean-up
 
