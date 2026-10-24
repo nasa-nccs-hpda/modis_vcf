@@ -13,6 +13,30 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## v1.7.0 (tag `v1.7.0`, 2026-10-24): desert points in the bare training labels, bare model refitted
+
+**Model change, bare (Percent_NonVegetated) only; no code change** (code = v1.6.0, `b912a74`). Accepted by the project lead 2026-10-24.
+
+- **2,560 bare training points labelled 100** in two hyper-arid desert cores where the model read about 75 % bare (C6 about 89 %):
+  2,048 points in two blocks of the Atacama Desert (h11v11, a new bare tile) and 512 points in the Namib Sand Sea (h19v11, every 4th
+  of a 2,048-point set; none falls on an existing label). Selected on our own MODIS data. The bare model is refitted with the v1.6.0
+  recipe (RF 60 trees, sqrt, leaf 1, seed 0, the 21 bare predictors) on 35 label tiles; tree model and blend partner unchanged.
+- **Label set 7.0.1 rebuilt** (not yet delivered, so the set number is kept): `pctbare/VCF_training_pctbare_h11v11.7.0.1.out` (new),
+  `pctbare/VCF_training_pctbare_h19v11.7.0.1.out` (replaces the 7.0.0 file; differs only at the 512 points) and the 2019 bare manifest.
+  Sampled afresh from the rasters, the rows equal the 2019 manifest's (keys, labels, train/test parts; 13,883,432 rows); only their
+  order differs, as for the ice points (`docs/TRAINING_LABELS.md`).
+- **Effects, 2019 (global, 318 tiles, against v1.6.0):** Quality and Cloud identical on every tile; the 27 rule tiles identical; tree
+  changes only where bare changes (BP10 / sum cap). Mean bare: Atacama 75-77 -> 86-88, Namib 75.6 -> 85.2. Elsewhere the change is
+  within refit noise (global mean bare -0.04). Greenland ice unchanged. Held-out bare MAE a tie (-0.0010).
+- **Second year, 2010** (own-year refits of all models, 117 tiles): held-out bare a tie against the v1.6.0 recipe refitted on the same
+  2010 rows (-0.0008, 95 % CI [-0.004, +0.0025]); Atacama 89-92 and Namib 88 % bare (C6 2010: 86-90); tree + non-tree + bare = 100 on
+  all land. Bare is expected to vary between years with rainfall effects on grasses.
+- The v1.6.0 code was also shown to give the same results on aarch64 (NVIDIA Grace) as on x86 (composites, metrics, maps and fitted
+  trees; only the joblib `impurity` field of the model files differs in bytes); the 2019 v1.7.0 maps were made there.
+
+Evidence: `Reports/Desert_Core_Rows_Results.md`, `Reports/Desert_Rows_Variants_Results.md` (arm A2c), `Reports/A2c_Global_2019_Results.md`,
+`Reports/A2c_2010_Results.md`, `Reports/ARM64_Grace_Exactness_Proof_Results.md`, `Reports/V170_Delivery_Plan.md`.
+
 ## v1.6.0 (tag `v1.6.0`, 2026-10-22): winter fill for missing inputs, models refitted
 
 - **Missing inputs at polar night** (`model/CompositeDayFile.py`, `fillMissing`; F3, `ed0c13f`, 2026-10-21). A missing MOD44C granule used to enter its 48-day

@@ -1,4 +1,4 @@
-# Running a year (modis_vcf v1.6.0)
+# Running a year (modis_vcf v1.7.0)
 
 One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 day 065 to 2020 day 049) goes through five steps:
 
@@ -32,11 +32,11 @@ python -m modis_vcf.view.trainingManifest sample --labels '<labels>/pctbare/VCF_
 ```
 
 `--labels` takes one pattern; for the bare set, whose files carry two version numbers, make a folder of links with one name pattern,
-or one file per tile. `tree_tiles.txt` / `bare_tiles.txt` = the tiles in the label archive (63 / 34). The tree manifest uses
+or one file per tile. `tree_tiles.txt` / `bare_tiles.txt` = the tiles in the label archive (63 / 35). The tree manifest uses
 `--index position`, the bare one the default `range` (as in our runs; it only affects row ids).
 
-> **h16v02 row order.** Sampled from the raster, the 10,000 h16v02 ice points sit in tile order. Our runs appended them after all
-> other rows (`--extra`, a parquet list). Same rows, same train/test parts, different order, so a bare model fitted from a fresh sample
+> **Row order of the added points.** Sampled from the rasters, the 10,000 h16v02 ice points and the 2,560 desert points (h11v11,
+> h19v11) sit in tile order. Our runs appended them after all other rows (`--extra`, a parquet list). Same rows, same train/test parts, different order, so a bare model fitted from a fresh sample
 > is statistically equivalent to ours but **not byte-identical**. To reproduce our 2019 models exactly, use the 2019 manifests in the
 > label archive instead of step 1.
 

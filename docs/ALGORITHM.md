@@ -1,4 +1,4 @@
-# How the MODIS VCF product is made (modis_vcf v1.6.0)
+# How the MODIS VCF product is made (modis_vcf v1.7.0)
 
 This describes what the code computes, in the order it runs, for a reader who knows remote sensing but not this algorithm. File and
 function names point to where each step lives. How to run each step is in [RUNNING.md](RUNNING.md); the training labels are in
@@ -29,7 +29,7 @@ The three percent layers sum to exactly 100 on every land pixel.
 |---|---|---|
 | **MOD44CH / MOD44CQ** (Collection 6.1, PGE72) | 16-day composites: reflectance bands 1-7, band 31 (brightness temperature), solar zenith, the `state` QA word | `model/ProductTypeMod44.py` |
 | **MOD44W** (Collection 6.1) | land / water / outside-projection mask, the file for day 001 of the year | `model/ProductTypeMod44W.py` |
-| Training labels | percent tree and percent bare per pixel on 97 tiles | [TRAINING_LABELS.md](TRAINING_LABELS.md) |
+| Training labels | percent tree and percent bare per pixel on 98 tiles | [TRAINING_LABELS.md](TRAINING_LABELS.md) |
 
 Input folders are set in `model/Settings.py` (environment variables `VCF_MOD44_DIR`, `VCF_MOD44W_DIR`).
 
@@ -89,7 +89,8 @@ lists serve every year.
 Two Random Forest regressions (scikit-learn 1.2.0, `view/fitAltModel.py`): 60 trees, `max_features='sqrt'`, minimum leaf 1, seed 0.
 
 - **Tree cover** model: trained on the tree labels (63 tiles).
-- **Bare** model: trained on the bare labels (34 tiles, including 10,000 points labelled 100 on the Greenland ice sheet).
+- **Bare** model: trained on the bare labels (35 tiles, including 10,000 points labelled 100 on the Greenland ice sheet and 2,560 points
+  labelled 100 in the Atacama Desert and the Namib Sand Sea).
 
 Training rows are every labelled pixel; 20% are held out for testing by a hash of the pixel key (`model/TrainingManifest.py`). The
 predictors at each row are read from that year's metrics, so **models are refitted every year**; the labels stay the same.
@@ -138,7 +139,7 @@ v15-v17 rule tiles. The development history and evidence are in `CHANGELOG.md`.
 
 ## 10. Known limitations
 
-- **Regions far from the training labels.** The bare labels cover 34 tiles and the tree labels 63. Many drylands have no bare label
+- **Regions far from the training labels.** The bare labels cover 35 tiles and the tree labels 63. Many drylands have no bare label
   within several hundred to a few thousand kilometres (for example Patagonia, the Monte, the Sahel edge, India and Pakistan, north-west
   Mexico, the Kazakh and Mongolian steppes, the Tibetan plateau). There the models extrapolate: the spread between the trees (the SD
   layers) is high, and the values move by a point or two whenever the training changes, including the yearly refit. In 2019 the
@@ -146,5 +147,6 @@ v15-v17 rule tiles. The development history and evidence are in `CHANGELOG.md`.
 - **A low SD does not mean a correct value.** The SD shows how much the trees disagree. Where the labels themselves follow a different
   convention, the trees agree on it and the SD is low.
 - **Label conventions differ by region.** Pure desert is labelled 100 in the Sahara and Arabia but about 40-80 in the southern
-  hemisphere deserts; lichen and prostrate-shrub tundra is about half bare in the North American and Greenland labels but low in the
+  hemisphere deserts (since v1.7.0, desert-core points labelled 100 in the Atacama and the Namib Sand Sea bring those two to about
+  85-92 % bare, close to C6); lichen and prostrate-shrub tundra is about half bare in the North American and Greenland labels but low in the
   Siberian ones. The maps follow the labels in each region.

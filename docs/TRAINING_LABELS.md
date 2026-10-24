@@ -1,6 +1,6 @@
-# Training labels (set 7.0.1, modis_vcf v1.6.0)
+# Training labels (set 7.0.1, modis_vcf v1.7.0)
 
-The labels are delivered separately from the code, as `VCF_training_labels_7.0.1.tar.gz` (83 MB; `.sha256` next to it). The archive
+The labels are delivered separately from the code, as `VCF_training_labels_7.0.1.tar.gz` (83 MB, rebuilt for v1.7.0 on 2026-10-24 before any delivery; `.sha256` next to it). The archive
 has its own `README.md` and a `MANIFEST.csv` (every file's name, original name, sha256, size and number of labelled pixels).
 
 ## Contents
@@ -8,7 +8,9 @@ has its own `README.md` and a `MANIFEST.csv` (every file's name, original name, 
 | Path in the archive | Files | What |
 |---|---|---|
 | `pcttree/VCF_training_pcttree_<tile>.7.0.1.out` | 63 | Percent tree cover labels |
-| `pctbare/VCF_training_pctbare_<tile>.7.0.0.out` | 33 | Percent bare (non-vegetated) labels |
+| `pctbare/VCF_training_pctbare_<tile>.7.0.0.out` | 32 | Percent bare (non-vegetated) labels |
+| `pctbare/VCF_training_pctbare_h19v11.7.0.1.out` | 1 | The 7.0.0 h19v11 labels plus 512 Namib Sand Sea points, all 100 % bare |
+| `pctbare/VCF_training_pctbare_h11v11.7.0.1.out` | 1 | 2,048 points in the Atacama Desert, all 100 % bare (new tile) |
 | `pctbare/VCF_training_pctbare_h16v02.7.0.1.out` | 1 | 10,000 points on the Greenland ice sheet, all 100 % bare |
 | `manifests/manifest_{tree,bare}_2019.parq` (+ `.json`) | 4 | The exact 2019 samples behind our 2019 models |
 
@@ -18,7 +20,7 @@ cover, **255 = no label**. In the code, pixel (x, y) = (row, column):
 
 ## The version numbers
 
-- **7.0.0** = the label set in the 2025 `modis_vcf` repository (`data/training`, removed from the repository in v1.5.2). The 33 bare
+- **7.0.0** = the label set in the 2025 `modis_vcf` repository (`data/training`, removed from the repository in v1.5.2). 32 of the bare
   files are byte-identical to it. Its two other bare tiles, h10v02 and h21v08, are not used since v1.5.0.
 - **7.0.1** = files that differ from 7.0.0 or are new:
   - tree: 7.0.0 holds the full v5.0.3 label rasters; the models train on **v5.0.3samp**, a subset of the same pixels (the rest set
@@ -26,6 +28,9 @@ cover, **255 = no label**. In the code, pixel (x, y) = (row, column):
   - bare h16v02: new. The ice points are a regular grid at least 10 km inside the ice-sheet edge (not water), all labelled 100.
     They teach the bare model that the ice sheet interior is fully bare. Until v1.5.1 they were a separate list (a parquet file of
     pixel keys); in the archive they are a raster like every other tile.
+  - bare desert points (v1.7.0): 2,048 points in two blocks of the hyper-arid Atacama Desert (h11v11, a new tile) and 512 points in
+    the Namib Sand Sea (added to h19v11, none on a 7.0.0 label), all labelled 100. They were selected on MODIS data as barren desert
+    cores; without them the model read these deserts as about 75 % bare. h19v11 7.0.1 equals 7.0.0 except at the 512 points.
 
 ## How labels become training rows
 
@@ -33,15 +38,15 @@ See [RUNNING.md](RUNNING.md), steps 1 and 3. Every labelled pixel is a row, rows
 held out for testing when the pandas hash of its key is 0 mod 5 (about 20%). The predictors at each row are read from that year's
 metrics, so a new year needs new splits and new models, but the labels do not change.
 
-## Reproducing our models exactly, and the h16v02 row order
+## Reproducing our models exactly, and the row order of the added points
 
 - Built from the 2019 manifests (`trainingManifest build --manifest manifests/manifest_tree_2019.parq ...`) on the same 2019 metrics,
   the splits and models are byte-identical to ours.
 - Sampled afresh from the rasters (`trainingManifest sample`), the rows and their train/test parts are the same, but the h16v02 ice
-  points sit in tile order (between h16v01 and the next tile). In our runs they were appended after all other rows. A Random Forest's
+  points and the desert points (h11v11, h19v11) sit in tile order. In our runs they were appended after all other rows. A Random Forest's
   bootstrap depends on row order, so the **bare model is statistically equivalent but not byte-identical**. This is expected; tests
   comparing splits or models made from the archive should build from the manifests when they need exact equality.
-- The bare manifest's `.json` still names the separate ice-point list it was made with.
+- The bare manifest's `.json` still names the separate point list it was made with.
 
 ## Provenance
 
