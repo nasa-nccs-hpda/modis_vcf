@@ -13,9 +13,9 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
-## v1.7.1 (not yet tagged; commit hash filled in by the next commit, 2026-10-26): the Collection 7 product file (HDF5)
+## v1.7.1 (tag `v1.7.1`, 2026-10-26): the Collection 7 product file (HDF5)
 
-**Output format change; product values unchanged** (models = v1.7.0). The map step writes one Collection 7 MOD44B file per tile and
+**Output format change; product values unchanged** (models = v1.7.0; code `b523484`). Accepted by the project lead 2026-10-26. The map step writes one Collection 7 MOD44B file per tile and
 year, `MOD44B.A<yyyy>065.<tile>.007.<yyyydddhhmmss>.h5`, in the HDF-EOS5 layout of the MODAPS C7 granules on LAADS
 (`model/Mod44bH5.py`). It is written directly with h5py; MODAPS confirmed the API-Trans step is optional.
 
