@@ -13,6 +13,13 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## Unreleased
+
+- **README brought up to v1.7.1** (2026-10-26; hash filled in by the next commit). Version line v1.7.0 -> v1.7.1, and the intro
+  says the product is written as one Collection 7 HDF5 file per tile and year. Docs only; no code or value change.
+
+---
+
 ## v1.7.1 (tag `v1.7.1`, 2026-10-26): the Collection 7 product file (HDF5)
 
 **Output format change; product values unchanged** (models = v1.7.0; code `b523484`). Accepted by the project lead 2026-10-26. The map step writes one Collection 7 MOD44B file per tile and
