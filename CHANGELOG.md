@@ -15,7 +15,10 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-- **README brought up to v1.7.1** (2026-10-26; hash filled in by the next commit). Version line v1.7.0 -> v1.7.1, and the intro
+- **Documentation: six-year evidence and the Iceland tree limitation** (2026-10-26; hash filled in by the next commit). The v1.7.0
+  entry gains the six-year evaluation; `docs/ALGORITHM.md` section 10 gains the Iceland tree overestimate as a known limitation.
+  Docs only; no code or value change.
+- **README brought up to v1.7.1** (`28b6ea4`, 2026-10-26). Version line v1.7.0 -> v1.7.1, and the intro
   says the product is written as one Collection 7 HDF5 file per tile and year. Docs only; no code or value change.
 
 ---
@@ -62,11 +65,15 @@ Evidence: `Reports/V171_HDF5_Product_File_Plan.md`, `Reports/HDF_Product_File_Pl
 - **Second year, 2010** (own-year refits of all models, 117 tiles): held-out bare a tie against the v1.6.0 recipe refitted on the same
   2010 rows (-0.0008, 95 % CI [-0.004, +0.0025]); Atacama 89-92 and Namib 88 % bare (C6 2010: 86-90); tree + non-tree + bare = 100 on
   all land. Bare is expected to vary between years with rainfall effects on grasses.
+- **Six years** (2000, 2004, 2009, 2010, 2014, 2019; own-year refits, 117 tiles per year): held-out bare a tie against the v1.6.0 recipe
+  refitted on the same year's rows in every year (-0.0015 to +0.0015 MAE, every 95 % CI across 0); the desert points are learned in
+  every year (mean prediction 99.7-100); tree + non-tree + bare = 100 on every land pixel; Greenland ice interior 95-100 % at bare 100.
+  Year-to-year, the bare maps move less than C6's (mean |difference| from 2019: 5.0-5.3 against 6.8-7.6).
 - The v1.6.0 code was also shown to give the same results on aarch64 (NVIDIA Grace) as on x86 (composites, metrics, maps and fitted
   trees; only the joblib `impurity` field of the model files differs in bytes); the 2019 v1.7.0 maps were made there.
 
 Evidence: `Reports/Desert_Core_Rows_Results.md`, `Reports/Desert_Rows_Variants_Results.md` (arm A2c), `Reports/A2c_Global_2019_Results.md`,
-`Reports/A2c_2010_Results.md`, `Reports/ARM64_Grace_Exactness_Proof_Results.md`, `Reports/V170_Delivery_Plan.md`.
+`Reports/A2c_2010_Results.md`, `Reports/A2c_Years_Eval_Results.md`, `Reports/ARM64_Grace_Exactness_Proof_Results.md`, `Reports/V170_Delivery_Plan.md`.
 
 ## v1.6.0 (tag `v1.6.0`, 2026-10-22): winter fill for missing inputs, models refitted
 

@@ -150,3 +150,9 @@ v15-v17 rule tiles. The development history and evidence are in `CHANGELOG.md`.
   hemisphere deserts (since v1.7.0, desert-core points labelled 100 in the Atacama and the Namib Sand Sea bring those two to about
   85-92 % bare, close to C6); lichen and prostrate-shrub tundra is about half bare in the North American and Greenland labels but low in the
   Siberian ones. The maps follow the labels in each region.
+- **Tree cover in Iceland is overestimated.** There are no tree labels in Iceland or on the Greenland coast (h16v01 has only tree = 0
+  labels), so tree cover there is extrapolated. On Iceland's ice-free land (h17v02) tree >= 20 % covers 4-12 % of the area depending
+  on the year (2019: 6 %), with a mean of 4-9 %; C6 reads more (7-15 %, mean 7-11). The pixels change from year to year: only about 1 %
+  is >= 20 in all of 2000-2019. Tree = 0 labels in Iceland were not added: the nearest spectral analogues are boreal forest-tundra
+  label sites (h11v02, h21v02, h18v03), whose tree cover such labels would pull down. On the Greenland coast tree >= 20 is 0-1.5 % and
+  below C6; the ice sheet is 0.
