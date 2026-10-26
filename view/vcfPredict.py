@@ -130,7 +130,25 @@ def main():
                              'production, where every run builds fresh '
                              'metrics roots.')
 
+    parser.add_argument('--format',
+                        choices=VcfPredict.MAP_FORMATS,
+                        default='h5',
+                        help='Map output: h5 = one Collection 7 MOD44B file per tile and year (default), '
+                             'geotiff = one GeoTIFF per layer, both.')
+
+    parser.add_argument('--h5Attr',
+                        action='append',
+                        default=[],
+                        metavar='NAME=VALUE',
+                        help='Set a root attribute of the C7 file (e.g. PGEVersion=7.0.2); repeatable.')
+
     args = parser.parse_args()
+
+    for a in args.h5Attr:
+        if '=' not in a:
+            parser.error('--h5Attr needs NAME=VALUE, not ' + a)
+
+    h5Overrides = dict(a.split('=', 1) for a in args.h5Attr)
 
     # ---
     # Rule tiles (rows v15-v17, model/RuleTile.py) are written from MOD44W
@@ -143,7 +161,8 @@ def main():
         parser.error('--tc, --tcn, --nv and --nvn are required for ' + ' '.join(tids))
 
     if ruleTids:
-        VcfPredict.forRuleTiles(args.o, writeSd=not args.noSd).run(tids=ruleTids, years=[args.y])
+        VcfPredict.forRuleTiles(args.o, writeSd=not args.noSd, mapFormat=args.format,
+                                h5Overrides=h5Overrides).run(tids=ruleTids, years=[args.y])
 
     if not tids:
         return 0
@@ -170,7 +189,9 @@ def main():
                       partnerTopNFile=args.partnerTopN,
                       partnerMetricsDir=args.partnerMetricsDir,
                       countsDir=args.counts,
-                      bp10=not args.noBp10)
+                      bp10=not args.noBp10,
+                      mapFormat=args.format,
+                      h5Overrides=h5Overrides)
 
     vcfp.run(tids=tids, years=[args.y])
 

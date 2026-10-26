@@ -1,10 +1,10 @@
-# Running a year (modis_vcf v1.7.0)
+# Running a year (modis_vcf v1.7.1)
 
 One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 day 065 to 2020 day 049) goes through five steps:
 
 ```
 labels ──► 1 sample ──► manifests ─┐
-MOD44C ──► 2 metrics (+ V4r on blend and tree-training tiles) ──► 3 splits ──► 4 fits ──► 5 maps ──► 7 GeoTIFFs per tile
+MOD44C ──► 2 metrics (+ V4r on blend and tree-training tiles) ──► 3 splits ──► 4 fits ──► 5 maps ──► 1 C7 .h5 per tile
 MOD44W ────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -98,7 +98,11 @@ python -m modis_vcf.view.vcfPredict -o maps --metricsDir <metrics root> -t h12v0
 - **`--tcAgg median --nvAgg median` are required**: the command's defaults are `mean`, which is not the product.
 - BP10 is on by default. Rows v15-v17 need only `-o maps -t <tile> -y <year>` (rule tiles, no metrics, no models).
 - A tile with no MOD44W file for the year cannot be mapped; the driver skips it and lists it in `status/skipped_no_mod44w.txt`.
-- Output: the 7 layers and `<tile>-<year>-chain.json` (blend and BP10 pixel counts).
+- Output: the Collection 7 product file `MOD44B.A<year>065.<tile>.007.<production time>.h5` (the 7 layers; layout and corrections
+  in [BUILD.md](BUILD.md), section 6) and `<tile>-<year>-chain.json` (blend and BP10 pixel counts). `--format both` also writes the
+  7 layers as GeoTIFFs (`<layer>-<tile>-<year>.tif`), and `--format geotiff` writes only those. In a `runYear` spec this is
+  `"mapFormat"`, default `"h5"`. `--h5Attr NAME=VALUE` (spec: `"h5Attrs": {NAME: VALUE}`) sets root attributes of the file, e.g.
+  the production `PGEVersion`.
 - After the map of a blend tile, `python -m modis_vcf.model.V4r compose ...` writes diagnostic statistics (optional; nothing reads
   them).
 

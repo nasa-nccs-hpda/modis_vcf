@@ -1,4 +1,4 @@
-# Building the environment (modis_vcf v1.7.0)
+# Building the environment (modis_vcf v1.7.1)
 
 The code is pure Python. It needs no container, no GPU and no other repository.
 
@@ -13,7 +13,10 @@ conda activate modis_vcf
 
 The versions are pinned to those the v1.5.x products were made with. **scikit-learn must stay 1.2.0**: fitted forests and their
 predictions depend on its version. The only difference from the build our products came from is GDAL 3.8.5 instead of 3.8.4 (3.8.4 no
-longer solves on conda-forge); the exactness proof below covers it.
+longer solves on conda-forge); the exactness proof below covers it. Since v1.7.1 the environment also has **h5py 3.13.0**, which
+writes the Collection 7 product file. It builds on the HDF5 1.14.3 that GDAL already brings, and adding it changes no other package.
+An environment built for v1.7.0 can take it in place: `conda install -n modis_vcf -c conda-forge --override-channels
+--freeze-installed h5py=3.13.0 hdf5=1.14.3`.
 
 If conda is a shared installation you cannot write to, set a writable package cache first: `export CONDA_PKGS_DIRS=<writable dir>`.
 
@@ -66,7 +69,34 @@ paths (`/css/...`, `/explore/...`): `test_BandDayFile`, `test_CompositeDayFile`,
 `test_ProductTypeMod09A`, `test_ProductTypeMod44`, `test_ProductTypeMod44W`, `test_VcfPredict`. Point them at your copies of those
 granules, or skip them. The others run anywhere.
 
-## 6. Proof that this environment gives our products
+## 6. The Collection 7 product file and its corrections
+
+Since v1.7.1 the map step writes one HDF5 file per tile and year, `MOD44B.A<yyyy>065.<tile>.007.<yyyydddhhmmss>.h5`
+(`model/Mod44bH5.py`). Its layout matches the MODAPS C7 granules made with the C code and API-Trans (HDF-EOS5 groups, the 7 fields,
+types, chunks, shuffle + gzip 4, field and root attributes, `StructMetadata.0`). No API-Trans step is needed: MODAPS confirmed it is
+optional. The field values are those of the GeoTIFFs: this code's models and rules. A file for the same tile and year therefore
+matches a C-code granule in layout, not in pixel values. Three things differ from the C-code granules, on purpose:
+
+- **Corrected `valid_range` of the SD layers: 0-5000** (SD x 100 of values in 0-100, which cannot exceed 50). The C code declares
+  0-275, and its own values exceed that: up to 2841 on C7 h08v05 2019.
+- **Out-of-projection pixels are flagged.** The C code predicts on the fill inputs there and writes an ordinary-looking constant
+  (C7 2019 h00v08 / h35v08: tree 15, non-vegetated 85 on 99.85 % of those pixels). It never uses its declared `_FillValue` 253.
+  This code writes 250 there, as in the GeoTIFFs, and the three percent layers declare it as `OutOfProjection_Value = 250`, next to
+  `Water_Value = 200`. `_FillValue` stays 253.
+- **Run metadata are this code's own:**
+  - `PGEVersion` and `LocalVersionID` give the modis_vcf version;
+  - `ProcessingEnvironment` is the host;
+  - `InputDataProducts` lists the MOD44CQ and MOD44CH composites, the model files and the MOD44W file actually read. With
+    Collection 6.1 inputs these are `.061` `.hdf` names, where the C7 granules list C7 `.h5` names. On polar tiles fewer composites
+    appear (e.g. 21 + 21 on h17v01), because only the composites that exist are listed;
+  - the G-ring and bounds are copied from the first MOD44CQ, as the C code does.
+
+  Any root attribute can be set from the command line, e.g. `vcfPredict.py --h5Attr PGEVersion=7.0.2`, or through `h5Attrs` in a
+  `runYear` spec. The QA attributes keep the C7 placeholders ("Passed", 100 % good quality).
+
+`--format geotiff` or `--format both` (spec `"mapFormat"`) also writes the 7 GeoTIFFs, as before v1.7.1.
+
+## 7. Proof that this environment gives our products
 
 On 2026-10-20 the v1.5.2 code in this environment (no container, no other repository) reproduced the global 2019 v1.5.1 run on four
 test tiles (h12v09, h17v01, h16v02, h20v09): composites byte for byte, metrics and all 7 map layers by value, the training splits of

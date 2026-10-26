@@ -343,9 +343,13 @@ class YearRun(object):
                     py + ['-m', 'modis_vcf.model.CompactForest', str(d / (m['trainingType'] + '.bin')),
                           str(d / (m['trainingType'] + '.cf'))]]
 
+        # Map output (VcfPredict.MAP_FORMATS): the C7 file by default; analysis runs set "mapFormat": "both".
+        mf = ['--format', self.spec.get('mapFormat', 'h5')] + \
+            [a for k, v in sorted(self.spec.get('h5Attrs', {}).items()) for a in ('--h5Attr', '%s=%s' % (k, v))]
+
         if kind == 'map' and arg in self.ruleTiles:
             return [py + ['-m', 'modis_vcf.view.vcfPredict', '-o', str(self.root / 'out' / 'maps'), '-t', arg,
-                          '-y', str(self.year)]]
+                          '-y', str(self.year)] + mf]
 
         if kind == 'map':
             tc, tcn = self.modelPaths('tree')
@@ -353,7 +357,7 @@ class YearRun(object):
             cmd = py + ['-m', 'modis_vcf.view.vcfPredict', '-o', str(self.root / 'out' / 'maps'),
                         '--metricsDir', str(self.metricsRoot), '-t', arg, '--tc', tc, '--tcn', tcn, '--nv', nv,
                         '--nvn', nvn, '-y', str(self.year), '--nJobs', str(w.get('mapJobs', 8)), '--tcAgg', 'median',
-                        '--nvAgg', 'median'] + ls
+                        '--nvAgg', 'median'] + ls + mf
 
             blend = self.partner and arg in self.partner['tiles']
 
@@ -687,7 +691,10 @@ class YearRun(object):
                 if r['rc'] != 0 and self.kind[t] == 'map' and r['attempt'] == 1 and not self._fatal():
                     aside = self.root / 'Python' / 'failed_attempts' / self._key(t)
                     aside.mkdir(parents=True, exist_ok=True)
-                    for f in (self.root / 'out' / 'maps').glob('*-' + t.split(':')[1] + '-%d*' % self.year):
+                    tile = t.split(':')[1]
+                    maps = self.root / 'out' / 'maps'
+                    for f in list(maps.glob('*-' + tile + '-%d*' % self.year)) + \
+                            list(maps.glob('MOD44B.A%d065.%s.*.h5*' % (self.year, tile))):
                         shutil.move(str(f), str(aside / f.name))
                     running.append(self._start(t, 2))
                     continue

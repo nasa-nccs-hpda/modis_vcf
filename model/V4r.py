@@ -274,7 +274,11 @@ def composeStats(tile: str, year: int, v4rRoot: Path, stdRoot: Path, countsDir: 
     S = slots(year)
     vc = Path(v4rRoot) / tile / str(year) / '2-Composites'
     sc = Path(stdRoot) / tile / str(year) / '2-Composites'
-    G = gdal.Open(str(treeMap)).ReadAsArray()
+    if Path(treeMap).exists():
+        G = gdal.Open(str(treeMap)).ReadAsArray()
+    else:                                                # an h5-only run: the tree layer of the C7 file
+        from modis_vcf.model import Mod44bH5
+        G = Mod44bH5.readMapLayer(Path(treeMap).parent, tile, year, 'Percent_Tree_Cover')
     land = G <= 100
     dense = land & (G >= 60)
     sets = dict(land=land, dense=dense)

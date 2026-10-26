@@ -13,6 +13,30 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## v1.7.1 (not yet tagged; commit hash filled in by the next commit, 2026-10-26): the Collection 7 product file (HDF5)
+
+**Output format change; product values unchanged** (models = v1.7.0). The map step writes one Collection 7 MOD44B file per tile and
+year, `MOD44B.A<yyyy>065.<tile>.007.<yyyydddhhmmss>.h5`, in the HDF-EOS5 layout of the MODAPS C7 granules on LAADS
+(`model/Mod44bH5.py`). It is written directly with h5py; MODAPS confirmed the API-Trans step is optional.
+
+- **New default output:** `vcfPredict.py --format h5` (default), `geotiff` or `both`; `runYear` spec `"mapFormat"`. Root attributes
+  can be set with `--h5Attr NAME=VALUE` / `"h5Attrs"`. `V4r compose` reads the tree layer from the `.h5` when no GeoTIFF is written,
+  and the driver moves a failed map attempt's `.h5` aside like its GeoTIFFs.
+- **Corrections against the C-code granules** (`docs/BUILD.md`, section 6):
+  - SD `valid_range` 0-5000 instead of 0-275;
+  - out-of-projection pixels kept at 250 and declared (`OutOfProjection_Value`), where the C code writes a prediction made on fill
+    inputs;
+  - run metadata (versions, host, inputs) are this code's own.
+- **Environment:** h5py 3.13.0 added (`environment.yml`), on the HDF5 1.14.3 GDAL already brings; no other package changes.
+- **Proof** (`EXP_v171_h5_proof_20261026`, 2019, h12v09 / h17v01 / h16v02 / h20v09, map step on the v1.7.0 global inputs):
+  - **x86:** v1.7.0 values reproduced (the 7 layers and `chain.json`); the `.h5` fields equal the GeoTIFFs; the structure equals the
+    C7 granule apart from `OutOfProjection_Value`; an `.h5`-only run writes no GeoTIFF and gives the same compose statistics.
+  - **aarch64 (Grace):** the `.h5` equals the x86 file field by field.
+  - The `.h5` is 26-42 % smaller than the 7 GeoTIFFs, with the same map time.
+  - Exact.
+
+Evidence: `Reports/V171_HDF5_Product_File_Plan.md`, `Reports/HDF_Product_File_Plan.md` (C7 format addenda).
+
 ## v1.7.0 (tag `v1.7.0`, 2026-10-24): desert points in the bare training labels, bare model refitted
 
 **Model change, bare (Percent_NonVegetated) only; no code change** (code = v1.6.0, `b912a74`). Accepted by the project lead 2026-10-24.

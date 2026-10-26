@@ -27,6 +27,7 @@ from modis_vcf.model import BlendA
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompactForest import CompactForest
 from modis_vcf.model.Metrics import Metrics
+from modis_vcf.model import Mod44bH5
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
 from modis_vcf.model import RuleTile
@@ -66,6 +67,10 @@ class VcfPredict(object):
     # Tile rows (the v of hXXvYY) where land is set to tree cover 0, non-vegetated 100.
     HIGH_LATITUDE_BARE_VTILES = (0,)
 
+    # Map outputs: 'h5' the Collection 7 product file (Mod44bH5, one per tile and year), 'geotiff' one GeoTIFF per
+    # layer, 'both'.  The values are the same in both.
+    MAP_FORMATS = ('h5', 'geotiff', 'both')
+
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
@@ -88,14 +93,18 @@ class VcfPredict(object):
                  partnerMetricsDir: Path = None,
                  countsDir: Path = None,
                  partnerAgg: str = 'median',
-                 bp10: bool = True):
+                 bp10: bool = True,
+                 mapFormat: str = 'h5',
+                 h5Overrides: dict = None):
 
         # Validate the output directory.
         if outDir is None or not outDir.exists() or not outDir.is_dir():
             raise RuntimeError('A valid output directory must be provided.')
-            
+
         self._outDir: Path = outDir
-        
+        self._setMapFormat(mapFormat, h5Overrides)
+        self._modelFiles: list = [f for f in (treeCoverModelFile, nonvegModelFile, partnerModelFile) if f is not None]
+
         # Load the models.
         self._treeCoverRf: RandomForestRegressor = None
         self._treeCoverTopN: list = None
@@ -177,7 +186,9 @@ class VcfPredict(object):
                      outDir: Path,
                      mod44wDir: Path = MOD44W_DIR,
                      logger: logging.RootLogger = None,
-                     writeSd: bool = True) -> 'VcfPredict':
+                     writeSd: bool = True,
+                     mapFormat: str = 'h5',
+                     h5Overrides: dict = None) -> 'VcfPredict':
         """A VcfPredict without models or metrics, for the rule tiles only (RuleTile: rows v15-v17)."""
 
         if outDir is None or not outDir.exists() or not outDir.is_dir():
@@ -185,6 +196,9 @@ class VcfPredict(object):
 
         vcfp = cls.__new__(cls)
         vcfp._outDir = outDir
+        vcfp._setMapFormat(mapFormat, h5Overrides)
+        vcfp._modelFiles = []
+        vcfp._productType = None
         vcfp._treeCoverRf = None
         vcfp._writeSd = writeSd
         vcfp._productTypeM44W = ProductTypeMod44W(mod44wDir)
@@ -635,6 +649,7 @@ class VcfPredict(object):
 
         self._write(tid, year, 'Quality', np.where(okMask, quality, 0), noData=False)
         self._write(tid, year, 'Cloud', np.where(okMask, cloud, 0), noData=False)
+        self._writeH5(tid, year)
 
         return pctTc, pctNonveg, pctNontreeVeg
 
@@ -665,6 +680,7 @@ class VcfPredict(object):
         flags = np.where(okMask, RuleTile.ALL_PERIODS, 0)
         self._write(tid, year, 'Quality', flags, noData=False)
         self._write(tid, year, 'Cloud', flags, noData=False)
+        self._writeH5(tid, year)
 
         return pctTc, pctNonveg, pctNontreeVeg
 
@@ -700,6 +716,13 @@ class VcfPredict(object):
             raise ValueError(fName + ': values ' + str(raster.min()) + '-' + str(raster.max()) +
                              ' do not fit ' + gdal.GetDataTypeName(dataType))
 
+        # Kept for the C7 file, written once the tile's 7 layers are in (_writeH5).
+        if self._mapFormat in ('h5', 'both'):
+            self._h5Layers[outPrefix] = raster.astype(npType)
+
+        if self._mapFormat == 'h5':
+            return None
+
         ds = gdal.GetDriverByName('GTiff').Create(str(outName),
                                                   raster.shape[1],
                                                   raster.shape[0],
@@ -720,4 +743,75 @@ class VcfPredict(object):
         ds = None
 
         return outName
+
+    # ------------------------------------------------------------------------
+    # setMapFormat
+    # ------------------------------------------------------------------------
+    def _setMapFormat(self, mapFormat: str, h5Overrides: dict = None) -> None:
+
+        if mapFormat not in VcfPredict.MAP_FORMATS:
+            raise ValueError('Unknown map format ' + str(mapFormat) + '; use one of ' + str(VcfPredict.MAP_FORMATS))
+
+        self._mapFormat: str = mapFormat
+        self._h5Overrides: dict = dict(h5Overrides or {})
+        self._h5Layers: dict = {}
+
+    # ------------------------------------------------------------------------
+    # h5Inputs
+    # ------------------------------------------------------------------------
+    def _h5Inputs(self, tid: str, year: int) -> tuple:
+        """
+        The InputDataProducts of the C7 file (the year's MOD44CQ, then MOD44CH composites, the model files and the
+        MOD44W mask, as the C code lists them) and the first MOD44CQ's G-ring and bounds (None on rule tiles).
+        """
+
+        cq, ch, geo = [], [], None
+
+        if self._productType is not None:
+
+            pt = self._productType
+            days = [(year, d) for d in pt.yearOneDays] + [(year + 1, d) for d in pt.yearTwoDays]
+
+            for prefix, out in ((ProductTypeMod44.CQ, cq), (ProductTypeMod44.CH, ch)):
+
+                for y, d in days:
+
+                    pattern = pt.productType + prefix + '.A%d%03d.%s.*.hdf' % (y, d, tid)
+                    found = sorted(set(pt.inputDir.joinpath(str(year)).glob(pattern)) |
+                                   set(pt.inputDir.joinpath(str(y)).glob(pattern)))
+                    out.extend(found[:1])
+
+            if cq:
+                geo = Mod44bH5.inputGeo(cq[0])
+
+        w = []
+
+        try:
+            w = [self._productTypeM44W.findFile(tid, year, 1, ProductTypeMod44W.WATER_MASK)]
+        except RuntimeError:
+            self._logger.warning('C7 file: no MOD44W file name found for ' + tid + ' ' + str(year))
+
+        return cq + ch + list(self._modelFiles) + w, geo
+
+    # ------------------------------------------------------------------------
+    # writeH5
+    # ------------------------------------------------------------------------
+    def _writeH5(self, tid: str, year: int) -> Path:
+        """The C7 product file (Mod44bH5) from the layers _write kept for this tile and year."""
+
+        if self._mapFormat not in ('h5', 'both'):
+            return None
+
+        layers, self._h5Layers = self._h5Layers, {}
+        missing = [f for f in Mod44bH5.FIELD_NAMES if f not in layers]
+
+        if missing:
+            self._logger.warning('C7 file ' + tid + ' ' + str(year) + ': ' + ', '.join(missing) +
+                                 ' not computed, written as fill.')
+
+        inputs, geo = self._h5Inputs(tid, year)
+        path = Mod44bH5.write(self._outDir, tid, year, layers, inputs, geo, self._h5Overrides)
+        self._logger.info('Wrote ' + str(path))
+
+        return path
         

@@ -19,3 +19,4 @@ dependencies:
   - numba=0.61.0            # compact forests (model/CompactForest.py)
   - llvmlite=0.44.0
   - gdal=3.8.5              # needs the HDF4 driver (MOD44C, MOD44W); the conda-forge build has it
+  - h5py=3.13.0             # the Collection 7 product file (model/Mod44bH5.py), on GDAL's HDF5 1.14.3
