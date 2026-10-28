@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from modis_vcf.model.ProductType import ProductType
+from modis_vcf.model.Settings import MOD44_COLLECTION
 
 
 # ----------------------------------------------------------------------------
@@ -38,6 +39,21 @@ class ProductTypeMod44(ProductType):
                           ProductType.BAND5: 2, ProductType.BAND6: 3,
                           ProductType.BAND7: 4, ProductType.BAND31: 9,
                           ProductType.SOLZ: 2, ProductType.STATE: 0}
+
+        # Collection 7 composites are HDF-EOS5 files with the same dataset
+        # names, values and state bits as Collection 6.1, in another order.
+        if MOD44_COLLECTION == '7':
+
+            self._fileSuffix = '.h5'
+
+            self._h5NameXref = {ProductType.BAND1: 'Band_1', ProductType.BAND2: 'Band_2',
+                                ProductType.BAND3: 'Band_3', ProductType.BAND4: 'Band_4',
+                                ProductType.BAND5: 'Band_5', ProductType.BAND6: 'Band_6',
+                                ProductType.BAND7: 'Band_7', ProductType.BAND31: 'Band_31',
+                                ProductType.SOLZ: 'solar_zenith', ProductType.STATE: 'state'}
+
+        elif MOD44_COLLECTION != '61':
+            raise ValueError('VCF_MOD44_COLLECTION must be 61 or 7, not ' + MOD44_COLLECTION)
 
         self._prefixXref = {ProductType.BAND1: ProductTypeMod44.CQ,
                             ProductType.BAND2: ProductTypeMod44.CQ,

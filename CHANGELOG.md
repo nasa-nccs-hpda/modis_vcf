@@ -15,7 +15,18 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-- **Documentation: six-year evidence and the Iceland tree limitation** (2026-10-26; hash filled in by the next commit). The v1.7.0
+- **Collection 7 MOD44C inputs (.h5) as an option** (2026-10-28; hash filled in by the next commit). New setting
+  `VCF_MOD44_COLLECTION` (`61`, the default, or `7`) chooses the MOD44CH / MOD44CQ input collection. With `7` the code reads the
+  HDF-EOS5 `.h5` composites from LAADS: `ProductType.fileSuffix` (`.hdf` / `.h5`) is used for the input globs and the InputPointer,
+  `ProductTypeMod44` names the C7 datasets, and `BandDayFile` selects HDF5 datasets by name (exactly one match, else an error),
+  because their order differs from the HDF4 subdataset index. The `.h5` product's bounding coordinates for C7 inputs come from the
+  MODLAND tile table (`model/sn_bound_10deg.txt`, new `Mod44bH5.modlandBounds()`), since the C7 inputs do not carry the HDF4
+  metadata that the C6.1 path reads. **C6.1 default: exact** to v1.7.1 on h12v09, h16v02, h17v01, h20v09 (composites, metrics,
+  all 7 layers and 126 attributes of the .h5). **C7 inputs: a different input**, h09v05 2019 within 0.1 of v1.7.0 on average per
+  layer (tree +0.04, bare -0.11); the full C7 evaluation (drop-in and refit) is plan step T. Evidence:
+  `C7_MOD44C_Inputs_Plan.md` (step C) and `C7_MOD44C_F0_C0_Results.md`. No version tag (only if the C7 inputs are adopted).
+
+- **Documentation: six-year evidence and the Iceland tree limitation** (`9abb91d`, 2026-10-26). The v1.7.0
   entry gains the six-year evaluation; `docs/ALGORITHM.md` section 10 gains the Iceland tree overestimate as a known limitation.
   Docs only; no code or value change.
 - **README brought up to v1.7.1** (`28b6ea4`, 2026-10-26). Version line v1.7.0 -> v1.7.1, and the intro

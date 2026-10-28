@@ -10,9 +10,12 @@ from pathlib import Path
 # (e.g. vcfPredict.py --mod44Dir) still override these.
 #
 #   VCF_MOD44_DIR    MOD44CH / MOD44CQ 16-day composites: <dir>/<year>/*.hdf
+#   VCF_MOD44_COLLECTION  collection of those composites: 61 (default, HDF4
+#                    *.hdf) or 7 (HDF-EOS5 *.h5; set VCF_MOD44_DIR to match)
 #   VCF_MOD44W_DIR   MOD44W land/water mask (Collection 6.1): <dir>/<year>/001/*.hdf
 #   VCF_MOD09A1_DIR  MOD09A1 (optional input, testing only): <dir>/<year>/*.hdf
 # ----------------------------------------------------------------------------
 MOD44_DIR = Path(os.environ.get('VCF_MOD44_DIR', '/css/modis/Collection6.1/L3/MOD44B-VCF/dev'))
+MOD44_COLLECTION = os.environ.get('VCF_MOD44_COLLECTION', '61')
 MOD44W_DIR = Path(os.environ.get('VCF_MOD44W_DIR', '/css/modis/Collection6.1/L3/MOD44W-LandWaterMask'))
 MOD09A1_DIR = Path(os.environ.get('VCF_MOD09A1_DIR', '/explore/nobackup/projects/ilab/data/MODIS/MOD09A1'))

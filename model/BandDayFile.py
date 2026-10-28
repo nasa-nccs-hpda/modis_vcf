@@ -112,8 +112,26 @@ class BandDayFile(DayFile):
                                               bandName)
         
         ds: gdal.Dataset = gdal.Open(str(fileName))
-        subdatasetIndex: int = productType.bandXref[bandName]
-        bandDs = gdal.Open(ds.GetSubDatasets()[subdatasetIndex][0])
+        subdatasets: list = ds.GetSubDatasets()
+
+        if fileName.suffix == '.h5':
+
+            name = '/Data_Fields/' + productType.h5NameXref[bandName]
+            matches = [s[0] for s in subdatasets if s[0].endswith(name)]
+
+            if len(matches) != 1:
+
+                raise RuntimeError('Expected one ' + name + ' in ' +
+                                   str(fileName) + ', found ' +
+                                   str(len(matches)))
+
+            bandDs = gdal.Open(matches[0])
+
+        else:
+
+            subdatasetIndex: int = productType.bandXref[bandName]
+            bandDs = gdal.Open(subdatasets[subdatasetIndex][0])
+
         self._geoTransform: tuple = bandDs.GetGeoTransform()
         
         # ReadAsArray automatically resamples when necessary.

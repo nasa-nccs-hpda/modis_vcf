@@ -63,6 +63,11 @@ class ProductType(ABC):
         self._solzScaleFactor: float = solzScaleFactor
         self._bandXref: dict = None
         self._prefixXref: dict = None
+
+        # Input file suffix, and dataset names for HDF5 inputs, which are
+        # selected by name because their subdataset order differs.
+        self._fileSuffix: str = '.hdf'
+        self._h5NameXref: dict = None
         self._productType: str = productType
 
         # MOD09 uses MOD44 for band 31.  Ensure the correct PT is chosen.
@@ -89,6 +94,20 @@ class ProductType(ABC):
     @property
     def bandXref(self) -> dict:
         return self._bandXref
+
+    # ------------------------------------------------------------------------
+    # fileSuffix
+    # ------------------------------------------------------------------------
+    @property
+    def fileSuffix(self) -> str:
+        return self._fileSuffix
+
+    # ------------------------------------------------------------------------
+    # h5NameXref
+    # ------------------------------------------------------------------------
+    @property
+    def h5NameXref(self) -> dict:
+        return self._h5NameXref
         
     # ------------------------------------------------------------------------
     # createQaMask
@@ -134,7 +153,7 @@ class ProductType(ABC):
         prefix = searchPt._prefixXref[bandName]
         yNj = str(year) + str(day).zfill(3)
         pt = searchPt.productType
-        mateGlob = pt + prefix + '.A' + yNj + '.' + tileId + '.*.hdf'
+        mateGlob = pt + prefix + '.A' + yNj + '.' + tileId + '.*' + searchPt._fileSuffix
         mateFiles = list(globDir.glob(mateGlob))
 
         if not mateFiles:

@@ -141,13 +141,44 @@ def _geoFromCorners(tid: str) -> dict:
 
 
 # ----------------------------------------------------------------------------
+# modlandBounds
+# ----------------------------------------------------------------------------
+def modlandBounds(tid: str) -> tuple:
+    """West, east, south and north of a tile from the MODLAND table sn_bound_10deg.txt (modis-land.gsfc.nasa.gov/pdf, 4 decimals;
+    stored here with LF line ends).  The Collection 6.1 MOD44C bounding coordinates equal it on all 292 tiles (within 5e-5)."""
+
+    h, v = _hv(tid)
+
+    for line in (Path(__file__).parent / 'sn_bound_10deg.txt').read_text().splitlines():
+
+        f = line.split()
+
+        if len(f) == 6 and f[0].isdigit() and (int(f[0]), int(f[1])) == (v, h):
+
+            if float(f[2]) == -999:
+                raise ValueError('No MODLAND bounds for fill tile ' + tid)
+
+            return tuple(float(x) for x in f[2:])
+
+    raise ValueError('Tile not in the MODLAND table: ' + tid)
+
+
+# ----------------------------------------------------------------------------
 # inputGeo
 # ----------------------------------------------------------------------------
 def inputGeo(inputFile: Path) -> dict:
-    """G-ring, bounds and day/night flag of an input composite (MOD44CQ), as the C code copies them."""
+    """G-ring, bounds and day/night flag of an input composite (MOD44CQ), as the C code copies them.  Collection 7 (.h5)
+    inputs hold the G-ring (space separated) but no bounding coordinates; bounds then come from the MODLAND table."""
 
     from osgeo import gdal
     md = gdal.Open(str(inputFile)).GetMetadata()
+
+    if Path(inputFile).suffix == '.h5':
+        west, east, south, north = modlandBounds(Path(inputFile).name.split('.')[2])
+        return dict(GRingPointLatitude=np.array([float(x) for x in md['GRingPointLatitude'].split()]),
+                    GRingPointLongitude=np.array([float(x) for x in md['GRingPointLongitude'].split()]),
+                    north=north, south=south, west=west, east=east, DayNightFlag=md.get('DayNightFlag', 'Day'))
+
     nums = lambda k: np.array([float(x) for x in md[k].split(',')])
     return dict(GRingPointLatitude=nums('GRINGPOINTLATITUDE.1'), GRingPointLongitude=nums('GRINGPOINTLONGITUDE.1'),
                 north=float(md['NORTHBOUNDINGCOORDINATE']), south=float(md['SOUTHBOUNDINGCOORDINATE']),

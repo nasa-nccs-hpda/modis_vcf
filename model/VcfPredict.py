@@ -776,7 +776,7 @@ class VcfPredict(object):
 
                 for y, d in days:
 
-                    pattern = pt.productType + prefix + '.A%d%03d.%s.*.hdf' % (y, d, tid)
+                    pattern = pt.productType + prefix + '.A%d%03d.%s.*' % (y, d, tid) + pt.fileSuffix
                     found = sorted(set(pt.inputDir.joinpath(str(year)).glob(pattern)) |
                                    set(pt.inputDir.joinpath(str(y)).glob(pattern)))
                     out.extend(found[:1])
