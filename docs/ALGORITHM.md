@@ -1,4 +1,4 @@
-# How the MODIS VCF product is made (modis_vcf v1.7.0)
+# How the MODIS VCF product is made (modis_vcf v1.8.0)
 
 This describes what the code computes, in the order it runs, for a reader who knows remote sensing but not this algorithm. File and
 function names point to where each step lives. How to run each step is in [RUNNING.md](RUNNING.md); the training labels are in
@@ -27,11 +27,12 @@ The three percent layers sum to exactly 100 on every land pixel.
 
 | Input | What is used | Where |
 |---|---|---|
-| **MOD44CH / MOD44CQ** (Collection 6.1, PGE72) | 16-day composites: reflectance bands 1-7, band 31 (brightness temperature), solar zenith, the `state` QA word | `model/ProductTypeMod44.py` |
+| **MOD44CH / MOD44CQ** (Collection 7 `.h5` for v1.8.0; Collection 6.1 `.hdf` up to v1.7.1; PGE72) | 16-day composites: reflectance bands 1-7, band 31 (brightness temperature), solar zenith, the `state` QA word | `model/ProductTypeMod44.py` |
 | **MOD44W** (Collection 6.1) | land / water / outside-projection mask, the file for day 001 of the year | `model/ProductTypeMod44W.py` |
 | Training labels | percent tree and percent bare per pixel on 98 tiles | [TRAINING_LABELS.md](TRAINING_LABELS.md) |
 
-Input folders are set in `model/Settings.py` (environment variables `VCF_MOD44_DIR`, `VCF_MOD44W_DIR`).
+Input folders are set in `model/Settings.py` (environment variables `VCF_MOD44_DIR`, `VCF_MOD44W_DIR`); the input collection by
+`VCF_MOD44_COLLECTION` (`7` for v1.8.0, default `61`).
 
 ### The processing year is not a calendar year
 

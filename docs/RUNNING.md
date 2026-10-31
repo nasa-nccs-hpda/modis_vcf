@@ -1,4 +1,4 @@
-# Running a year (modis_vcf v1.7.1)
+# Running a year (modis_vcf v1.8.0)
 
 One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 day 065 to 2020 day 049) goes through five steps:
 
@@ -17,8 +17,17 @@ There are two ways to run it:
   exact commands. Section A.
 - **Step by step**, with the commands the driver runs (section B), when your own scheduler runs the tasks.
 
-Set up the environment first ([BUILD.md](BUILD.md)). Input folders: `VCF_MOD44_DIR` (MOD44CH / MOD44CQ, `<dir>/<year>/*.hdf`, the
-year and the next year) and `VCF_MOD44W_DIR` (MOD44W, `<dir>/<year>/001/*.hdf`).
+Set up the environment first ([BUILD.md](BUILD.md)). Input folders: `VCF_MOD44_DIR` (MOD44CH / MOD44CQ, `<dir>/<year>/*.h5` for
+Collection 7 or `*.hdf` for Collection 6.1, the year and the next year) and `VCF_MOD44W_DIR` (MOD44W, `<dir>/<year>/001/*.hdf`).
+
+**v1.8.0 requires the Collection 7 inputs.** Set, for every step:
+
+```bash
+export VCF_MOD44_COLLECTION=7                 # default 61 = Collection 6.1 (reproduces v1.7.1)
+export VCF_MOD44_DIR=<folder of the C7 MOD44CH / MOD44CQ .h5 files>   # <dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.007.*.h5
+```
+
+Fit the models on metrics from the same collection that the maps use; do not mix collections.
 
 ## Step 1: training manifests (once per year)
 

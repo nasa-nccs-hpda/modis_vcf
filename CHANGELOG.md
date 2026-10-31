@@ -15,7 +15,33 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-- **Collection 7 MOD44C inputs (.h5) as an option** (2026-10-28; hash filled in by the next commit). New setting
+---
+
+## v1.8.0 (tag `v1.8.0`, 2026-10-31): Collection 7 MOD44C inputs, all three models refitted
+
+**Input change + model change, all three models** (code = `115b4fc`; models fitted with the recipe below). Version named by the
+project lead 2026-10-28 (decision 84); the B refit kept for all three models 2026-10-29 (decision 85). **v1.8.0 requires the
+Collection 7 inputs:** set `VCF_MOD44_COLLECTION=7` and point `VCF_MOD44_DIR` at the C7 `.h5` composites (`docs/RUNNING.md`). The
+code default stays Collection 6.1 (`61`), which reproduces v1.7.1 exactly; models fitted on one collection must not be used with
+the other (the v1.7.0 models on C7 inputs score worse: held-out MAE +0.20 tree, +0.21 bare).
+
+- **Recipe:** the v1.7.0 recipe unchanged (labels 7.0.1, the 2019 key manifests, RF 60 trees, sqrt, leaf 1, seed 0, median), fitted
+  on metrics from the C7 inputs; tree, blend partner and bare all refitted, h16v02 ice rows re-sampled through the key manifest.
+- **Effects, 2019 (global, 318 tiles + h18v14 without MOD44W, against v1.7.0 on C6.1 inputs):** held-out scores tie (tree +0.009,
+  bare +0.011 MAE); global tree and bare means +0.09; N Eurasia tree moves toward the references; the C7 inputs differ from C6.1 by
+  a near-uniform calibration shift (about -0.5 % per band, band 5 about -2 %). Known effect: the bare refit adds 1-4 points of bare in
+  a few areas no label covers (S Patagonia h13v14 / h14v14 +2-4, dry S Asia, Arctic Canada); in S Patagonia about half of the rise is
+  the C7 input effect and half the seed-0 draw of the refit (a second seed gives h13v14 +1.8 instead of +3.65).
+- **Bounding coordinates** of the `.h5` product for C7 inputs come from the MODLAND tile table (the C7 inputs carry no HDF4
+  metadata); to be confirmed with MODAPS.
+- **Second year:** the C7 global 2010 run (own-year refit) checks the recipe in another year.
+
+Evidence: `Reports/C7_MOD44C_Inputs_Plan.md`, `Reports/C7_MOD44C_Inputs_Results.md`, `Reports/Version_v1.8.0_Build_Results.md`,
+`Reports/V180_Change_Tiles_Reference_Check_Results.md`, `Reports/Bare_Patagonia_Evidence_Synthesis.md`.
+
+Changes in v1.8.0:
+
+- **Collection 7 MOD44C inputs (.h5) as an option** (`115b4fc`, 2026-10-28). New setting
   `VCF_MOD44_COLLECTION` (`61`, the default, or `7`) chooses the MOD44CH / MOD44CQ input collection. With `7` the code reads the
   HDF-EOS5 `.h5` composites from LAADS: `ProductType.fileSuffix` (`.hdf` / `.h5`) is used for the input globs and the InputPointer,
   `ProductTypeMod44` names the C7 datasets, and `BandDayFile` selects HDF5 datasets by name (exactly one match, else an error),
@@ -24,7 +50,9 @@ version are fitted with the recipe given here. Maintained with every code commit
   metadata that the C6.1 path reads. **C6.1 default: exact** to v1.7.1 on h12v09, h16v02, h17v01, h20v09 (composites, metrics,
   all 7 layers and 126 attributes of the .h5). **C7 inputs: a different input**, h09v05 2019 within 0.1 of v1.7.0 on average per
   layer (tree +0.04, bare -0.11); the full C7 evaluation (drop-in and refit) is plan step T. Evidence:
-  `C7_MOD44C_Inputs_Plan.md` (step C) and `C7_MOD44C_F0_C0_Results.md`. No version tag (only if the C7 inputs are adopted).
+  `C7_MOD44C_Inputs_Plan.md` (step C) and `C7_MOD44C_F0_C0_Results.md`.
+- **Documentation for v1.8.0** (2026-10-31; hash filled in by the next commit): this entry; README, `docs/RUNNING.md`,
+  `docs/BUILD.md` and `docs/ALGORITHM.md` name v1.8.0 and its required C7 setting. Docs only.
 
 - **Documentation: six-year evidence and the Iceland tree limitation** (`9abb91d`, 2026-10-26). The v1.7.0
   entry gains the six-year evaluation; `docs/ALGORITHM.md` section 10 gains the Iceland tree overestimate as a known limitation.

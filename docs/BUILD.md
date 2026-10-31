@@ -1,4 +1,4 @@
-# Building the environment (modis_vcf v1.7.1)
+# Building the environment (modis_vcf v1.8.0)
 
 The code is pure Python. It needs no container, no GPU and no other repository.
 
@@ -44,7 +44,8 @@ Set in `model/Settings.py`; override with environment variables:
 
 | Variable | Data | Layout |
 |---|---|---|
-| `VCF_MOD44_DIR` | MOD44CH and MOD44CQ (Collection 6.1) | `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.061.*.hdf`; a year needs its own folder and the next year's |
+| `VCF_MOD44_COLLECTION` | which MOD44CH / MOD44CQ collection is read: `7` (**required for v1.8.0**) or `61` (default, v1.7.1) | - |
+| `VCF_MOD44_DIR` | MOD44CH and MOD44CQ | Collection 7: `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.007.*.h5`; Collection 6.1: `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.061.*.hdf`; a year needs its own folder and the next year's |
 | `VCF_MOD44W_DIR` | MOD44W land/water mask (Collection 6.1) | `<dir>/<year>/001/MOD44W.A<year>001.<tile>.061.*.hdf` |
 | `VCF_MOD09A1_DIR` | MOD09A1 (optional input, testing only) | `<dir>/<year>/*.hdf` |
 

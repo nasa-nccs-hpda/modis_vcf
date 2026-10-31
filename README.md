@@ -5,7 +5,8 @@ Python code for the MODIS Vegetation Continuous Fields product (MOD44B, Terra): 
 written as one Collection 7 HDF5 file per tile and year (`docs/RUNNING.md`). It
 replaces the operational C code (PGE61) and reads the same inputs, MOD44CH / MOD44CQ (PGE72) and MOD44W.
 
-Version: **v1.7.1** (see `CHANGELOG.md`).
+Version: **v1.8.0** (see `CHANGELOG.md`). v1.8.0 requires the **Collection 7 MOD44CH / MOD44CQ inputs** (`.h5`):
+set `VCF_MOD44_COLLECTION=7` ([docs/RUNNING.md](docs/RUNNING.md)); the code default, Collection 6.1, reproduces v1.7.1.
 
 ## Documentation
 
