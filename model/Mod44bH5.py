@@ -25,6 +25,10 @@ import numpy as np
 CODE_VERSION = '1.7.1'
 COLLECTION = '007'
 
+# Root attributes of a Collection 7 MOD44CQ input that give the tile bounds (degrees).
+BOUND_ATTRS = dict(north='geospatial_lat_max', south='geospatial_lat_min', east='geospatial_lon_max',
+                   west='geospatial_lon_min')
+
 GRID = 'MOD44B_250m_GRID'
 GRID_PATH = '/HDFEOS/GRIDS/' + GRID
 FIELDS_PATH = GRID_PATH + '/Data Fields'
@@ -168,13 +172,22 @@ def modlandBounds(tid: str) -> tuple:
 # ----------------------------------------------------------------------------
 def inputGeo(inputFile: Path) -> dict:
     """G-ring, bounds and day/night flag of an input composite (MOD44CQ), as the C code copies them.  Collection 7 (.h5)
-    inputs hold the G-ring (space separated) but no bounding coordinates; bounds then come from the MODLAND table."""
+    inputs hold the G-ring (space separated) and the bounds as the root attributes geospatial_lat_max / _lat_min /
+    _lon_max / _lon_min; the MODLAND table is used only when an input lacks them."""
 
     from osgeo import gdal
     md = gdal.Open(str(inputFile)).GetMetadata()
 
     if Path(inputFile).suffix == '.h5':
-        west, east, south, north = modlandBounds(Path(inputFile).name.split('.')[2])
+
+        with h5py.File(inputFile, 'r') as f:
+            b = {k: float(np.ravel(f.attrs[a])[0]) for k, a in BOUND_ATTRS.items() if a in f.attrs}
+
+        if len(b) == 4:
+            west, east, south, north = b['west'], b['east'], b['south'], b['north']
+        else:
+            west, east, south, north = modlandBounds(Path(inputFile).name.split('.')[2])
+
         return dict(GRingPointLatitude=np.array([float(x) for x in md['GRingPointLatitude'].split()]),
                     GRingPointLongitude=np.array([float(x) for x in md['GRingPointLongitude'].split()]),
                     north=north, south=south, west=west, east=east, DayNightFlag=md.get('DayNightFlag', 'Day'))

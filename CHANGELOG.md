@@ -32,8 +32,9 @@ the other (the v1.7.0 models on C7 inputs score worse: held-out MAE +0.20 tree, 
   a near-uniform calibration shift (about -0.5 % per band, band 5 about -2 %). Known effect: the bare refit adds 1-4 points of bare in
   a few areas no label covers (S Patagonia h13v14 / h14v14 +2-4, dry S Asia, Arctic Canada); in S Patagonia about half of the rise is
   the C7 input effect and half the seed-0 draw of the refit (a second seed gives h13v14 +1.8 instead of +3.65).
-- **Bounding coordinates** of the `.h5` product for C7 inputs come from the MODLAND tile table (the C7 inputs carry no HDF4
-  metadata); to be confirmed with MODAPS.
+- **Bounding coordinates** of the `.h5` product for C7 inputs come from the C7 MOD44CQ root attributes `geospatial_lat_max` /
+  `_lat_min` / `_lon_max` / `_lon_min` (equal to the C6.1 `BOUNDINGRECTANGLE` within 5e-13 on 292 tiles); the MODLAND tile table is
+  only the fallback.
 - **Second year:** the C7 global 2010 run (own-year refit) checks the recipe in another year.
 
 Evidence: `Reports/C7_MOD44C_Inputs_Plan.md`, `Reports/C7_MOD44C_Inputs_Results.md`, `Reports/Version_v1.8.0_Build_Results.md`,
@@ -41,6 +42,13 @@ Evidence: `Reports/C7_MOD44C_Inputs_Plan.md`, `Reports/C7_MOD44C_Inputs_Results.
 
 Changes in v1.8.0:
 
+- **Tile bounds from the C7 input attributes** (2026-11-05; hash filled in by the next commit). `Mod44bH5.inputGeo()` reads the
+  bounds of a C7 `.h5` input from its root attributes `geospatial_lat_max` / `_lat_min` / `_lon_max` / `_lon_min` (new
+  `BOUND_ATTRS`); the MODLAND table (`modlandBounds()`) is used only when an input lacks them. The 2026-10-28 finding that C7 inputs
+  carry no bounds was wrong. **Metadata only:** the four bound attributes of the `.h5` change in the 5th decimal (largest change
+  4.96e-05 degrees, e.g. -40 -> -39.99999999640788); pixel values and every other attribute are unchanged (rule tiles keep the
+  table). Proven on two tiles against the previous code, then applied to the 7,632 v1.8.0 files of 2000-2023 (all PASS). Evidence:
+  `C7_MOD44C_Inputs_Plan.md` (2026-11-04 correction), `H5_071_Naming_And_Bounds_Results.md`.
 - **Collection 7 MOD44C inputs (.h5) as an option** (`115b4fc`, 2026-10-28). New setting
   `VCF_MOD44_COLLECTION` (`61`, the default, or `7`) chooses the MOD44CH / MOD44CQ input collection. With `7` the code reads the
   HDF-EOS5 `.h5` composites from LAADS: `ProductType.fileSuffix` (`.hdf` / `.h5`) is used for the input globs and the InputPointer,
@@ -51,7 +59,7 @@ Changes in v1.8.0:
   all 7 layers and 126 attributes of the .h5). **C7 inputs: a different input**, h09v05 2019 within 0.1 of v1.7.0 on average per
   layer (tree +0.04, bare -0.11); the full C7 evaluation (drop-in and refit) is plan step T. Evidence:
   `C7_MOD44C_Inputs_Plan.md` (step C) and `C7_MOD44C_F0_C0_Results.md`.
-- **Documentation for v1.8.0** (2026-10-31; hash filled in by the next commit): this entry; README, `docs/RUNNING.md`,
+- **Documentation for v1.8.0** (`4f6e2f9`, 2026-10-31): this entry; README, `docs/RUNNING.md`,
   `docs/BUILD.md` and `docs/ALGORITHM.md` name v1.8.0 and its required C7 setting. Docs only.
 
 - **Documentation: six-year evidence and the Iceland tree limitation** (`9abb91d`, 2026-10-26). The v1.7.0
