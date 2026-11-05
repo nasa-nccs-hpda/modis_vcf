@@ -48,6 +48,7 @@ Set in `model/Settings.py`; override with environment variables:
 | `VCF_MOD44_DIR` | MOD44CH and MOD44CQ | Collection 7: `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.007.*.h5`; Collection 6.1: `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.061.*.hdf`; a year needs its own folder and the next year's |
 | `VCF_MOD44W_DIR` | MOD44W land/water mask (Collection 6.1) | `<dir>/<year>/001/MOD44W.A<year>001.<tile>.061.*.hdf` |
 | `VCF_MOD09A1_DIR` | MOD09A1 (optional input, testing only) | `<dir>/<year>/*.hdf` |
+| `VCF_OUTPUT_COLLECTION` | collection number in the product file name and `GranuleID` (three digits) | `071` (default, this code's product) or e.g. `007` for an operational MODAPS run |
 
 Command-line options (e.g. `vcfPredict.py --modisDir`) still override them.
 
@@ -72,8 +73,9 @@ granules, or skip them. The others run anywhere.
 
 ## 6. The Collection 7 product file and its corrections
 
-Since v1.7.1 the map step writes one HDF5 file per tile and year, `MOD44B.A<yyyy>065.<tile>.007.<yyyydddhhmmss>.h5`
-(`model/Mod44bH5.py`). Its layout matches the MODAPS C7 granules made with the C code and API-Trans (HDF-EOS5 groups, the 7 fields,
+Since v1.7.1 the map step writes one HDF5 file per tile and year, `MOD44B.A<yyyy>065.<tile>.071.<yyyydddhhmmss>.h5`
+(`model/Mod44bH5.py`; collection `071` since v1.8.0, set by `VCF_OUTPUT_COLLECTION`, so the files are not confused with the
+MODAPS C7 granules, which use `007`; `VersionID` and the DOI keep the Collection 7 values). Its layout matches the MODAPS C7 granules made with the C code and API-Trans (HDF-EOS5 groups, the 7 fields,
 types, chunks, shuffle + gzip 4, field and root attributes, `StructMetadata.0`). No API-Trans step is needed: MODAPS confirmed it is
 optional. The field values are those of the GeoTIFFs: this code's models and rules. A file for the same tile and year therefore
 matches a C-code granule in layout, not in pixel values. Three things differ from the C-code granules, on purpose:
@@ -90,7 +92,8 @@ matches a C-code granule in layout, not in pixel values. Three things differ fro
   - `InputDataProducts` lists the MOD44CQ and MOD44CH composites, the model files and the MOD44W file actually read. With
     Collection 6.1 inputs these are `.061` `.hdf` names, where the C7 granules list C7 `.h5` names. On polar tiles fewer composites
     appear (e.g. 21 + 21 on h17v01), because only the composites that exist are listed;
-  - the G-ring and bounds are copied from the first MOD44CQ, as the C code does.
+  - the G-ring and bounds are copied from the first MOD44CQ, as the C code does (C7 inputs: the bounds from its root attributes
+    `geospatial_lat_max` / `_lat_min` / `_lon_max` / `_lon_min`, the MODLAND tile table only as the fallback).
 
   Any root attribute can be set from the command line, e.g. `vcfPredict.py --h5Attr PGEVersion=7.0.2`, or through `h5Attrs` in a
   `runYear` spec. The QA attributes keep the C7 placeholders ("Passed", 100 % good quality).

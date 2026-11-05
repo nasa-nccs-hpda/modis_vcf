@@ -22,8 +22,20 @@ import h5py
 import numpy as np
 
 
+from modis_vcf.model.Settings import OUTPUT_COLLECTION
+
 CODE_VERSION = '1.7.1'
-COLLECTION = '007'
+
+# Collection number in the file name and GranuleID: 071 by default, so this code's files are not confused with the MODAPS
+# Collection 7 MOD44B (007); VCF_OUTPUT_COLLECTION sets another (e.g. 007 for an operational MODAPS run).  VersionID and
+# identifier_product_doi keep the Collection 7 values (C7_VERSION_ID, C7_DOI) whatever the file-name collection.
+COLLECTION = OUTPUT_COLLECTION
+
+if not (len(COLLECTION) == 3 and COLLECTION.isdigit()):
+    raise ValueError('VCF_OUTPUT_COLLECTION must be three digits, not ' + COLLECTION)
+
+C7_VERSION_ID = 7
+C7_DOI = '10.5067/MODIS/MOD44B.007'
 
 # Root attributes of a Collection 7 MOD44CQ input that give the tile bounds (degrees).
 BOUND_ATTRS = dict(north='geospatial_lat_max', south='geospatial_lat_min', east='geospatial_lon_max',
@@ -88,14 +100,14 @@ FIXED_ATTRS = {
     'ScienceQualityFlagExplanation': 'See https://landweb.modaps.eosdis.nasa.gov/prodqa?sat=Terra for the product '
                                      'Science Quality status.',
     'ShortName': 'MOD44B',
-    'VersionID': np.array([7], np.int32),
+    'VersionID': np.array([C7_VERSION_ID], np.int32),
     '_AdditionalAttributeNames': 'QAPERCENTGOODQUALITY,QAPERCENTOTHERQUALITY,QAPERCENTNOTPRODUCEDCLOUD,'
                                  'QAPERCENTNOTPRODUCEDOTHER,HORIZONTALTILENUMBER,VERTICALTILENUMBER,TileID,'
                                  'identifier_product_doi,identifier_product_doi_authority',
     'creator_email': 'modis-ops@lists.nasa.gov',
     'creator_name': 'MODAPS',
     'creator_url': 'https://ladsweb.modaps.eosdis.nasa.gov',
-    'identifier_product_doi': '10.5067/MODIS/MOD44B.' + COLLECTION,
+    'identifier_product_doi': C7_DOI,
     'institution': 'NASA Goddard Space Flight Center, LAADS',
     'instrument': 'MODIS',
     'keywords_vocabulary': 'NASA Global Change Master Directory (GCMD) Science Keywords',
@@ -112,7 +124,7 @@ FIXED_ATTRS = {
 # granuleName
 # ----------------------------------------------------------------------------
 def granuleName(tid: str, year: int, production: datetime) -> str:
-    """MOD44B.A<yyyy>065.<tile>.007.<yyyydddhhmmss>.h5, the C7 file name."""
+    """MOD44B.A<yyyy>065.<tile>.<collection>.<yyyydddhhmmss>.h5 (collection = COLLECTION, 071 by default)."""
     return 'MOD44B.A%d065.%s.%s.%s.h5' % (year, tid, COLLECTION, production.strftime('%Y%j%H%M%S'))
 
 
@@ -395,9 +407,17 @@ def write(outDir: Path,
 # find / read
 # ----------------------------------------------------------------------------
 def find(mapsDir: Path, tid: str, year: int) -> Path:
-    """The newest C7 file of a tile and year in mapsDir, or None."""
-    files = sorted(Path(mapsDir).glob('MOD44B.A%d065.%s.%s.*.h5' % (year, tid, COLLECTION)))
-    return files[-1] if files else None
+    """The newest product file of a tile and year in mapsDir with this code's collection, else the newest 007 file
+    (folders written before the 071 naming), else None."""
+
+    for c in dict.fromkeys((COLLECTION, '007')):
+
+        files = sorted(Path(mapsDir).glob('MOD44B.A%d065.%s.%s.*.h5' % (year, tid, c)))
+
+        if files:
+            return files[-1]
+
+    return None
 
 
 def readLayer(path: Path, field: str) -> np.ndarray:

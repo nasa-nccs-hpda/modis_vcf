@@ -107,7 +107,8 @@ python -m modis_vcf.view.vcfPredict -o maps --metricsDir <metrics root> -t h12v0
 - **`--tcAgg median --nvAgg median` are required**: the command's defaults are `mean`, which is not the product.
 - BP10 is on by default. Rows v15-v17 need only `-o maps -t <tile> -y <year>` (rule tiles, no metrics, no models).
 - A tile with no MOD44W file for the year cannot be mapped; the driver skips it and lists it in `status/skipped_no_mod44w.txt`.
-- Output: the Collection 7 product file `MOD44B.A<year>065.<tile>.007.<production time>.h5` (the 7 layers; layout and corrections
+- Output: the Collection 7 product file `MOD44B.A<year>065.<tile>.071.<production time>.h5` (collection set by
+  `VCF_OUTPUT_COLLECTION`, default `071`; use `007` for an operational MODAPS run) (the 7 layers; layout and corrections
   in [BUILD.md](BUILD.md), section 6) and `<tile>-<year>-chain.json` (blend and BP10 pixel counts). `--format both` also writes the
   7 layers as GeoTIFFs (`<layer>-<tile>-<year>.tif`), and `--format geotiff` writes only those. In a `runYear` spec this is
   `"mapFormat"`, default `"h5"`. `--h5Attr NAME=VALUE` (spec: `"h5Attrs": {NAME: VALUE}`) sets root attributes of the file, e.g.

@@ -42,7 +42,15 @@ Evidence: `Reports/C7_MOD44C_Inputs_Plan.md`, `Reports/C7_MOD44C_Inputs_Results.
 
 Changes in v1.8.0:
 
-- **Tile bounds from the C7 input attributes** (2026-11-05; hash filled in by the next commit). `Mod44bH5.inputGeo()` reads the
+- **Product files named with collection 071** (2026-11-05; hash filled in by the next commit). The `.h5` product file name and
+  `GranuleID` now carry `071` (`MOD44B.A<yyyy>065.<tile>.071.<yyyydddhhmmss>.h5`) instead of `007`, so this code's files cannot be
+  confused with the MODAPS Collection 7 MOD44B made with the C code. New setting `VCF_OUTPUT_COLLECTION` (three digits, default
+  `071`; e.g. `007` for an operational MODAPS run). `VersionID` (7), `identifier_product_doi` (`10.5067/MODIS/MOD44B.007`) and
+  `PGEVersion` are unchanged. `Mod44bH5.find()` falls back to `007` files, so folders written before this change still read.
+  **Name and GranuleID only:** with `VCF_OUTPUT_COLLECTION=007` the files are identical to the previous code (148 items compared);
+  pixel values unchanged. The 7,632 existing v1.8.0 files (2000-2023) were renamed to match (all PASS). Evidence:
+  `H5_071_Naming_And_Bounds_Results.md`.
+- **Tile bounds from the C7 input attributes** (`09afc2a`, 2026-11-05). `Mod44bH5.inputGeo()` reads the
   bounds of a C7 `.h5` input from its root attributes `geospatial_lat_max` / `_lat_min` / `_lon_max` / `_lon_min` (new
   `BOUND_ATTRS`); the MODLAND table (`modlandBounds()`) is used only when an input lacks them. The 2026-10-28 finding that C7 inputs
   carry no bounds was wrong. **Metadata only:** the four bound attributes of the `.h5` change in the 5th decimal (largest change
