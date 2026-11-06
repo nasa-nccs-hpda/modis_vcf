@@ -15,6 +15,24 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
+### Metrics GeoTIFFs written with lossless ZSTD compression (2026-11-06; hash filled in by the next commit)
+
+**Exact (values unchanged; the files' bytes change).** `model/Metrics.py` writes the `3-Metrics/*.tif` files with
+`COMPRESS=ZSTD, ZSTD_LEVEL=1, PREDICTOR=2, TILED=YES, NUM_THREADS=4` (was uncompressed, `BIGTIFF=YES` only). The 256 x 256 tiles
+match the package's 256-line block reads.
+
+- **Why:** a full 24-year run of the 35 bare training tiles took 6.9 TB of uncompressed metrics; compressed, 3.05 TB (2026-11-06).
+- **Speed** (one tile-year, 20 files, ngaproc201): write 16 s vs 24 s uncompressed, read 14 s vs 8 s, size 0.44. The default ZSTD
+  level (9) on one thread was 7.8x slower to write for the same size (0.43), so level 1 with 4 threads was chosen (project lead,
+  2026-11-06).
+- **Proof:** v1.8.0 (`d51bbeb`) vs this change on h21v07 and h12v02, full year (metrics, v4r partner step, maps .tif and .h5):
+  - 2-Composites identical byte for byte;
+  - 3-Metrics, v4r metrics and every map layer identical by value;
+  - .h5 datasets identical; the only attribute difference is `ProcessingEnvironment` (the two sides ran on different hosts).
+  - Metrics + v4r 17.5 GB vs 26.3 GB.
+- **Evidence:** development runs `EXP_metrics_compress_proof_20261106` (setting tested first, speed test in `speed/speedtest.txt`) and
+  `EXP_metrics_compress_proof2_20261106` (`out/compare.txt`, `out/VERDICT.txt`).
+
 ---
 
 ## v1.8.0 (tag `v1.8.0`, 2026-10-31): Collection 7 MOD44C inputs, all three models refitted
