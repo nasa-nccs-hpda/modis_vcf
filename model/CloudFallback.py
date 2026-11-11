@@ -68,7 +68,7 @@ def _period(tile: str, year: int, p: int, stdComp: str, cloudFallbackComp: str, 
 
     logging.basicConfig(level=logLevel, stream=sys.stdout)
     from modis_vcf.model import LowSun
-    LowSun.configure('off')                              # the cloud-fallback inputs are unsubstituted (Q3)
+    LowSun.configure('off')                              # the cloud-fallback inputs are unsubstituted
     from modis_vcf.model.BandDayFile import BandDayFile
     from modis_vcf.model.CompositeDayFile import CompositeDayFile
     from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
@@ -268,7 +268,7 @@ def buildTile(tile: str, year: int, stdRoot: Path, cloudFallbackRoot: Path, coun
 
 
 # ----------------------------------------------------------------------------
-# composeStats (after the map; decision D5)
+# composeStats (after the map; diagnostic only)
 # ----------------------------------------------------------------------------
 def composeStats(tile: str, year: int, cloudFallbackRoot: Path, stdRoot: Path, countsDir: Path, treeMap: Path) -> dict:
     """<tile>_compose.json statistics (diagnostic only; nothing reads them back), from the saved per-period bits, the

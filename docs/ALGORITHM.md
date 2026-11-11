@@ -51,7 +51,7 @@ hold (`ProductTypeMod44.createQaMask`):
 A separate **clear-day** mask uses only the cloud bits (0-1 = 0) and solz < 65 (`createCloudMask`). The same masks apply to every
 band, band 31 included.
 
-**Low-sun substitution (LE0, `model/LowSun.py`).** Inputs of bands 1-7 and 31 with solar zenith above 70, or at or below 0 (polar
+**Low-sun substitution (mode `le0`, `model/LowSun.py`).** Inputs of bands 1-7 and 31 with solar zenith above 70, or at or below 0 (polar
 night), are replaced by 16000 before compositing. This is the intent of the operational C code (`fix_bands.c`) and stops dark,
 low-sun values from looking like forest at high latitude. Every metrics folder records the mode (`lowsun.json`) and how many pixels
 were replaced per day (`lowsun_counts.csv`). A missing granule becomes a day with no good pixels. Its value is 10000 ("substitute"), except where every input of the period that

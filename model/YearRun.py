@@ -1,38 +1,46 @@
-"""One driver per year (v1.4.1 P5): metrics -> splits -> fits -> maps, as tasks
-shared by every node of a run.  Each node runs YearRun(spec).run() (through
-view/runYear.py, started by the run's detached lane script); the nodes share
-one task list through marker files in <runRoot>/status:
-  claims/<task>/  taken (mkdir, so a task runs once) <task>.done / <task>.failed
-  STOP, STOP_<host>, fatal_<task>.failed   stop this node or every node
-Tasks (dependencies in brackets):
-  metrics:<tile>   the predictor metrics of every model, one tile          []
-  split:<model>    TrainingManifest.build (S5: tiles in parallel)          [metrics of the manifest's tiles]
-  fit:<model>      fitAltModel.py, then the compact copy (CompactForest)   [split:<model>]
-  map:<tile>       vcfPredict, one step (cloud-fallback tree blend + bare-priority rule inside)            [metrics:<tile>,
-  fit:tree, fit:bare, fit:cloudFallbackTree]
-                   then, on blend tiles with cloud-fallback composites built in the run, the cloud-fallback statistics
-                   (model/CloudFallback.py compose) A rule tile (model/RuleTile.py, rows v15-v17: no MOD44C) has only its map
-                   task, written from MOD44W
-                   with no metrics and no models                                        []
-A model can instead be given ready-made (spec "models"/<name>/"fixed"); it then has no split or fit task. Cloud-fallback tree
-model (spec "cloudFallbackTree"; S7 / D4): cloud-fallback composites, counts and cloud-fallback metrics are built in
-metrics:<tile> (model/CloudFallback.py, low-sun mode off) for the cloud-fallback tree model's blend tiles and, when the
-cloud-fallback tree model is fitted, its training tiles; split:cloudFallbackTree builds the cloud-fallback tree model's training
-rows from the cloud-fallback root, fit:cloudFallbackTree fits it. metrics, split and fit failures are fatal (they break the year);
-a map is retried once, then recorded. Every attempt appends one row to <runRoot>/timing/tasks.csv: task, host, start, end,
-seconds, CPU seconds (user + system, from wait4: the commands and the descendants they reaped), peak RSS of the task's process
-tree and bytes read / written (/proc/<pid>/io rchar / wchar: through read and write calls, incl. page-cache hits), both sampled
-every 5 s (short-lived processes may be undercounted), return code.  The cloud-fallback metrics and the cloud counts are inputs
-made elsewhere only in the "borrowed" form below.
+"""The year driver: one processing year (metrics -> splits -> fits -> maps) as tasks shared by every node of a run.
 
-Spec (JSON): year, runRoot, lowSun, models {tree, bare: {manifest, predictors, trainingType, fit {...}} or {fixed: {model, topN,
-sha256 (optional: checksum file, checked before the first task)}}; a fitted model with "splitOnly": true gets its split but no fit
-(no mapTiles then)}, cloudFallbackTree (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run), {tiles,
-fixed: {model, topN}} (fixed model, cloud-fallback composites built in the run) or {tiles, model, topN, metricsDir, counts}
-(borrowed: no cloud-fallback composites built), mapTiles, metricsTiles (optional; default: the manifests' tiles and mapTiles),
-workers {metrics, split, mapJobs}, fitHosts, slots {host prefix: n}, memGB {task type: GB}, cleanup (optional) {mode: after_map
-(default) | off, keepTiles: [...]}, maxBacklog (optional), writeDailiesTiles (optional: tiles whose daily inputs are also written
-to 1-Days; by default none are).
+Each node runs YearRun(spec).run() (through view/runYear.py).  The nodes share one task list through marker files in
+<runRoot>/status:
+  claims/<task>/                  taken (made with mkdir, so a task runs only once)
+  <task>.done, <task>.failed      finished
+  STOP, STOP_<host>               stop every node, or one node
+  fatal_<task>.failed             a fatal failure: every node stops
+
+Tasks, with the tasks each one waits for:
+  metrics:<tile>  the predictor metrics of every model for one tile                 (none)
+  split:<model>   the model's training split (TrainingManifest.build)               metrics of the tiles in its manifest
+  fit:<model>     the fit (view/fitAltModel.py), then its compact copy              split:<model>
+  map:<tile>      the 7 layers (view/vcfPredict.py, with the cloud-fallback tree    metrics:<tile> and the fits it uses
+                  blend and the bare-priority rule inside)
+A rule tile (rows v15-v17, model/RuleTile.py) has only its map task, written from MOD44W, with no metrics and no models.
+A ready-made model (spec "fixed") has no split or fit task.  Metrics, split and fit failures are fatal (the year cannot be
+completed); a failed map is retried once, then recorded.
+
+The cloud-fallback tree model (spec "cloudFallbackTree"): for its blend tiles, and for its training tiles when it is fitted in the
+run, the metrics task also builds the cloud-fallback composites, the cloud counts and the cloud-fallback metrics
+(model/CloudFallback.py, low-sun mode off).  split:cloudFallbackTree takes its training rows from those metrics; fit:cloudFallbackTree
+fits it.  After the map of a blend tile, the cloud-fallback statistics are written (CloudFallback compose, diagnostic only).
+
+Timing: every attempt adds one row to <runRoot>/timing/tasks.csv: task, host, start, end, seconds, CPU seconds (user + system of the
+task and the processes it waited for), peak memory of the task's processes, bytes read and written, and the return code.  Memory and
+bytes are sampled every 5 s, so very short processes may be undercounted.
+
+Spec (JSON):
+  year, runRoot, lowSun                       the processing year, the run folder, the low-sun mode (le0)
+  models.tree, models.bare                    either {manifest, predictors, trainingType, fit {...}} (fitted in the run;
+                                              "splitOnly": true builds the split without a fit, and then no mapTiles are
+                                              allowed) or {trainingType, fixed: {model, topN, sha256}} (ready-made; the
+                                              optional sha256 file is checked before the first task)
+  cloudFallbackTree (optional)                {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
+                                              {tiles, fixed: {model, topN}} (ready-made), or {tiles, model, topN,
+                                              metricsDir, counts} (borrowed from another run: no composites built here)
+  mapTiles                                    the tiles to map
+  metricsTiles (optional)                     default: the manifests' tiles and the map tiles
+  workers {metrics, split, mapJobs, cloudFallback}, fitHosts, slots {host prefix: n}, memGB {task type: GB}
+  cleanup (optional) {mode: after_map (default) | off, keepTiles: [...]}, maxBacklog (optional)
+  writeDailiesTiles (optional)                tiles whose daily inputs are also written to 1-Days (none by default)
+  mapFormat (optional), h5Attrs (optional)    the map output format (h5 by default) and extra .h5 root attributes
 
 Clean-up: once every task that reads a tile's metrics is done (its map, and the splits of the manifests
 it is in), that tile's 1-Days, 2-Composites and 3-Metrics are deleted, unless the tile is in keepTiles.
@@ -341,7 +349,7 @@ class YearRun(object):
         m = self._model(arg) if kind in ('split', 'fit') else {}
 
         if kind == 'split':
-            # The cloud-fallback tree model's rows come from the cloud-fallback root, built in mode off (Q3).
+            # The cloud-fallback tree model's rows come from the cloud-fallback root, built in low-sun mode off.
             root, sls = (self.cloudFallbackRoot, ['--lowSun', 'off']) if arg == 'cloudFallbackTree' else (self.metricsRoot, ls)
             return [py + ['-m', 'modis_vcf.view.trainingManifest', 'build', '--manifest', m['manifest'],
                           '--predictors', m['predictors'], '--root', str(root), '-y', str(self.year),
@@ -440,7 +448,7 @@ class YearRun(object):
         if tile not in self.cloudFallbackCompositeTiles:
             return
 
-        # Cloud-fallback composites and counts (S7), then the cloud-fallback tree model's predictors on the cloud-fallback root (mode off).
+        # Cloud-fallback composites and counts, then the cloud-fallback tree model's predictors on the cloud-fallback root (mode off).
         from modis_vcf.model import CloudFallback
         done = self.countsDir / ('%s_cloudfallback_build.json' % tile)
         comp = self.cloudFallbackRoot / tile / str(self.year) / '2-Composites'

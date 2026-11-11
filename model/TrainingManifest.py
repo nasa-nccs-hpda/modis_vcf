@@ -1,4 +1,4 @@
-"""The training sample of a model version as a manifest of keys (v1.4.1 P4):
+"""The training sample of a model version as a manifest of keys:
 one row per training pixel with its part (Train / Test), its row id in the
 split, its tile-year, raster row (x) and column (y), and its label.  The
 predictor columns are not stored: build() computes them from a metrics
@@ -232,7 +232,7 @@ def build(manifestFile: Path, predictors: list, rootFor, year: int, productType,
           lowSun: str = None, workers: int = 1) -> dict:
     """Write a split from a manifest.  rootFor(tile) -> metrics root.  tiles limits the rows to those
     tiles (in manifest order); keysOnly writes keys and labels only (no metrics read).  workers > 1
-    computes the tiles in that many processes; the split is the same for any number (S5)."""
+    computes the tiles in that many processes; the split is the same for any number."""
 
     logger = logger or logging.getLogger()
     m, meta = read(manifestFile)

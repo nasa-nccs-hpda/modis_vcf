@@ -15,7 +15,13 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Docstrings for every production module and public class and function (2026-11-11; hash filled in by the next commit)
+### Readability of the year driver's docstring; internal item codes removed (2026-11-11; hash filled in by the next commit)
+
+**Exact (documentation only).** `model/YearRun.py`'s module docstring rewritten as sections (markers, task table, cloud-fallback
+tree model, timing, spec keys); development item codes (such as S7, Q3, D5) removed from comments in YearRun, TrainingManifest and
+CloudFallback; ALGORITHM names the low-sun mode as `le0`.
+
+### Docstrings for every production module and public class and function (`df9605f`, 2026-11-11)
 
 **Exact (documentation only, plus the removal of four unused methods).** Decision 109 (Q-R3): a module docstring in every production
 module and a docstring on every public class and function (26 files; private helpers keep their comments).
