@@ -15,6 +15,19 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
+### BP10 renamed the bare-priority rule, in its own module (2026-11-11; hash filled in by the next commit)
+
+**Exact (same rule; the new function gives identical layers and counts to the old one on 4 million random pixels, including
+water / outside codes).** Name decided by the project lead (2026-11-11). The rule sat in the blend module only because both came from
+the v1.4.0 blend scripts; it applies to every tile and has nothing to do with the cloud fallback.
+
+- `model/BarePriority.py` (`apply`; constants `BARE_FULL = 100`, `TREE_MIN, TREE_MAX = 1, 9`), documented: what it does, why (without
+  it the sum cap lowers a fully confident bare value to make room for a few percent of tree-model noise on deserts, ice and rock),
+  what it leaves alone (tree >= 10, water, outside projection). `CloudFallbackBlend.bp10` removed.
+- `vcfPredict.py --noBp10` -> `--noBarePriority` (testing only); `VcfPredict(bp10=)` -> `barePriority=`; the `<tile>-<year>-chain.json`
+  key `bp10` -> `barePriority`.
+- Docs: ALGORITHM section 7 rule 5 rewritten; RUNNING; README layout.
+
 ### Renamed: cloud-fallback composites, cloud-fallback tree model, cloud-fallback tree blend (`9f29f50`, 2026-11-11)
 
 **Exact expected (names only); proven by the v1.9.0 exactness check.** Clearer names for what the parts are (project lead,
@@ -24,7 +37,7 @@ version are fitted with the recipe given here. Maintained with every code commit
 |---|---|
 | V4r composites, `model/V4r.py` | cloud-fallback composites, `model/CloudFallback.py` (`python -m modis_vcf.model.CloudFallback build / compose`) |
 | blend A partner (spec key `partner`, tasks `split:partner`, `fit:partner`, `models/partner/`) | cloud-fallback tree model (`cloudFallbackTree`, `split:cloudFallbackTree`, `fit:cloudFallbackTree`, `models/cloudFallbackTree/`) |
-| blend A, `model/BlendA.py` | cloud-fallback tree blend, `model/CloudFallbackBlend.py` (also holds BP10, as before) |
+| blend A, `model/BlendA.py` | cloud-fallback tree blend, `model/CloudFallbackBlend.py` |
 | `vcfPredict.py --partner`, `--partnerTopN`, `--partnerMetricsDir` | `--cloudFallbackTree`, `--cloudFallbackTreeTopN`, `--cloudFallbackMetricsDir` |
 | `trainingManifest.py accept --partner` | `accept --cloudFallbackTree` |
 | run folders `Python/v4r`, `out/v4r_counts`; files `<tile>_v4r_used_count.npy`, `_v4r_periods.npz`, `_v4r_build.json` | `Python/cloudfallback`, `out/cloudfallback_counts`; `<tile>_cloudfallback_used_count.npy`, `_cloudfallback_periods.npz`, `_cloudfallback_build.json` |
@@ -35,7 +48,7 @@ version are fitted with the recipe given here. Maintained with every code commit
 - Checked: the year driver's task list, dependencies and every task command for all 319 tiles of 2019 are identical to the
   previous commit's (old spec there, renamed spec here) apart from the names.
 - The "borrowed" form reads the counts of another run by the new file names; counts written by earlier versions use the old names.
-- Docs (README layout, ALGORITHM section 7, RUNNING steps and spec, BUILD) use the new names (docs commit after `9f29f50`).
+- Docs (README layout, ALGORITHM section 7, RUNNING steps and spec, BUILD) use the new names (`99af9db`).
 
 ### Input folders required, collection 7 default, no rule switches (`5ac3a71`, 2026-11-11)
 

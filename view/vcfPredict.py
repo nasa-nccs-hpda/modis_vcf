@@ -110,10 +110,11 @@ def main():
                         help='Directory with <tile>_counts_snow.npz (cloud counts CUR_ZS, '
                              'model/CloudFallback.py) for the year being mapped.')
 
-    parser.add_argument('--noBp10',
+    parser.add_argument('--noBarePriority',
                         action='store_true',
-                        help='Do not apply BP10 (raw non-vegetated 100 and tree 1-9 -> tree 0, '
-                             'non-vegetated 100), the last step of the product since v1.4.0.')
+                        help='Testing only: do not apply the bare-priority rule (raw non-vegetated 100 and '
+                             'tree 1-9 -> tree 0, non-vegetated 100; model/BarePriority.py), the last step of '
+                             'the product since v1.4.0 (named BP10 there).')
 
     parser.add_argument('--lowSun',
                         choices=['le0', 's70', 'off'],
@@ -189,7 +190,7 @@ def main():
                       cloudFallbackTreeTopNFile=args.cloudFallbackTreeTopN,
                       cloudFallbackMetricsDir=args.cloudFallbackMetricsDir,
                       countsDir=args.counts,
-                      bp10=not args.noBp10,
+                      barePriority=not args.noBarePriority,
                       mapFormat=args.format,
                       h5Overrides=h5Overrides)
 

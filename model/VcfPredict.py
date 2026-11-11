@@ -21,6 +21,7 @@ from osgeo import osr
 
 import json
 
+from modis_vcf.model import BarePriority
 from modis_vcf.model import CloudFallbackBlend
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompactForest import CompactForest
@@ -91,7 +92,7 @@ class VcfPredict(object):
                  cloudFallbackMetricsDir: Path = None,
                  countsDir: Path = None,
                  cloudFallbackTreeAgg: str = 'median',
-                 bp10: bool = True,
+                 barePriority: bool = True,
                  mapFormat: str = 'h5',
                  h5Overrides: dict = None):
 
@@ -162,8 +163,8 @@ class VcfPredict(object):
             with open(cloudFallbackTreeTopNFile, 'rb') as f:
                 self._cloudFallbackTreeTopN = pickle.load(f)
 
-        # BP10 (CloudFallbackBlend.bp10), the last step of the product since v1.4.0.
-        self._bp10: bool = bp10
+        # The bare-priority rule (BarePriority.apply; BP10 in v1.4.0), the last step of the product since v1.4.0.
+        self._barePriority: bool = barePriority
 
         # Instantiate the product type for the metrics.
         self._productType = ProductTypeMod44(mod44Dir)
@@ -561,7 +562,7 @@ class VcfPredict(object):
         # layer stays the clear model's.  The sum cap below then uses the
         # blended tree, as v1.4.0's blend_year.py --rawBare did.
         # ---
-        chain = dict(tile=tid, year=year, blend=False, bp10=None)
+        chain = dict(tile=tid, year=year, blend=False, barePriority=None)
 
         if self._cloudFallbackTreeRf is not None and CloudFallbackBlend.inScope(VcfPredict._vTile(tid)):
 
@@ -600,13 +601,13 @@ class VcfPredict(object):
         pctNontreeVeg: np.ndarray = 100 - pctTc - pctNonveg
         pctNontreeVeg = self._maskPrediction(tid, year, pctNontreeVeg)
 
-        # BP10 (CloudFallbackBlend.bp10) on the final layers, from the uncapped non-vegetated value.
-        if self._bp10:
+        # The bare-priority rule (BarePriority.apply) on the final layers, from the uncapped non-vegetated value.
+        if self._barePriority:
 
-            pctTc, pctNonveg, pctNontreeVeg, chain['bp10'] = \
-                CloudFallbackBlend.bp10(pctTc, pctNonveg, pctNontreeVeg, pctNonvegRaw)
+            pctTc, pctNonveg, pctNontreeVeg, chain['barePriority'] = \
+                BarePriority.apply(pctTc, pctNonveg, pctNontreeVeg, pctNonvegRaw)
 
-        if chain['blend'] or self._bp10:
+        if chain['blend'] or self._barePriority:
             (Path(self._outDir) / (tid + '-' + str(year) + '-chain.json')).write_text(json.dumps(chain))
 
         self._write(tid, year, 'Percent_Tree_Cover', pctTc)

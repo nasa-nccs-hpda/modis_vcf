@@ -6,7 +6,7 @@ import numpy as np
 # ----------------------------------------------------------------------------
 # CloudFallbackBlend
 #
-# The v1.4.0 map steps after the two models, moved into the package (v1.4.1):
+# The cloud-fallback tree blend, a v1.4.0 map step after the two models, moved into the package (v1.4.1):
 #
 # Cloud-fallback tree blend (tree layer, MODIS tile rows v06-v11 = 30N-30S), from v1.4.0's
 # blend_year.py and gate_common.py (blend/, removed in v1.5.2; at tag v1.5.1):
@@ -19,9 +19,8 @@ import numpy as np
 #   The cloud-fallback tree model is a tree model fitted on the cloud-fallback composites, which
 #   are built without the low-sun substitution.
 #
-# BP10, from v1.4.0's bp10_apply.py (every tile): where the bare model's uncapped
-# value is 100 and the final tree is 1-9, tree = 0, non-vegetated = 100,
-# non-tree vegetation = 0.
+# The bare-priority rule (BP10 in v1.4.0), the last step of the map, is in
+# model/BarePriority.py.
 # ----------------------------------------------------------------------------
 SCOPE_VTILES = tuple(range(6, 12))
 CLOUD_MIN_PERIODS = 5
@@ -89,19 +88,3 @@ def blend(clear: np.ndarray, fallbackTree: np.ndarray, counts: np.ndarray) -> tu
                                           clear[land & (w == 0)]).all()))
     return tree, w, stats
 
-
-# ----------------------------------------------------------------------------
-# bp10
-# ----------------------------------------------------------------------------
-def bp10(tree: np.ndarray, bare: np.ndarray, nontree: np.ndarray,
-         rawBare: np.ndarray) -> tuple:
-    """(tree, bare, non-tree, pixels changed) after BP10."""
-
-    ok = lambda v: (v >= 0) & (v <= 100)
-    land = ok(tree) & ok(bare) & ok(nontree)
-    bp = land & (rawBare == 100) & (tree >= 1) & (tree <= 9)
-    tree, bare, nontree = tree.copy(), bare.copy(), nontree.copy()
-    tree[bp] = 0
-    bare[bp] = 100
-    nontree[bp] = 0
-    return tree, bare, nontree, int(bp.sum())

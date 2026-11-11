@@ -28,7 +28,7 @@ from modis_vcf.model import RuleTile
 #   metrics:<tile>   the predictor metrics of every model, one tile          []
 #   split:<model>    TrainingManifest.build (S5: tiles in parallel)          [metrics of the manifest's tiles]
 #   fit:<model>      fitAltModel.py, then the compact copy (CompactForest)   [split:<model>]
-#   map:<tile>       vcfPredict, one step (cloud-fallback tree blend + BP10 inside)            [metrics:<tile>, fit:tree, fit:bare, fit:cloudFallbackTree]
+#   map:<tile>       vcfPredict, one step (cloud-fallback tree blend + bare-priority rule inside)            [metrics:<tile>, fit:tree, fit:bare, fit:cloudFallbackTree]
 #                    then, on blend tiles with cloud-fallback composites built in the run, the cloud-fallback statistics (model/CloudFallback.py compose)
 #                    A rule tile (model/RuleTile.py, rows v15-v17: no MOD44C) has only its map task, written from MOD44W
 #                    with no metrics and no models                                        []

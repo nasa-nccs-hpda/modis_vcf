@@ -122,8 +122,11 @@ with numba). Its predictions are identical to the scikit-learn model's, tree by 
 2. **Sum cap.** Bare is lowered (never tree) so that tree + bare <= 100; non-tree vegetation = 100 - tree - bare.
 3. **High-latitude rule.** On row v00 (north of about 80 N) every land pixel is tree 0, bare 100 (the C code's rule).
 4. **Water and outside projection** from MOD44W: 200 / 250 in the percent layers.
-5. **BP10** (the last step). Where the bare model's raw (uncapped) value is 100 and the final tree cover is 1-9: tree 0, bare 100,
-   non-tree vegetation 0. Removes small spurious tree values on bare ground.
+5. **Bare-priority rule** (the last step; `model/BarePriority.py`; called BP10 up to v1.8.0). Where the bare model's raw value
+   (before the sum cap) is 100 and the final tree cover is 1-9: tree 0, bare 100, non-tree vegetation 0, on every tile.
+   On deserts, ice and bare rock the tree model often leaves a few percent of tree cover; without this rule the sum cap would lower
+   the fully confident bare value to make room for it. Tree cover of 10 % or more is never changed, so sparse woodland is kept.
+   Water and outside-projection pixels are not touched.
 
 ## 8. Tiles without models
 
@@ -136,7 +139,7 @@ with numba). Its predictions are identical to the scikit-learn model's, tree by 
 
 The C code trains M5P model trees (Weka) and is the source of the historical MOD44B. The Python code keeps its inputs, QA, periods and
 derived metrics (the C-mirror metrics are bit-identical), and differs in: Random Forest models with the median of the trees; the SD,
-Quality and Cloud layers; low-sun substitution as the C code intended; the cloud-fallback tree blend; BP10; the Greenland ice training points; the
+Quality and Cloud layers; low-sun substitution as the C code intended; the cloud-fallback tree blend; the bare-priority rule (BP10); the Greenland ice training points; the
 v15-v17 rule tiles. The development history and evidence are in `CHANGELOG.md`.
 
 ## 10. Known limitations
