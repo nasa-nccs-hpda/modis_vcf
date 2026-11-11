@@ -5,19 +5,26 @@ from pathlib import Path
 # ----------------------------------------------------------------------------
 # Settings
 #
-# Input locations, in one place.  Each is read from an environment variable;
-# when it is not set, the NCCS ADAPT location is used.  Command-line options
-# (e.g. vcfPredict.py --mod44Dir) still override these.
+# Input locations and collections, in one place, read from environment
+# variables.  There are no default folders: a run that reads an input whose
+# folder is not set stops with an error naming the variable.  Command-line
+# options (e.g. vcfPredict.py --modisDir) override the variables.
 #
-#   VCF_MOD44_DIR    MOD44CH / MOD44CQ 16-day composites: <dir>/<year>/*.hdf
-#   VCF_MOD44_COLLECTION  collection of those composites: 61 (default, HDF4
-#                    *.hdf) or 7 (HDF-EOS5 *.h5; set VCF_MOD44_DIR to match)
+#   VCF_MOD44_DIR    MOD44CH / MOD44CQ 16-day composites: <dir>/<year>/
+#   VCF_MOD44_COLLECTION  collection of those composites: 7 (default,
+#                    HDF-EOS5 *.h5) or 61 (HDF4 *.hdf)
 #   VCF_MOD44W_DIR   MOD44W land/water mask (Collection 6.1): <dir>/<year>/001/*.hdf
 #   VCF_OUTPUT_COLLECTION  collection number in the .h5 product file name and
 #                    GranuleID, three digits: 071 (default, this code's
 #                    product) or e.g. 007 for an operational MODAPS run
 # ----------------------------------------------------------------------------
-MOD44_DIR = Path(os.environ.get('VCF_MOD44_DIR', '/css/modis/Collection6.1/L3/MOD44B-VCF/dev'))
-MOD44_COLLECTION = os.environ.get('VCF_MOD44_COLLECTION', '61')
-MOD44W_DIR = Path(os.environ.get('VCF_MOD44W_DIR', '/css/modis/Collection6.1/L3/MOD44W-LandWaterMask'))
+def _folder(variable: str) -> Path:
+
+    value = os.environ.get(variable, '')
+    return Path(value) if value else None
+
+
+MOD44_DIR = _folder('VCF_MOD44_DIR')
+MOD44_COLLECTION = os.environ.get('VCF_MOD44_COLLECTION', '7')
+MOD44W_DIR = _folder('VCF_MOD44W_DIR')
 OUTPUT_COLLECTION = os.environ.get('VCF_OUTPUT_COLLECTION', '071')

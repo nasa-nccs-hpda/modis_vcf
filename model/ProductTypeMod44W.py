@@ -25,7 +25,10 @@ class ProductTypeMod44W(ProductType):
     # __init__
     # ------------------------------------------------------------------------
     def __init__(self, inputDir: Path):
-        
+
+        if inputDir is None:
+            raise ValueError('No MOD44W input folder: set VCF_MOD44W_DIR.')
+
         super(ProductTypeMod44W, self).__init__( \
             ProductTypeMod44W.PRODUCT_TYPE, 
             inputDir,

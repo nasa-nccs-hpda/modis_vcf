@@ -15,7 +15,22 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Dead code, internal references and usage examples (2026-11-11; hash filled in by the next commit)
+### Input folders required, collection 7 default, no rule switches (2026-11-11; hash filled in by the next commit)
+
+**Exact for runs that set the input folders (product values unchanged); how a run is configured changes.**
+
+- **No default input folders.** `model/Settings.py` no longer falls back to NCCS ADAPT paths: `VCF_MOD44_DIR` and `VCF_MOD44W_DIR`
+  must be set (or the folder passed, e.g. `vcfPredict.py --modisDir`), and a step that reads an unset one stops with an error
+  naming the variable. The ADAPT locations used in development are listed in the project's reports, not in the code.
+- **`VCF_MOD44_COLLECTION` defaults to `7`** (was `61`). Set `61` to reproduce v1.7.1.
+- **Product-rule switches removed:** `VCF_ZENITH_NDVI` (the zenith-only NDVI rule always applies on its Greenland tiles) and
+  `VCF_LOWSUN_TILES`. `VCF_LOWSUN_T` / `VCF_LOWSUN_LE0` are now internal only: they carry the `--lowSun` mode to the composite workers,
+  and the entry points set them every time (`le0` when `--lowSun` is not given), so values set by hand are replaced. Unused
+  `LowSun.configureFromArgv` removed.
+- Kept and documented (diagnostics): `VCF_WRITE_DAILIES`, `VCF_COMPACT_MMAP`, `VCF_LOWSUN_CHECK`; table in `docs/RUNNING.md`
+  (Environment variables), BUILD section 3 updated.
+
+### Dead code, internal references and usage examples (`c00aca9`, 2026-11-11)
 
 **Exact (no code change: the parsed code of every changed module is identical, comments and docstrings aside).**
 

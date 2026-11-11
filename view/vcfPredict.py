@@ -120,8 +120,7 @@ def main():
                         default=None,
                         help='Low-sun bright substitution: le0 (default: '
                              'solar zenith > 70 and <= 0), s70 (> 70 only) or '
-                             'off (v1.3.0).  Unset keeps VCF_LOWSUN_* '
-                             'variables if set (deprecated).')
+                             'off (v1.3.0).')
 
     parser.add_argument('--lowSunCheck',
                         choices=['on', 'off'],

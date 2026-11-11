@@ -57,7 +57,7 @@ class ProductType(ABC):
             raise ValueError('A product type must be provided.')
         
         if not inputDir or not inputDir.exists() or not inputDir.is_dir():
-            raise ValueError('A valid input directory must be specified.')
+            raise ValueError('A valid input directory must be specified, not ' + str(inputDir) + '.')
             
         self._inputDir: Path = inputDir
         self._solzScaleFactor: float = solzScaleFactor

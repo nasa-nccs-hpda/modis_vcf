@@ -25,7 +25,11 @@ class ProductTypeMod44(ProductType):
     # __init__
     # ------------------------------------------------------------------------
     def __init__(self, inputDir: Path):
-        
+
+        if inputDir is None:
+            raise ValueError('No MOD44CH / MOD44CQ input folder: set VCF_MOD44_DIR '
+                             '(or pass the folder, e.g. vcfPredict.py --modisDir).')
+
         super(ProductTypeMod44, self). \
             __init__(ProductTypeMod44.PRODUCT_TYPE, 
                      inputDir,

@@ -20,12 +20,14 @@ There are two ways to run it:
 Set up the environment first ([BUILD.md](BUILD.md)). Input folders: `VCF_MOD44_DIR` (MOD44CH / MOD44CQ, `<dir>/<year>/*.h5` for
 Collection 7 or `*.hdf` for Collection 6.1, the year and the next year) and `VCF_MOD44W_DIR` (MOD44W, `<dir>/<year>/001/*.hdf`).
 
-**v1.8.0 requires the Collection 7 inputs.** Set, for every step:
+The product uses the Collection 7 inputs (the default collection). There are no default folders; set, for every step:
 
 ```bash
-export VCF_MOD44_COLLECTION=7                 # default 61 = Collection 6.1 (reproduces v1.7.1)
 export VCF_MOD44_DIR=<folder of the C7 MOD44CH / MOD44CQ .h5 files>   # <dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.007.*.h5
+export VCF_MOD44W_DIR=<folder of the MOD44W files>                     # <dir>/<year>/001/MOD44W.A<year>001.<tile>.061.*.hdf
 ```
+
+All variables: [Environment variables](#environment-variables).
 
 Fit the models on metrics from the same collection that the maps use; do not mix collections.
 
@@ -155,6 +157,22 @@ Spec (all paths absolute):
 - `cleanup: after_map` deletes a tile's composites and metrics once its map and the splits that read it are done (a year writes about
   8-9 TB otherwise). `keepTiles` keeps chosen tiles.
 - Per-task time, CPU, peak memory and bytes: `timing/tasks.csv`.
+
+## Environment variables
+
+| Variable | Use | Default |
+|---|---|---|
+| `VCF_MOD44_DIR` | MOD44CH / MOD44CQ input folder (`<dir>/<year>/`) | none: required |
+| `VCF_MOD44W_DIR` | MOD44W input folder (`<dir>/<year>/001/`) | none: required |
+| `VCF_MOD44_COLLECTION` | collection of the MOD44CH / MOD44CQ inputs: `7` or `61` | `7` |
+| `VCF_OUTPUT_COLLECTION` | collection number in the `.h5` product file name and `GranuleID` (three digits) | `071`; `007` for an operational MODAPS run |
+| `VCF_WRITE_DAILIES` | diagnostics: `1` also writes the daily inputs to `1-Days` (same results; `makeMetrics.py --writeIntermediates` does the same) | `0` (dailies kept in memory) |
+| `VCF_COMPACT_MMAP` | diagnostics: `0` reads a compact model into memory instead of memory-mapping it (same results, more memory per map task) | `1` |
+| `VCF_LOWSUN_CHECK` | `0` switches off the check of cached dailies against the low-sun mode, as `--lowSunCheck off` | `1` |
+
+Internal, set by the code (values set by hand are replaced): `VCF_LOWSUN_T`, `VCF_LOWSUN_LE0` carry the `--lowSun` mode to the
+composite worker processes. The product rules have no switches: the low-sun substitution follows `--lowSun` (default `le0`), and
+the zenith-only NDVI rule always applies on its Greenland tiles.
 
 ## Resources (2019, all 319 tiles; Intel nodes with 24 cores / 225 GB and 12 cores / 112 GB)
 

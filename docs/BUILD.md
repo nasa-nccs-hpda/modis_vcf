@@ -39,11 +39,13 @@ export PYTHONPATH=/opt/vcf
 
 ## 3. Input locations
 
-Set in `model/Settings.py`; override with environment variables:
+Environment variables, read in `model/Settings.py`. **There are no default folders:** set `VCF_MOD44_DIR` and `VCF_MOD44W_DIR`
+for every step that reads them, or the step stops with an error naming the variable. The full list of variables is in
+[RUNNING.md](RUNNING.md#environment-variables).
 
 | Variable | Data | Layout |
 |---|---|---|
-| `VCF_MOD44_COLLECTION` | which MOD44CH / MOD44CQ collection is read: `7` (**required for v1.8.0**) or `61` (default, v1.7.1) | - |
+| `VCF_MOD44_COLLECTION` | which MOD44CH / MOD44CQ collection is read: `7` (default) or `61` (reproduces v1.7.1) | - |
 | `VCF_MOD44_DIR` | MOD44CH and MOD44CQ | Collection 7: `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.007.*.h5`; Collection 6.1: `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.061.*.hdf`; a year needs its own folder and the next year's |
 | `VCF_MOD44W_DIR` | MOD44W land/water mask (Collection 6.1) | `<dir>/<year>/001/MOD44W.A<year>001.<tile>.061.*.hdf` |
 | `VCF_OUTPUT_COLLECTION` | collection number in the product file name and `GranuleID` (three digits) | `071` (default, this code's product) or e.g. `007` for an operational MODAPS run |

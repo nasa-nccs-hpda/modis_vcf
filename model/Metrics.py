@@ -699,9 +699,7 @@ class Metrics(object):
         
         ndviCube = ndviRaw * 1000
 
-        # VCF_ZENITH_NDVI=0 switches the zenith-only NDVI rule off (default on).
-        if self._tid in Metrics.ZENITH_ONLY_NDVI_TILES and \
-           os.environ.get('VCF_ZENITH_NDVI', '1') != '0':
+        if self._tid in Metrics.ZENITH_ONLY_NDVI_TILES:
             ndviCube = self._applyZenithOnlyNdvi(ndviCube)
 
         # Write NDVI.

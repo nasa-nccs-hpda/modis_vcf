@@ -19,9 +19,9 @@ import numpy as np
 #   off  no substitution (v1.3.0 behaviour; Band_31 keeps its own > 70 clamp)
 #
 # The mode travels in the environment (VCF_LOWSUN_T, VCF_LOWSUN_LE0), because
-# composite workers are spawned processes.  configure() sets it; setting the
-# variables by hand still works (deprecated, kept for one version).
-# VCF_LOWSUN_TILES (comma list) limits the tiles, as before.
+# composite workers are spawned processes.  These variables are internal:
+# configure() sets them (the entry points call it with --lowSun, le0 when
+# not given), and values set by hand are replaced.
 #
 # Cache guard: dailies in 1-Days are cached and reused whatever the current
 # mode, which is how 34 v1.4.0 tiles kept unsubstituted inputs.  guard()
@@ -36,7 +36,6 @@ MODES = {'le0': (70, True), 's70': (70, False), 'off': (0, False)}
 DEFAULT_MODE = 'le0'
 ENV_T = 'VCF_LOWSUN_T'
 ENV_LE0 = 'VCF_LOWSUN_LE0'
-ENV_TILES = 'VCF_LOWSUN_TILES'
 ENV_CHECK = 'VCF_LOWSUN_CHECK'
 STAMP = 'lowsun.json'
 COUNTS = 'lowsun_counts.csv'
@@ -50,46 +49,20 @@ _guarded = {}
 # configure
 # ----------------------------------------------------------------------------
 def configure(mode: str = None, check: bool = None) -> None:
+    """Set the low-sun mode (None: the default, le0) and, when check is not
+    None, the cache check, for this process and the workers it spawns."""
 
-    if mode is not None:
+    mode = DEFAULT_MODE if mode is None else mode
 
-        if mode not in MODES:
-            raise ValueError('Low-sun mode must be one of ' + str(list(MODES)))
+    if mode not in MODES:
+        raise ValueError('Low-sun mode must be one of ' + str(list(MODES)))
 
-        t, le0 = MODES[mode]
-        os.environ[ENV_T] = str(t)
-        os.environ[ENV_LE0] = '1' if le0 else '0'
+    t, le0 = MODES[mode]
+    os.environ[ENV_T] = str(t)
+    os.environ[ENV_LE0] = '1' if le0 else '0'
 
     if check is not None:
         os.environ[ENV_CHECK] = '1' if check else '0'
-
-
-# ----------------------------------------------------------------------------
-# configureFromArgv
-# ----------------------------------------------------------------------------
-def configureFromArgv(argv: list) -> list:
-    """For scripts that read sys.argv by position: take out --lowSun <mode>
-    and --lowSunCheck on|off, configure, and return the remaining args."""
-
-    rest, mode, check, i = [], None, None, 0
-
-    while i < len(argv):
-
-        if argv[i] in ('--lowSun', '--lowSunCheck') and i + 1 < len(argv):
-
-            if argv[i] == '--lowSun':
-                mode = argv[i + 1]
-            else:
-                check = argv[i + 1] == 'on'
-
-            i += 2
-            continue
-
-        rest.append(argv[i])
-        i += 1
-
-    configure(mode, check)
-    return rest
 
 
 # ----------------------------------------------------------------------------
@@ -133,8 +106,7 @@ def modeName(t: int = None, le0: bool = None) -> str:
 def appliesTo(tid: str) -> bool:
 
     t, _ = settings()
-    tiles = os.environ.get(ENV_TILES, '')
-    return t > 0 and (not tiles or tid in tiles.split(','))
+    return t > 0
 
 
 # ----------------------------------------------------------------------------
