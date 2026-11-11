@@ -15,7 +15,14 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Readability of the year driver's docstring; internal item codes removed (2026-11-11; hash filled in by the next commit)
+### Known input gaps documented (2026-11-11; hash filled in by the next commit)
+
+**Exact (documentation only).** `docs/RUNNING.md` has a new section, "Known input gaps (expected; not processing failures)". It
+covers the polar-night MOD44C gaps on rows v00 and v01 (tiles, dates, the log lines and how the composites handle them), h18v14
+without MOD44W (skipped, listed in `status/skipped_no_mod44w.txt`) and the rule tiles in rows v15-v17. These cases are not to be
+counted as failures. ALGORITHM section 8 points to it.
+
+### Readability of the year driver's docstring; internal item codes removed (2026-11-11; `ad8b086`)
 
 **Exact (documentation only).** `model/YearRun.py`'s module docstring rewritten as sections (markers, task table, cloud-fallback
 tree model, timing, spec keys); development item codes (such as S7, Q3, D5) removed from comments in YearRun, TrainingManifest and

@@ -134,6 +134,8 @@ with numba). Its predictions are identical to the scikit-learn model's, tree by 
   non-tree vegetation 0, SD 0, every Quality and Cloud bit set on land.
 - **A tile with no MOD44W file** for the year cannot be masked: it is skipped and listed in the run's
   `status/skipped_no_mod44w.txt` (in 2019: h18v14).
+- **Polar-night input gaps** (rows v00 and v01 lack some winter MOD44C granules every year) are filled as described in RUNNING.md,
+  section "Known input gaps"; they are expected and are not processing failures.
 
 ## 9. Differences from the operational C code (PGE61)
 

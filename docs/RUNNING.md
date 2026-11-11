@@ -187,6 +187,49 @@ stops on any mismatch or unlisted file.
    pctbare --nEstimators 60 --maxFeatures sqrt --minSamplesLeaf 1 --randomState 0`, then `python -m modis_vcf.model.CompactForest
    <out>/pctbare.bin <name>.cf`; write its SHA-256 file with `sha256sum`.
 
+## Known input gaps (expected; not processing failures)
+
+Some tiles lack inputs every year because of the data, not because of a fault in a run. The code handles each case below. The
+warnings it logs are expected, the tasks still end in `.done` (or, for h18v14, are not created), and none of them should be counted
+as a failure, rerun, or reported as missing data.
+
+**1. Polar night: missing MOD44C granules on rows v00 and v01.** MOD44CH / MOD44CQ are not produced for some winter dates on the
+northernmost tiles. In processing year 2019 (C7 inputs, checked on disk) the gaps are:
+
+| Tiles | Missing input dates | Composite periods affected |
+|---|---|---|
+| h11v01-h24v01 (14 tiles) | DOY 337 and 353 | periods 6 and 7 lose one of their three inputs each |
+| h16v00-h19v00 (4 tiles, rule tiles) | DOY 305, 321, 337, 353 and DOY 001, 017 of the next year | periods 6 and 7 have no input at all |
+
+Every processing year 2000-2023 on LAADS has the same tile counts per date (292 tiles; 288 on DOY 305, 321, 001, 017; 274 on DOY 337,
+353), so the same pattern is expected every year. Other high-latitude tiles have these granules, but in polar night their pixels
+have a solar zenith at or below 0.
+
+What the code does:
+- A missing granule is logged as a warning, `Substituting empty day due to: Unable to find file for MOD44CQ.A<date>.<tile>... in
+  <dir>`, and the composite then logs `<n> missing input(s) in <composite>`. Both are expected on the tiles above.
+- In a period where some inputs exist (v01), the missing input enters the composite as the low-sun value 16000 where every input that
+  exists is 16000 (polar night), and as 10000 elsewhere (`CompositeDayFile.fillMissing`). This keeps v01 tiles in line with their
+  v02 neighbours. Its masks are all bad.
+- The v00 tiles are rule tiles: the high-latitude rule (ALGORITHM.md, section 7) sets every land pixel to tree 0, non-vegetated 100
+  and non-tree vegetation 0, whatever the inputs. Their metrics and predictions still run, but input gaps there do not change the
+  values. In a period with no input, every input is 10000 and no input is clear, so the period is a fallback period and its Quality
+  and Cloud bits are set on land. A gap on a v00 tile at another date is not a failure either (2020: DOY 289 is not on LAADS for
+  h16v00-h19v00).
+- Inputs with a solar zenith at or below 0, or above 70, are replaced by the low-sun substitution (`--lowSun le0`, ALGORITHM.md). The
+  number of pixels replaced per date is written to each metrics folder's `lowsun_counts.csv`; large counts on high-latitude tiles in
+  winter are normal.
+
+An input check before a run should accept exactly these dates on exactly these tiles, and should report any other missing granule.
+
+**2. h18v14: no MOD44W.** MOD44W is missing for h18v14 in every collection (C5, C6, C6.1 and C7; its neighbours have it), although
+MOD44C exists. Without the water mask the tile cannot be mapped. `runYear` gives it no map task. It writes the tile to
+`status/skipped_no_mod44w.txt` and logs the warning `No MOD44W, map skipped: h18v14`. Products for a year therefore have one tile
+fewer than the map tile list (318 of 319 in 2019). The year is complete without it, and no rerun will change that.
+
+**3. Rows v15-v17 (Antarctica): no MOD44C.** These tiles have no input composites by design. Unlike the v00 rule tiles, they have
+no metrics task: they are mapped from MOD44W only (ALGORITHM.md, section 8). A missing MOD44C there is not a gap.
+
 ## Environment variables
 
 | Variable | Use | Default |
