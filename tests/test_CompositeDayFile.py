@@ -1,9 +1,13 @@
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 
+import pytest
+
 import numpy as np
 
+from modis_vcf.model import Settings
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompositeDayFile import CompositeDayFile
 from modis_vcf.model.ProductType import ProductType
@@ -13,10 +17,11 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # -----------------------------------------------------------------------------
 # class CompositeDayFileTestCase
 #
-# python -m unittest discover modis_vcf/model/tests/
-# python -m unittest modis_vcf.model.tests.test_CompositeDayFile
-# python -m unittest modis_vcf.model.tests.test_CompositeDayFile.CompositeDayFileTestCase.testInit
+# pytest tests/test_CompositeDayFile.py
+# pytest tests/test_CompositeDayFile.py::CompositeDayFileTestCase::testInit
 # -----------------------------------------------------------------------------
+@pytest.mark.integration
+@pytest.mark.skipif(Settings.MOD44_COLLECTION != '61', reason='reads Collection 6.1 .hdf inputs: set VCF_MOD44_COLLECTION=61')
 class CompositeDayFileTestCase(unittest.TestCase):
 
     # -------------------------------------------------------------------------
@@ -35,10 +40,8 @@ class CompositeDayFileTestCase(unittest.TestCase):
                 
         self.productTypeMod44 = ProductTypeMod44(self._inDir44)
         
-        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
-                                 '/SystemTesting/modis-vcf/UnitTests/' +
-                                 'CompositeDayFile') 
-
+        self._mod44OutDir = Path(tempfile.mkdtemp(prefix='vcf_test_'))  # removed after the test
+        self.addCleanup(shutil.rmtree, str(self._mod44OutDir), True)
         self._mod44OutDir.mkdir(exist_ok=True)
 
         self._dayDirMod44 = self._mod44OutDir / '1-Days'
@@ -404,7 +407,7 @@ class CompositeDayFileTestCase(unittest.TestCase):
 # class FillMissingTestCase
 #
 # No input files needed.
-# python -m unittest modis_vcf.model.tests.test_CompositeDayFile.FillMissingTestCase
+# pytest tests/test_CompositeDayFile.py::FillMissingTestCase
 # -----------------------------------------------------------------------------
 class FillMissingTestCase(unittest.TestCase):
 

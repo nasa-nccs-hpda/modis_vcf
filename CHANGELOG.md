@@ -15,7 +15,33 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Known input gaps documented (2026-11-11; hash filled in by the next commit)
+### Unit tests: one `tests/` folder, synthetic tests for every product step (2026-11-11; hash filled in by the next commit)
+
+**Exact (tests and documentation only; no product code changes).** Decision Q-R2 (full version).
+
+- **Layout:** the tests are in `tests/` at the repository root, with `pytest.ini` (test paths, an `integration` marker), so
+  `python -m pytest` runs them from the root. The move of the old tests from `model/tests/` and the removal of the outdated
+  `test_VcfPredict.py` were committed by mistake in `ad8b086` (staged at the time; renames only). `pytest=8.3.3` is in
+  `environment.yml`; it was added to both environments with `--freeze-installed` (7 packages added, none changed).
+- **Synthetic tests (75; about a minute; no input data):** `tests/synthetic.py` writes fake C7 MOD44CH / MOD44CQ files of a 6 x 6
+  pixel tile for a whole processing year. New test files cover:
+  - compositing and QA, the low-sun substitution, missing inputs, metrics and the product predictor lists;
+  - the C-mirror predictors (`test_CMirrorMetrics.py`), against a per-pixel copy of the C code's loops in `make_metrics.c`;
+  - training manifests, the pooled bare split and compact forests;
+  - the cloud-fallback composites and tree blend;
+  - the map rules (sum cap, v00 rule, water codes, bare-priority rule, rule tiles), the C7 product file;
+  - the year driver (task graph, spec checks, fixed-model checksums).
+
+  They pass on x86 and on arm64.
+- **Integration tests** (the earlier tests that read real ADAPT inputs) are marked `integration` and run only with
+  `VCF_INTEGRATION=1`. On Collection 6.1 inputs, 64 pass.
+  - **Retired:** 20 test_Metrics tests of metrics no product model uses. They used a `getMetric` API that the code had replaced in
+    2024, so they were already failing on `develop`.
+  - **Updated:** testValues (an argument the file reader no longer takes) and testSortByThermal (expected value 31709, the mean of
+    the two QA-passing inputs; its h12v02 half, which had never run, removed).
+- Evidence: development reports V190_Integration_Tests_Results.md and V190_Exactness_Commits1to4_Results.md.
+
+### Known input gaps documented (2026-11-11; `3125640`)
 
 **Exact (documentation only).** `docs/RUNNING.md` has a new section, "Known input gaps (expected; not processing failures)". It
 covers the polar-night MOD44C gaps on rows v00 and v01 (tiles, dates, the log lines and how the composites handle them), h18v14

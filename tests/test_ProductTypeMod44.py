@@ -2,10 +2,13 @@
 from pathlib import Path
 import unittest
 
+import pytest
+
 import numpy as np
 
 from osgeo import gdal
 
+from modis_vcf.model import Settings
 from modis_vcf.model.ProductType import ProductType
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
@@ -13,10 +16,11 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # -----------------------------------------------------------------------------
 # class ProductTypeMod44TestCase
 #
-# python -m unittest discover modis_vcf/model/tests/
-# python -m unittest modis_vcf.model.tests.test_ProductTypeMod44
-# python -m unittest modis_vcf.model.tests.test_ProductTypeMod44.ProductTypeMod44TestCase.testInit
+# pytest tests/test_ProductTypeMod44.py
+# pytest tests/test_ProductTypeMod44.py::ProductTypeMod44TestCase::testInit
 # -----------------------------------------------------------------------------
+@pytest.mark.integration
+@pytest.mark.skipif(Settings.MOD44_COLLECTION != '61', reason='reads Collection 6.1 .hdf inputs: set VCF_MOD44_COLLECTION=61')
 class ProductTypeMod44TestCase(unittest.TestCase):
 
     # -------------------------------------------------------------------------

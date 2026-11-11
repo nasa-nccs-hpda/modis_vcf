@@ -24,7 +24,7 @@ set `VCF_MOD44_COLLECTION=7` ([docs/RUNNING.md](docs/RUNNING.md)); the code defa
 |---|---|
 | `model/` | the algorithm: inputs and QA (`BandDayFile`, `CompositeDayFile`, `LowSun`), metrics (`Metrics`, `CMirrorMetrics`), training (`TrainingManifest`, `PooledSplit`), prediction and rules (`VcfPredict`, `CloudFallbackBlend`, `CloudFallback`, `BarePriority`, `RuleTile`, `CompactForest`), the year driver (`YearRun`), input locations (`Settings`) |
 | `view/` | command-line entry points: `runYear`, `trainingManifest`, `buildPooledSplit`, `fitAltModel`, `vcfPredict`, `makeMetrics` |
-| `model/tests/` | unit tests |
+| `tests/`, `pytest.ini` | unit tests (`pytest` from the repository root; docs/BUILD.md section 5) |
 | `docs/` | documentation and the predictor lists (`predictors_tree.txt`, `predictors_bare.txt`) |
 | `environment.yml` | conda environment |
 

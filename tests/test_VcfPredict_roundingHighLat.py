@@ -15,7 +15,7 @@ from modis_vcf.model.VcfPredict import VcfPredict
 # tile, with the predictions and the water mask stubbed, so it needs no tiles,
 # metrics or model files.
 #
-# python -m unittest modis_vcf.model.tests.test_VcfPredict_roundingHighLat
+# pytest tests/test_VcfPredict_roundingHighLat.py
 # -----------------------------------------------------------------------------
 class VcfPredictRoundingHighLatTestCase(unittest.TestCase):
 
@@ -38,6 +38,7 @@ class VcfPredictRoundingHighLatTestCase(unittest.TestCase):
         vp._treeCoverAgg = vp._nonvegAgg = 'mean'
         vp._outDir = self._tmp.name     # <tile>-<year>-chain.json
         vp._productType = vp._metricsDir = None
+        vp._setMapFormat('geotiff')     # _write is mocked; no .h5 file
 
         tc = vp._maskPrediction(tid, 2019, np.array([[30, 0], [70, 0]], dtype=np.int16))
         nv = vp._maskPrediction(tid, 2019, np.array([[50, 0], [40, 0]], dtype=np.int16))

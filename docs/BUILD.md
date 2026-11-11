@@ -66,10 +66,28 @@ python -m modis_vcf.view.runYear --help
 
 ## 5. Unit tests
 
-`model/tests/` (`python -m unittest modis_vcf.model.tests.<test_file>` with the parent of `modis_vcf` on `PYTHONPATH`). Six test files read inputs at NCCS
-paths (`/css/...`, `/explore/...`): `test_BandDayFile`, `test_CompositeDayFile`, `test_Metrics`, `test_ProductTypeMod44`,
-`test_ProductTypeMod44W`, `test_VcfPredict`. Point them at your copies of those
-granules, or skip them. The others run anywhere.
+From the repository root (the folder must be named `modis_vcf`), inside the environment:
+
+```bash
+cd modis_vcf
+python -m pytest            # about a minute; no input data needed
+```
+
+The tests in `tests/` use small synthetic data written to temporary folders: fake MOD44CH / MOD44CQ files of a 6 x 6 pixel tile
+for a whole processing year (`tests/synthetic.py`), tiny fitted forests and short arrays. They cover the compositing and QA rules,
+the low-sun substitution, the metrics and the product predictor lists (the C-mirror predictors are checked against a
+per-pixel copy of the C code's loops), the training manifests and splits, the pooled bare split,
+the compact forests, the cloud-fallback composites and tree blend, the map rules (sum cap, v00 rule, water / outside codes,
+bare-priority rule, rule tiles), the product file and the year driver's task graph and spec checks.
+
+Tests marked `integration` read real inputs on NCCS ADAPT (Collection 6.1 MOD44C and MOD44W at their ADAPT paths) and take
+minutes; they are skipped unless asked for:
+
+```bash
+VCF_INTEGRATION=1 VCF_MOD44_COLLECTION=61 VCF_MOD44_DIR=<C6.1 MOD44C> VCF_MOD44W_DIR=<MOD44W> python -m pytest -m integration
+```
+
+That the product is unchanged by a code change is shown by the exactness check (whole tiles, every layer), not by these tests.
 
 ## 6. The Collection 7 product file and its corrections
 

@@ -2,6 +2,8 @@
 from pathlib import Path
 import unittest
 
+import pytest
+
 import numpy as np
 
 from osgeo import gdal
@@ -13,10 +15,10 @@ from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
 # -----------------------------------------------------------------------------
 # class ProductTypeMod44WTestCase
 #
-# python -m unittest discover modis_vcf/model/tests/
-# python -m unittest modis_vcf.model.tests.test_ProductTypeMod44W
-# python -m unittest modis_vcf.model.tests.test_ProductTypeMod44W.ProductTypeMod44WTestCase.testInit
+# pytest tests/test_ProductTypeMod44W.py
+# pytest tests/test_ProductTypeMod44W.py::ProductTypeMod44WTestCase::testInit
 # -----------------------------------------------------------------------------
+@pytest.mark.integration
 class ProductTypeMod44WTestCase(unittest.TestCase):
 
     # -------------------------------------------------------------------------

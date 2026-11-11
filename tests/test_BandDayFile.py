@@ -2,11 +2,15 @@
 import logging
 from pathlib import Path
 import sys
+import shutil
 import tempfile
 import unittest
 
+import pytest
+
 import numpy as np
 
+from modis_vcf.model import Settings
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.ProductType import ProductType
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
@@ -15,12 +19,13 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 # -----------------------------------------------------------------------------
 # class BandDayFileTestCase
 #
-# python -m unittest discover modis_vcf/model/tests/
-# python -m unittest modis_vcf.model.tests.test_BandDayFile
-# python -m unittest modis_vcf.model.tests.test_BandDayFile.BandDayFileTestCase.testInit
+# pytest tests/test_BandDayFile.py
+# pytest tests/test_BandDayFile.py::BandDayFileTestCase::testInit
 #
 # TODO: Test solar zenith for 16000s.
 # -----------------------------------------------------------------------------
+@pytest.mark.integration
+@pytest.mark.skipif(Settings.MOD44_COLLECTION != '61', reason='reads Collection 6.1 .hdf inputs: set VCF_MOD44_COLLECTION=61')
 class BandDayFileTestCase(unittest.TestCase):
 
     # -------------------------------------------------------------------------
@@ -45,10 +50,8 @@ class BandDayFileTestCase(unittest.TestCase):
         self._mod44InDir = \
             Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
 
-        self._mod44OutDir = Path('/explore/nobackup/people/rlgill' + 
-                                 '/SystemTesting/modis-vcf/UnitTests/' +
-                                 'BandDayFile') 
-
+        self._mod44OutDir = Path(tempfile.mkdtemp(prefix='vcf_test_'))  # removed after the test
+        self.addCleanup(shutil.rmtree, str(self._mod44OutDir), True)
         self._mod44OutDir.mkdir(exist_ok=True)
         
         self.productTypeMod44 = ProductTypeMod44(self._mod44InDir)
@@ -271,7 +274,7 @@ class BandDayFileTestCase(unittest.TestCase):
         y = 292
         
         # Band 5 raw
-        raw5 = bdf._readSubdataset(applyNoData=False)
+        raw5 = bdf._readSubdataset()
         self.assertEqual(raw5.shape, (4800, 4800))
         self.assertEqual(raw5.dtype, np.int16)
         self.assertEqual(np.min(raw5), -28672)
@@ -287,7 +290,7 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(raw5[x, y], 6394)
         
         # Solz raw
-        solz = bdf._readSubdataset(ProductType.SOLZ, applyNoData=False)
+        solz = bdf._readSubdataset(ProductType.SOLZ)
         self.assertEqual(solz.shape, (4800, 4800))
         self.assertEqual(solz.dtype, np.uint8)
         self.assertEqual(np.min(solz), 30) 
@@ -317,7 +320,7 @@ class BandDayFileTestCase(unittest.TestCase):
         self.assertEqual(raw5[x, y], 6394)
         
         # State
-        state = bdf._readSubdataset(ProductType.STATE, applyNoData=False)
+        state = bdf._readSubdataset(ProductType.STATE)
         self.assertEqual(state.shape, (4800, 4800))
         self.assertEqual(state.dtype, np.uint16)
         self.assertEqual(np.min(state), 0) 

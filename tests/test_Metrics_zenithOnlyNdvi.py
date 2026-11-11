@@ -16,7 +16,7 @@ from modis_vcf.model.Metrics import Metrics
 # Checks the zenith-only NDVI step on a 2 x 2 tile with fake day files, so it
 # needs no MODIS input.
 #
-# python -m unittest modis_vcf.model.tests.test_Metrics_zenithOnlyNdvi
+# pytest tests/test_Metrics_zenithOnlyNdvi.py
 # -----------------------------------------------------------------------------
 class MetricsZenithOnlyNdviTestCase(unittest.TestCase):
 

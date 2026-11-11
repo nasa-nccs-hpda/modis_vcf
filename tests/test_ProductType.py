@@ -7,8 +7,7 @@ from modis_vcf.model.ProductType import ProductType
 # -----------------------------------------------------------------------------
 # class ProductTypeTestCase
 #
-# python -m unittest discover modis_vcf/model/tests/
-# python -m unittest modis_vcf.model.tests.test_ProductType
+# pytest tests/test_ProductType.py
 # -----------------------------------------------------------------------------
 class ProductTypeTestCase(unittest.TestCase):
 

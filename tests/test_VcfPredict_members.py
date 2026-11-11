@@ -13,7 +13,7 @@ from modis_vcf.model.VcfPredict import VcfPredict
 # Checks the ensemble-member pass (value aggregation and SD) on small models fitted to synthetic data, so it needs
 # no tiles, metrics or model files.
 #
-# python -m unittest modis_vcf.model.tests.test_VcfPredict_members
+# pytest tests/test_VcfPredict_members.py
 # -----------------------------------------------------------------------------
 class VcfPredictMembersTestCase(unittest.TestCase):
 
@@ -97,7 +97,11 @@ class VcfPredictMembersTestCase(unittest.TestCase):
             VcfPredict.PREDICT_CHUNK_ROWS = saved
 
         np.testing.assert_array_equal(whole[0], chunked[0])
-        np.testing.assert_array_equal(whole[1], chunked[1])
+
+        # The raw float SD can differ in the last bit with the block size (NumPy's summation order; seen on arm64:
+        # 3.6e-15 on 1 of 1000 rows).  The product stores np.round(SD * 100), which must be identical.
+        np.testing.assert_allclose(whole[1], chunked[1], rtol=0, atol=1e-12)
+        np.testing.assert_array_equal(np.round(whole[1] * 100), np.round(chunked[1] * 100))   # as VcfPredict stores it
 
     # -------------------------------------------------------------------------
     # testNoMembers

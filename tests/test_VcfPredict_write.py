@@ -15,7 +15,7 @@ from modis_vcf.model.VcfPredict import VcfPredict
 # Checks the output storage types (uint8 percent layers with fill 253, uint16 SD layers) on small synthetic rasters,
 # so it needs no tiles, metrics or model files.
 #
-# python -m unittest modis_vcf.model.tests.test_VcfPredict_write
+# pytest tests/test_VcfPredict_write.py
 # -----------------------------------------------------------------------------
 class VcfPredictWriteTestCase(unittest.TestCase):
 
@@ -27,6 +27,7 @@ class VcfPredictWriteTestCase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self._vcfp = VcfPredict.__new__(VcfPredict)
         self._vcfp._outDir = Path(self._tmp.name)
+        self._vcfp._setMapFormat('geotiff')   # GeoTIFF layers (the default map format is the .h5 file)
 
     # -------------------------------------------------------------------------
     # tearDown
