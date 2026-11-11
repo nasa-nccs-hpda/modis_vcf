@@ -1,4 +1,4 @@
-# Training labels (set 7.0.1, modis_vcf v1.7.0)
+# Training labels (set 7.0.1, modis_vcf v1.7.0 and later)
 
 The labels are delivered separately from the code, as `VCF_training_labels_7.0.1.tar.gz` (83 MB, rebuilt for v1.7.0 on 2026-10-24 before any delivery; `.sha256` next to it). The archive
 has its own `README.md` and a `MANIFEST.csv` (every file's name, original name, sha256, size and number of labelled pixels).
@@ -36,7 +36,9 @@ cover, **255 = no label**. In the code, pixel (x, y) = (row, column):
 
 See [RUNNING.md](RUNNING.md), steps 1 and 3. Every labelled pixel is a row, rows are sorted by (tile-year, row, column), and a row is
 held out for testing when the pandas hash of its key is 0 mod 5 (about 20%). The predictors at each row are read from that year's
-metrics, so a new year needs new splits and new models, but the labels do not change.
+metrics, so a new year needs a new tree split and tree models, but the labels do not change. The pooled bare model (v1.9.0) was
+trained once on the bare labels with predictors from 2000-2023 (ALGORITHM.md, section 6); the bare labels are needed again only to
+rebuild it (RUNNING.md, "The pooled bare model").
 
 ## Reproducing our models exactly, and the row order of the added points
 

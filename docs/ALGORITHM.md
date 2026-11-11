@@ -1,4 +1,4 @@
-# How the MODIS VCF product is made (modis_vcf v1.8.0)
+# How the MODIS VCF product is made (modis_vcf v1.9.0)
 
 This describes what the code computes, in the order it runs, for a reader who knows remote sensing but not this algorithm. File and
 function names point to where each step lives. How to run each step is in [RUNNING.md](RUNNING.md); the training labels are in
@@ -6,7 +6,9 @@ function names point to where each step lives. How to run each step is in [RUNNI
 
 ## 1. What the product is
 
-For each MODIS land tile and year, seven 4800 x 4800 GeoTIFFs on the MODIS sinusoidal 250 m grid (231.656 m pixels; LZW, single band):
+For each MODIS land tile and year, seven 4800 x 4800 layers on the MODIS sinusoidal 250 m grid (231.656 m pixels), written as one
+Collection 7 HDF5 file, `MOD44B.A<year>065.<tile>.071.<production time>.h5` (layout in [BUILD.md](BUILD.md), section 6; the same
+layers can also be written as GeoTIFFs):
 
 | Layer | Type | Values |
 |---|---|---|
@@ -19,7 +21,7 @@ For each MODIS land tile and year, seven 4800 x 4800 GeoTIFFs on the MODIS sinus
 | `Cloud` | uint8 | bit n set = period n+1 fell back and had no clear (cloud-free) day |
 
 In the three percent layers, water = 200, outside the projection = 250, no data = 253. In the SD, Quality and Cloud layers, water and
-outside the projection are 0. File names: `<Layer>-<tile>-<year>.tif`, e.g. `Percent_Tree_Cover-h12v09-2019.tif`.
+outside the projection are 0. GeoTIFF names, when asked for: `<Layer>-<tile>-<year>.tif`, e.g. `Percent_Tree_Cover-h12v09-2019.tif`.
 
 The three percent layers sum to exactly 100 on every land pixel.
 
@@ -27,12 +29,12 @@ The three percent layers sum to exactly 100 on every land pixel.
 
 | Input | What is used | Where |
 |---|---|---|
-| **MOD44CH / MOD44CQ** (Collection 7 `.h5` for v1.8.0; Collection 6.1 `.hdf` up to v1.7.1; PGE72) | 16-day composites: reflectance bands 1-7, band 31 (brightness temperature), solar zenith, the `state` QA word | `model/ProductTypeMod44.py` |
+| **MOD44CH / MOD44CQ** (Collection 7 `.h5` since v1.8.0; Collection 6.1 `.hdf` up to v1.7.1; PGE72) | 16-day composites: reflectance bands 1-7, band 31 (brightness temperature), solar zenith, the `state` QA word | `model/ProductTypeMod44.py` |
 | **MOD44W** (Collection 6.1) | land / water / outside-projection mask, the file for day 001 of the year | `model/ProductTypeMod44W.py` |
 | Training labels | percent tree and percent bare per pixel on 98 tiles | [TRAINING_LABELS.md](TRAINING_LABELS.md) |
 
 Input folders are set in `model/Settings.py` (environment variables `VCF_MOD44_DIR`, `VCF_MOD44W_DIR`); the input collection by
-`VCF_MOD44_COLLECTION` (`7` for v1.8.0, default `61`).
+`VCF_MOD44_COLLECTION` (default `7`; `61` reads the Collection 6.1 inputs of v1.7.1 and earlier).
 
 ### The processing year is not a calendar year
 
@@ -87,14 +89,19 @@ lists serve every year.
 
 ## 6. Models
 
-Two Random Forest regressions (scikit-learn 1.2.0, `view/fitAltModel.py`): 60 trees, `max_features='sqrt'`, minimum leaf 1, seed 0.
+Random Forest regressions (scikit-learn 1.2.0, `view/fitAltModel.py`): 60 trees, `max_features='sqrt'`, minimum leaf 1, seed 0.
 
-- **Tree cover** model: trained on the tree labels (63 tiles).
-- **Bare** model: trained on the bare labels (35 tiles, including 10,000 points labelled 100 on the Greenland ice sheet and 2,560 points
-  labelled 100 in the Atacama Desert and the Namib Sand Sea).
+- **Tree cover** model: trained on the tree labels (63 tiles), **fitted every year**: the predictors at each training row are read
+  from that year's metrics (the labels stay the same).
+- **Bare** model, the **pooled bare model** (since v1.9.0): **one model for every year**, delivered with the code. It is trained on
+  the bare labels (35 tiles, including 10,000 points labelled 100 on the Greenland ice sheet and 2,560 points labelled 100 in the
+  Atacama Desert and the Namib Sand Sea) with predictors from all 24 years 2000-2023: every training row takes its predictors from one
+  year, and the years are dealt out evenly within each tile and label bin (0-20, 21-40, 41-60, 61-99, 100), so each year has about
+  462,670 of the 11.1 million rows (`model/PooledSplit.py`). The aim is a bare layer that does not change from year to year
+  because of one year's spectral quirks, which a model fitted on a single year learns. Earlier versions fitted the
+  bare model every year, like the tree model.
 
-Training rows are every labelled pixel; 20% are held out for testing by a hash of the pixel key (`model/TrainingManifest.py`). The
-predictors at each row are read from that year's metrics, so **models are refitted every year**; the labels stay the same.
+Training rows are every labelled pixel; 20% are held out for testing by a hash of the pixel key (`model/TrainingManifest.py`).
 
 Each model is also saved as a **compact forest** (`model/CompactForest.py`: the same trees as flat arrays, about 6x smaller, predicted
 with numba). Its predictions are identical to the scikit-learn model's, tree by tree.
@@ -141,16 +148,17 @@ with numba). Its predictions are identical to the scikit-learn model's, tree by 
 
 The C code trains M5P model trees (Weka) and is the source of the historical MOD44B. The Python code keeps its inputs, QA, periods and
 derived metrics (the C-mirror metrics are bit-identical), and differs in: Random Forest models with the median of the trees; the SD,
-Quality and Cloud layers; low-sun substitution as the C code intended; the cloud-fallback tree blend; the bare-priority rule (BP10); the Greenland ice training points; the
-v15-v17 rule tiles. The development history and evidence are in `CHANGELOG.md`.
+Quality and Cloud layers; low-sun substitution as the C code intended; the cloud-fallback tree blend; the bare-priority rule; one
+pooled bare model for all years; the Greenland ice and desert training points; the v15-v17 rule tiles. The development history and evidence are in `CHANGELOG.md`.
 
 ## 10. Known limitations
 
 - **Regions far from the training labels.** The bare labels cover 35 tiles and the tree labels 63. Many drylands have no bare label
   within several hundred to a few thousand kilometres (for example Patagonia, the Monte, the Sahel edge, India and Pakistan, north-west
   Mexico, the Kazakh and Mongolian steppes, the Tibetan plateau). There the models extrapolate: the spread between the trees (the SD
-  layers) is high, and the values move by a point or two whenever the training changes, including the yearly refit. In 2019 the
-  v1.6.0 refit raised bare by 0.5-2 points on 11 such dryland tiles compared with v1.5.1.
+  layers) is high, and the values move by a point or two whenever the training changes. In 2019 the v1.6.0 refit raised bare by
+  0.5-2 points on 11 such dryland tiles compared with v1.5.1. Since v1.9.0 the bare model is the same in every year, so this applies
+  to bare only when the pooled model is rebuilt; tree cover is still fitted every year.
 - **A low SD does not mean a correct value.** The SD shows how much the trees disagree. Where the labels themselves follow a different
   convention, the trees agree on it and the SD is low.
 - **Label conventions differ by region.** Pure desert is labelled 100 in the Sahara and Arabia but about 40-80 in the southern

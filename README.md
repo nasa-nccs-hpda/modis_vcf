@@ -5,8 +5,9 @@ Python code for the MODIS Vegetation Continuous Fields product (MOD44B, Terra): 
 written as one Collection 7 HDF5 file per tile and year (`docs/RUNNING.md`). It
 replaces the operational C code (PGE61) and reads the same inputs, MOD44CH / MOD44CQ (PGE72) and MOD44W.
 
-Version: **v1.8.0** (see `CHANGELOG.md`). v1.8.0 requires the **Collection 7 MOD44CH / MOD44CQ inputs** (`.h5`):
-set `VCF_MOD44_COLLECTION=7` ([docs/RUNNING.md](docs/RUNNING.md)); the code default, Collection 6.1, reproduces v1.7.1.
+Version: **v1.9.0** (see `CHANGELOG.md`). It reads the **Collection 7 MOD44CH / MOD44CQ inputs** (`.h5`, the default collection).
+The tree cover models are fitted every year. Non-vegetated uses one delivered model for every year, the **pooled bare model**
+(2000-2023), which comes as a separate archive with its checksums ([docs/RUNNING.md](docs/RUNNING.md)).
 
 ## Documentation
 
@@ -37,6 +38,7 @@ CPU and GPU, the MOD09A1 input, the XGBoost / HGB fits and `environment-optional
 conda env create -f environment.yml && conda activate modis_vcf
 export PYTHONPATH=<parent folder of modis_vcf>
 export VCF_MOD44_DIR=<MOD44C folder> VCF_MOD44W_DIR=<MOD44W folder>
+python -m pytest                                               # unit tests, about a minute (docs/BUILD.md)
 python -m modis_vcf.view.runYear run --spec spec.json          # docs/RUNNING.md
 ```
 

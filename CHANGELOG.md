@@ -13,9 +13,45 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
-## Unreleased
+## v1.9.0 (tag `v1.9.0`, 2026-11-11): the pooled bare model, a code review, unit tests
 
-### Unit tests: one `tests/` folder, synthetic tests for every product step (2026-11-11; hash filled in by the next commit)
+**Model change (non-vegetated only); the code is exact.** The non-vegetated layer uses one delivered model for every year, the
+**pooled bare model**, fitted once on the bare labels with predictors from all 24 years 2000-2023, in place of a bare model fitted each
+year (chosen by the project lead, 2026-11-10). It is delivered as `pctbare_pooled_2000-2023_v1.9.0.tar` with SHA-256 checksums; the year driver
+checks them before its first task (`docs/RUNNING.md`). The tree cover model and the cloud-fallback tree model are still fitted
+every year, with the v1.8.0 recipe.
+
+- **Why:** bare models fitted on single years moved from year to year in ways that are not on the ground: on 15 problem tiles,
+  their year-to-year change was 2.14 points per year more than C6's over 2000-2020. The pooled model brings that to 0.82, with no
+  control tile clearly worse. A single fixed 2019 model applied to every year gave 1.32 and made the control tiles less
+  stable, so pooling the years, not only using one model, is what helps.
+- **Cost:** the held-out MAE, which is a guard here and not a decisive score, is 1.25 points higher than the own-year fits. That is
+  expected, because the same-scene held-out rewards a model fitted on that year. Pure desert in Arabia reads below 100 (a documented
+  limitation).
+- **How the delivered model was made and checked:** the package's builder reproduces the evaluated pooled split byte for byte
+  (`view/buildPooledSplit.py`). The fit reproduces the evaluated compact arrays and 66.7 million test predictions. Through the year
+  driver, the delivered archive gives 0 raw-bare differences on a full tile.
+- **Code:** a review for delivery (commits below):
+  - testing-only modules moved to tag `optional-modules-v1.8.0`;
+  - no default folders and no product-rule switches;
+  - the cloud-fallback and bare-priority names;
+  - docstrings throughout;
+  - synthetic unit tests on x86 and arm64.
+
+  Against v1.8.0 on 4 standard tiles (889 files), the whole branch gives 0 differences.
+
+### Documentation for v1.9.0 (2026-11-11; the commit tagged `v1.9.0`)
+
+**Exact (documentation only).**
+- README, ALGORITHM, RUNNING, BUILD and TRAINING_LABELS are updated for v1.9.0:
+  - the pooled bare model: how it was made (ALGORITHM section 6), the archive and its checksum, and the spec with a `fixed` bare
+    model (RUNNING);
+  - the product as one Collection 7 `.h5` file per tile and year;
+  - the input collection default `7`;
+  - pytest in the environment.
+- The README quick start runs the unit tests.
+
+### Unit tests: one `tests/` folder, synthetic tests for every product step (2026-11-11; `7f2b968`)
 
 **Exact (tests and documentation only; no product code changes).** Decision Q-R2 (full version).
 

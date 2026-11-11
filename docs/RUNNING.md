@@ -1,4 +1,4 @@
-# Running a year (modis_vcf v1.8.0)
+# Running a year (modis_vcf v1.9.0)
 
 One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 day 065 to 2020 day 049) goes through five steps:
 
@@ -8,7 +8,10 @@ MOD44C ──► 2 metrics (+ cloud-fallback composites on blend and tree-traini
 MOD44W ────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Models are refitted every year (Terra only). Steps 2 and 5 are per tile; 3 and 4 run once per model (tree, bare, cloud-fallback tree).
+The tree cover model and the cloud-fallback tree model are fitted every year (Terra only). The product's non-vegetated layer uses the
+**pooled bare model**, delivered ready-made and the same in every year ([below](#the-pooled-bare-model-a-ready-made-model)), so a
+product year has no bare split or fit. Steps 2 and 5 are per tile; 3 and 4 run once per fitted model. The bare manifest, split and
+fit commands below are kept for rebuilding the pooled model and for fitting a single-year bare model (earlier versions).
 
 There are two ways to run it:
 
@@ -135,8 +138,10 @@ Spec (all paths absolute):
  "models": {
   "tree": {"manifest": ".../manifest_tree_2021.parq", "predictors": ".../docs/predictors_tree.txt", "trainingType": "pcttree",
            "fit": {"nEstimators": 60, "maxFeatures": "sqrt", "nJobs": 12, "randomState": 0, "minSamplesLeaf": 1}},
-  "bare": {"manifest": ".../manifest_bare_2021.parq", "predictors": ".../docs/predictors_bare.txt", "trainingType": "pctbare",
-           "fit": {"nEstimators": 60, "maxFeatures": "sqrt", "nJobs": 12, "randomState": 0, "minSamplesLeaf": 1}}
+  "bare": {"trainingType": "pctbare",
+           "fixed": {"model": ".../pctbare_pooled_2000-2023/pctbare_pooled_2000-2023.cf",
+                     "topN": ".../pctbare_pooled_2000-2023/pctbare_pooled_2000-2023TopN.bin",
+                     "sha256": ".../pctbare_pooled_2000-2023/pctbare_pooled_2000-2023.sha256"}}
  },
  "cloudFallbackTree": {"tiles": ["<every map tile in rows v06-v11>"], "manifest": ".../manifest_tree_2021.parq",
              "predictors": ".../docs/predictors_tree.txt", "trainingType": "pcttree",
@@ -160,8 +165,11 @@ Spec (all paths absolute):
 
 ## The pooled bare model (a ready-made model)
 
-The non-vegetated layer can use one model for every year, the pooled bare model (2000-2023), instead of a model fitted each year.
-It is delivered as a compact forest folder with its top-N file and a SHA-256 file. In the spec it replaces the bare model's fit:
+The product's non-vegetated layer uses one model for every year, the pooled bare model (2000-2023; how it was made: ALGORITHM.md,
+section 6). It is delivered separately from the code, as `pctbare_pooled_2000-2023_v1.9.0.tar` (5.1 GB; SHA-256
+`695b3e95759d017b8c4c2797f1d75d6739e396b2267856de3af87f58daef601c`, also in the `.sha256` file next to it). The archive holds one
+folder, `pctbare_pooled_2000-2023/`, with the compact forest (`pctbare_pooled_2000-2023.cf/`), its top-N file and a SHA-256 file of
+the 7 model files. Check the archive, unpack it once, and give its files in every year's spec, in place of the bare model's fit:
 
 ```json
   "bare": {"trainingType": "pctbare",
@@ -256,4 +264,5 @@ the zenith-only NDVI rule always applies on its Greenland tiles.
 | map | 292 | 6.5-7 min | 8-11 GB | 8 jobs; 2-4 per node at once |
 | map (rule tile) | 27 | 10-30 s | 0.7 GB | |
 
-The 2019 global run took about 11 h on two 24-core and three 12-core nodes.
+The 2019 global run took about 11 h on two 24-core and three 12-core nodes. With the pooled bare model (v1.9.0) a year has 2 splits
+and 2 fits (tree and cloud-fallback tree), not 3.

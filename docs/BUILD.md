@@ -1,4 +1,4 @@
-# Building the environment (modis_vcf v1.8.0)
+# Building the environment (modis_vcf v1.9.0)
 
 The code is pure Python. It needs no container, no GPU and no other repository.
 
@@ -16,7 +16,9 @@ predictions depend on its version. The only difference from the build our produc
 longer solves on conda-forge); the exactness proof below covers it. Since v1.7.1 the environment also has **h5py 3.13.0**, which
 writes the Collection 7 product file. It builds on the HDF5 1.14.3 that GDAL already brings, and adding it changes no other package.
 An environment built for v1.7.0 can take it in place: `conda install -n modis_vcf -c conda-forge --override-channels
---freeze-installed h5py=3.13.0 hdf5=1.14.3`.
+--freeze-installed h5py=3.13.0 hdf5=1.14.3`. Since v1.9.0 it also has **pytest 8.3.3** for the unit tests (section 5); an existing
+environment takes it the same way: `conda install -n modis_vcf -c conda-forge --override-channels --freeze-installed pytest=8.3.3`
+(7 small packages added, none changed).
 
 If conda is a shared installation you cannot write to, set a writable package cache first: `export CONDA_PKGS_DIRS=<writable dir>`.
 
