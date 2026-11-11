@@ -1,4 +1,11 @@
 #!/usr/bin/python
+"""Compute the predictor metrics of tiles for one processing year (model/Metrics.py), without the year driver.
+
+Usage:
+
+  python -m modis_vcf.view.makeMetrics -o <metrics dir> -y 2019 -t h09v05 h11v02
+"""
+
 
 import argparse
 import logging
@@ -14,11 +21,9 @@ from modis_vcf.model.Settings import MOD44_DIR
 
 # -----------------------------------------------------------------------------
 # main
-#
-# python -m modis_vcf.view.makeMetrics -o <metrics dir> -y 2019 -t h09v05 h11v02
 # -----------------------------------------------------------------------------
 def main():
-    
+    """Command line: see the module docstring and --help."""
     desc = 'Use this application to compute metrics.'
     parser = argparse.ArgumentParser(description=desc)
 

@@ -1,4 +1,12 @@
 #!/usr/bin/python
+"""Predict the 7 map layers of tiles for one processing year (model/VcfPredict.py) from their metrics and models.
+
+Usage:
+
+  python -m modis_vcf.view.vcfPredict --tc <models>/pcttree.bin --nv <models>/pctbare.bin -o <output dir>
+      --metricsDir <metrics dir> -t h09v05 h11v02 -y 2019
+"""
+
 
 import argparse
 from pathlib import Path
@@ -12,12 +20,9 @@ from modis_vcf.model.VcfPredict import VcfPredict
 
 # -----------------------------------------------------------------------------
 # main
-#
-# python -m modis_vcf.view.vcfPredict --tc <models>/pcttree.bin --nv <models>/pctbare.bin -o <output dir>
-#     --metricsDir <metrics dir> -t h09v05 h11v02 -y 2019
 # -----------------------------------------------------------------------------
 def main():
-    
+    """Command line: see the module docstring and --help."""
     desc = 'Use this application to run a VCF prediction.'
     parser = argparse.ArgumentParser(description=desc)
 

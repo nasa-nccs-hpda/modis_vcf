@@ -1,3 +1,47 @@
+"""One driver per year (v1.4.1 P5): metrics -> splits -> fits -> maps, as tasks
+shared by every node of a run.  Each node runs YearRun(spec).run() (through
+view/runYear.py, started by the run's detached lane script); the nodes share
+one task list through marker files in <runRoot>/status:
+  claims/<task>/  taken (mkdir, so a task runs once) <task>.done / <task>.failed
+  STOP, STOP_<host>, fatal_<task>.failed   stop this node or every node
+Tasks (dependencies in brackets):
+  metrics:<tile>   the predictor metrics of every model, one tile          []
+  split:<model>    TrainingManifest.build (S5: tiles in parallel)          [metrics of the manifest's tiles]
+  fit:<model>      fitAltModel.py, then the compact copy (CompactForest)   [split:<model>]
+  map:<tile>       vcfPredict, one step (cloud-fallback tree blend + bare-priority rule inside)            [metrics:<tile>,
+  fit:tree, fit:bare, fit:cloudFallbackTree]
+                   then, on blend tiles with cloud-fallback composites built in the run, the cloud-fallback statistics
+                   (model/CloudFallback.py compose) A rule tile (model/RuleTile.py, rows v15-v17: no MOD44C) has only its map
+                   task, written from MOD44W
+                   with no metrics and no models                                        []
+A model can instead be given ready-made (spec "models"/<name>/"fixed"); it then has no split or fit task. Cloud-fallback tree
+model (spec "cloudFallbackTree"; S7 / D4): cloud-fallback composites, counts and cloud-fallback metrics are built in
+metrics:<tile> (model/CloudFallback.py, low-sun mode off) for the cloud-fallback tree model's blend tiles and, when the
+cloud-fallback tree model is fitted, its training tiles; split:cloudFallbackTree builds the cloud-fallback tree model's training
+rows from the cloud-fallback root, fit:cloudFallbackTree fits it. metrics, split and fit failures are fatal (they break the year);
+a map is retried once, then recorded. Every attempt appends one row to <runRoot>/timing/tasks.csv: task, host, start, end,
+seconds, CPU seconds (user + system, from wait4: the commands and the descendants they reaped), peak RSS of the task's process
+tree and bytes read / written (/proc/<pid>/io rchar / wchar: through read and write calls, incl. page-cache hits), both sampled
+every 5 s (short-lived processes may be undercounted), return code.  The cloud-fallback metrics and the cloud counts are inputs
+made elsewhere only in the "borrowed" form below.
+
+Spec (JSON): year, runRoot, lowSun, models {tree, bare: {manifest, predictors, trainingType, fit {...}} or {fixed: {model, topN,
+sha256 (optional: checksum file, checked before the first task)}}; a fitted model with "splitOnly": true gets its split but no fit
+(no mapTiles then)}, cloudFallbackTree (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run), {tiles,
+fixed: {model, topN}} (fixed model, cloud-fallback composites built in the run) or {tiles, model, topN, metricsDir, counts}
+(borrowed: no cloud-fallback composites built), mapTiles, metricsTiles (optional; default: the manifests' tiles and mapTiles),
+workers {metrics, split, mapJobs}, fitHosts, slots {host prefix: n}, memGB {task type: GB}, cleanup (optional) {mode: after_map
+(default) | off, keepTiles: [...]}, maxBacklog (optional), writeDailiesTiles (optional: tiles whose daily inputs are also written
+to 1-Days; by default none are).
+
+Clean-up: once every task that reads a tile's metrics is done (its map, and the splits of the manifests
+it is in), that tile's 1-Days, 2-Composites and 3-Metrics are deleted, unless the tile is in keepTiles.
+A tile whose map failed is kept.  Only real folders inside the run's metrics root are deleted (a
+symbolic link or a path outside runRoot is refused); the low-sun stamp and counts stay.  Each deletion
+is logged to status/cleanup.log with the GB freed.  The metrics of training tiles are claimed first, and
+maxBacklog holds new metrics claims of map-only tiles while that many of them wait for their map.
+"""
+
 import csv
 import gc
 import hashlib
@@ -15,51 +59,6 @@ import time
 from modis_vcf.model import RuleTile
 
 
-# ----------------------------------------------------------------------------
-# YearRun
-#
-# One driver per year (v1.4.1 P5): metrics -> splits -> fits -> maps, as tasks
-# shared by every node of a run.  Each node runs YearRun(spec).run() (through
-# view/runYear.py, started by the run's detached lane script); the nodes share
-# one task list through marker files in <runRoot>/status:
-#   claims/<task>/  taken (mkdir, so a task runs once)
-#   <task>.done / <task>.failed
-#   STOP, STOP_<host>, fatal_<task>.failed   stop this node or every node
-# Tasks (dependencies in brackets):
-#   metrics:<tile>   the predictor metrics of every model, one tile          []
-#   split:<model>    TrainingManifest.build (S5: tiles in parallel)          [metrics of the manifest's tiles]
-#   fit:<model>      fitAltModel.py, then the compact copy (CompactForest)   [split:<model>]
-#   map:<tile>       vcfPredict, one step (cloud-fallback tree blend + bare-priority rule inside)            [metrics:<tile>, fit:tree, fit:bare, fit:cloudFallbackTree]
-#                    then, on blend tiles with cloud-fallback composites built in the run, the cloud-fallback statistics (model/CloudFallback.py compose)
-#                    A rule tile (model/RuleTile.py, rows v15-v17: no MOD44C) has only its map task, written from MOD44W
-#                    with no metrics and no models                                        []
-# A model can instead be given ready-made (spec "models"/<name>/"fixed"); it then has no split or fit task.
-# Cloud-fallback tree model (spec "cloudFallbackTree"; S7 / D4): cloud-fallback composites, counts and cloud-fallback metrics are built in metrics:<tile> (model/CloudFallback.py,
-# low-sun mode off) for the cloud-fallback tree model's blend tiles and, when the cloud-fallback tree model is fitted, its training tiles; split:cloudFallbackTree builds the
-# cloud-fallback tree model's training rows from the cloud-fallback root, fit:cloudFallbackTree fits it.
-# metrics, split and fit failures are fatal (they break the year); a map is retried once, then recorded.
-# Every attempt appends one row to <runRoot>/timing/tasks.csv: task, host, start, end, seconds, CPU seconds
-# (user + system, from wait4: the commands and the descendants they reaped), peak RSS of the task's process tree
-# and bytes read / written (/proc/<pid>/io rchar / wchar: through read and write calls, incl. page-cache hits), both sampled every 5 s (short-lived processes may be undercounted), return code.  The cloud-fallback metrics and the cloud counts are inputs
-# made elsewhere only in the "borrowed" form below.
-#
-# Spec (JSON): year, runRoot, lowSun, models {tree, bare: {manifest, predictors, trainingType, fit {...}} or
-# {fixed: {model, topN, sha256 (optional: checksum file, checked before the first task)}}; a fitted model with
-# "splitOnly": true gets its split but no fit (no mapTiles then)}, cloudFallbackTree (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
-# {tiles, fixed: {model, topN}} (fixed model, cloud-fallback composites built in the run) or {tiles, model, topN, metricsDir, counts} (borrowed: no cloud-fallback
-# composites built), mapTiles,
-# metricsTiles (optional; default: the manifests' tiles and mapTiles), workers {metrics, split, mapJobs},
-# fitHosts, slots {host prefix: n}, memGB {task type: GB},
-# cleanup (optional) {mode: after_map (default) | off, keepTiles: [...]}, maxBacklog (optional),
-# writeDailiesTiles (optional: tiles whose daily inputs are also written to 1-Days; by default none are).
-#
-# Clean-up: once every task that reads a tile's metrics is done (its map, and the splits of the manifests
-# it is in), that tile's 1-Days, 2-Composites and 3-Metrics are deleted, unless the tile is in keepTiles.
-# A tile whose map failed is kept.  Only real folders inside the run's metrics root are deleted (a
-# symbolic link or a path outside runRoot is refused); the low-sun stamp and counts stay.  Each deletion
-# is logged to status/cleanup.log with the GB freed.  The metrics of training tiles are claimed first, and
-# maxBacklog holds new metrics claims of map-only tiles while that many of them wait for their map.
-# ----------------------------------------------------------------------------
 TIMING_COLUMNS = ['task', 'host', 'attempt', 'start', 'end', 'seconds', 'cpu_seconds', 'peak_rss_gb', 'read_gb',
                   'write_gb', 'rc']
 
@@ -132,7 +131,9 @@ def _sample(pids: list) -> dict:
 # YearRun
 # ----------------------------------------------------------------------------
 class YearRun(object):
-
+    """One processing year as a task graph shared by the nodes of a run (module docstring): the spec, the task list and
+    dependencies, the task commands, the metrics task itself (warmMetrics) and the driver loop (run).
+    """
     def __init__(self, specFile: Path, logger: logging.Logger = None):
 
         self.specFile = Path(specFile)
@@ -682,13 +683,12 @@ class YearRun(object):
     # ------------------------------------------------------------------------
     # ------------------------------------------------------------------------
     # checkFixedModels
-    #
-    # A ready-made model may name a SHA-256 file ("fixed": {..., "sha256": <file>}), in the format of sha256sum: lines
-    # '<hash>  <path>', paths relative to that file's folder.  Every file of the model (a compact forest folder or a joblib file)
-    # and its top-N file must be listed, and every listed file must match.  Checked once, before the first task; fatal.
     # ------------------------------------------------------------------------
     def checkFixedModels(self) -> None:
-
+        """A ready-made model may name a SHA-256 file ("fixed": {..., "sha256": <file>}), in the format of sha256sum: lines
+        '<hash>  <path>', paths relative to that file's folder.  Every file of the model (a compact forest folder or a joblib
+        file) and its top-N file must be listed, and every listed file must match.  Checked once, before the first task; fatal.
+        """
         fixed = [(n, m['fixed']) for n, m in list(self.models.items()) +
                  ([('cloudFallbackTree', self.cloudFallbackTree)] if self.cloudFallbackTree else []) if 'fixed' in m]
 
@@ -730,7 +730,11 @@ class YearRun(object):
         return h.hexdigest()
 
     def run(self) -> int:
-
+        """Drive the year on this node until every task is finished or the run stops: check fixed models, then repeatedly claim
+        tasks whose dependencies are done (up to this host's slots, when its free memory allows), start them, record their results
+        and timing, retry a failed map once, and clean up finished tiles.  Returns 1 when the run stops (a fatal failure or a STOP
+        marker), 0 when every task has finished (a map that failed twice is recorded, not fatal).
+        """
         self.checkFixedModels()
         slots = 1
 

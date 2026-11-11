@@ -17,7 +17,7 @@ from modis_vcf.model import PooledSplit
 
 
 def main():
-
+    """Command line (module docstring).  Returns 1 when the check fails."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
 

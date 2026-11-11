@@ -1,3 +1,11 @@
+"""One driver per year (model/YearRun.py).  Each node of a run executes
+  runYear.py run --spec <spec.json>
+from the run's detached lane script (claims, guards and watchers stay in
+the lane wrapper); the nodes share the tasks through <runRoot>/status.
+  runYear.py metrics --spec <spec.json> --tile hXXvYY   one metrics task (started by run)
+  runYear.py status --spec <spec.json>                   task counts and the failed tasks
+"""
+
 import argparse
 import logging
 from pathlib import Path
@@ -8,16 +16,9 @@ from modis_vcf.model.YearRun import YearRun
 
 # -----------------------------------------------------------------------------
 # main
-#
-# One driver per year (model/YearRun.py).  Each node of a run executes
-#   runYear.py run --spec <spec.json>
-# from the run's detached lane script (claims, guards and watchers stay in
-# the lane wrapper); the nodes share the tasks through <runRoot>/status.
-#   runYear.py metrics --spec <spec.json> --tile hXXvYY   one metrics task (started by run)
-#   runYear.py status --spec <spec.json>                   task counts and the failed tasks
 # -----------------------------------------------------------------------------
 def main():
-
+    """Command line: run, metrics or status (module docstring)."""
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='cmd', required=True)
 

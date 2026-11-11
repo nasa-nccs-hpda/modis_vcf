@@ -1,3 +1,24 @@
+"""The training sample of a model version as a manifest of keys (v1.4.1 P4):
+one row per training pixel with its part (Train / Test), its row id in the
+split, its tile-year, raster row (x) and column (y), and its label.  The
+predictor columns are not stored: build() computes them from a metrics
+root, as the original splits were made, so a split can be rebuilt from the
+manifest whenever the metrics can be rebuilt.
+
+  extract(split dir) -> manifest   the sample of an existing split
+  sample(label files) -> manifest  the sample drawn from the label rasters
+                                   (fresh-sample mode)
+  build(manifest)    -> split dir  xTrain / xTest / yTrain / yTest /
+                                   keysTrain / keysTest, in manifest order
+  accept(cloud-fallback tree split, standard split) -> report   the cloud-fallback tree split's
+                                   acceptance test (PASS / FAIL)
+
+Keys: x = raster row, y = column (arr[x, y]).  The h16v02 ice rows of the
+bare sample are rows like any other; each version re-samples them, so each
+version has its own manifest.  Manifests are written next to each version's
+models.
+"""
+
 from concurrent.futures import ProcessPoolExecutor
 import datetime
 import hashlib
@@ -12,29 +33,6 @@ import pandas as pd
 from modis_vcf.model.Metrics import Metrics
 
 
-# ----------------------------------------------------------------------------
-# TrainingManifest
-#
-# The training sample of a model version as a manifest of keys (v1.4.1 P4):
-# one row per training pixel with its part (Train / Test), its row id in the
-# split, its tile-year, raster row (x) and column (y), and its label.  The
-# predictor columns are not stored: build() computes them from a metrics
-# root, as the original splits were made, so a split can be rebuilt from the
-# manifest whenever the metrics can be rebuilt.
-#
-#   extract(split dir) -> manifest   the sample of an existing split
-#   sample(label files) -> manifest  the sample drawn from the label rasters
-#                                    (fresh-sample mode)
-#   build(manifest)    -> split dir  xTrain / xTest / yTrain / yTest /
-#                                    keysTrain / keysTest, in manifest order
-#   accept(cloud-fallback tree split, standard split) -> report   the cloud-fallback tree split's
-#                                    acceptance test (PASS / FAIL)
-#
-# Keys: x = raster row, y = column (arr[x, y]).  The h16v02 ice rows of the
-# bare sample are rows like any other; each version re-samples them, so each
-# version has its own manifest.  Manifests are written next to each version's
-# models.
-# ----------------------------------------------------------------------------
 PARTS = ('Train', 'Test')
 COLUMNS = ['part', 'row', 'tid-year', 'x', 'y', 'label']
 FORMAT = 'TrainingManifest 1'
@@ -199,7 +197,8 @@ def sample(labelFiles: dict, trainingType: str, year: int, outFile: Path, versio
 # read
 # ----------------------------------------------------------------------------
 def read(manifestFile: Path) -> tuple:
-
+    """(manifest table, metadata) of a manifest written by sample() or extract(); raises unless its .json says it is a manifest.
+    """
     meta = json.loads(Path(str(manifestFile) + '.json').read_text())
 
     if meta.get('format') != FORMAT:
@@ -339,20 +338,19 @@ def build(manifestFile: Path, predictors: list, rootFor, year: int, productType,
 
 # ----------------------------------------------------------------------------
 # accept
-#
-# Acceptance test of the cloud-fallback tree model's split (built from the cloud-fallback metrics
-# root, low-sun mode off) against the standard split of the same manifest:
-#   - every tile: keys and labels equal (the cloud-fallback rows are the standard rows);
-#   - tiles with no low-sun substitution (lowsun_counts.csv of the standard
-#     root sums to 0): at rows whose pixel the cloud fallback never replaced (used count 0),
-#     every predictor equals the standard value (NaN = NaN).  On the other
-#     tiles the standard split is LE0 and the cloud-fallback tree split mode off, so their
-#     values differ by design and are not compared.
-# Reports the share of rows replaced and of their cells changed.  Writes
-# <outFile> (JSON) and returns it; RESULT is PASS or FAIL.
 # ----------------------------------------------------------------------------
 def accept(cloudFallbackSplit: Path, stdSplit: Path, countsDir: Path, stdRootFor, year: int, outFile: Path) -> dict:
-
+    """Acceptance test of the cloud-fallback tree model's split (built from the cloud-fallback metrics
+    root, low-sun mode off) against the standard split of the same manifest:
+      - every tile: keys and labels equal (the cloud-fallback rows are the standard rows);
+      - tiles with no low-sun substitution (lowsun_counts.csv of the standard
+        root sums to 0): at rows whose pixel the cloud fallback never replaced (used count 0),
+        every predictor equals the standard value (NaN = NaN).  On the other
+        tiles the standard split is LE0 and the cloud-fallback tree split mode off, so their
+        values differ by design and are not compared.
+    Reports the share of rows replaced and of their cells changed.  Writes
+    <outFile> (JSON) and returns it; RESULT is PASS or FAIL.
+    """
     cloudFallbackSplit, stdSplit, countsDir = Path(cloudFallbackSplit), Path(stdSplit), Path(countsDir)
     rep, ok, subst = {}, True, {}
 

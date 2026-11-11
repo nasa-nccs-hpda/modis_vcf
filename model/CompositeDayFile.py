@@ -1,3 +1,5 @@
+"""Composites of the input days of one composite period (PGE61's compositing): CompositeDayFile."""
+
 
 import logging
 from pathlib import Path
@@ -13,11 +15,11 @@ from modis_vcf.model.ProductType import ProductType
 
 # ----------------------------------------------------------------------------
 # Class CompositeDayFile
-#
-# TODO: Validate input.
 # ----------------------------------------------------------------------------
 class CompositeDayFile(DayFile):
-
+    """One band of one tile for one composite period: the PGE61 composite of the period's input days (BandDayFile), with its
+    QA (fallback) and Cloud masks.  Missing input days enter as SUBSTITUTE_PIXEL_VALUE (see fillMissing)."""
+    # TODO: Validate input.
     SUBSTITUTE_PIXEL_VALUE = 10000
 
     # ------------------------------------------------------------------------
@@ -42,7 +44,9 @@ class CompositeDayFile(DayFile):
                        logger: logging.RootLogger,
                        dayDir: Path,
                        numDaysInComp: int = None):
-
+        """As DayFile.initFromParams, plus the folder of the input dailies (dayDir, must exist) and optionally the
+        number of input days per composite; returns self.
+        """
         super().initFromParams(productType,
                                bandName,
                                tid,
@@ -73,7 +77,9 @@ class CompositeDayFile(DayFile):
     # copy
     # ------------------------------------------------------------------------
     def copy(self, otherCDF, year: int, day: int):
-
+        """Re-initialise from another CompositeDayFile (same product type, band, tile and folders) for another year and day;
+        returns self.
+        """
         self.initFromParams(otherCDF.productType,
                             otherCDF.bandName,
                             otherCDF.tid,
@@ -100,13 +106,12 @@ class CompositeDayFile(DayFile):
 
     # ------------------------------------------------------------------------
     # getCompositeMasks
-    #
-    # The composite's QA (fallback) and Cloud flags.  They are read from the
-    # stored .npy files when both exist; otherwise the composite is built
-    # once to make them (and they are saved, when the folder is writable).
     # ------------------------------------------------------------------------
     def getCompositeMasks(self) -> (np.ndarray, np.ndarray):
-
+        """The composite's QA (fallback) and Cloud flags.  They are read from the
+        stored .npy files when both exist; otherwise the composite is built
+        once to make them (and they are saved, when the folder is writable).
+        """
         qaName = self._getQaMaskName()
         cloudName = self._getCloudMaskName()
 
@@ -120,7 +125,7 @@ class CompositeDayFile(DayFile):
     # getCloudMask
     # ------------------------------------------------------------------------
     def getCloudMask(self) -> np.ndarray:
-
+        """The composite's Cloud flag (getCompositeMasks()[1])."""
         return self.getCompositeMasks()[1]
 
     # ------------------------------------------------------------------------
@@ -135,7 +140,7 @@ class CompositeDayFile(DayFile):
     # getQaMask
     # ------------------------------------------------------------------------
     def getQaMask(self) -> np.ndarray:
-
+        """The composite's QA fallback flag (getCompositeMasks()[0])."""
         return self.getCompositeMasks()[0]
 
     # ------------------------------------------------------------------------
@@ -174,7 +179,7 @@ class CompositeDayFile(DayFile):
             try:
 
                 # ---
-                # This is amateur hour.  Band 31 should have its own BDF
+                # Band 31 should have its own BDF
                 # derivation, and there should be a day file factory.
                 # ---
                 qa = False if self.bandName == ProductType.BAND31 else True
@@ -229,19 +234,18 @@ class CompositeDayFile(DayFile):
 
     # ------------------------------------------------------------------------
     # fillMissing
-    #
-    # A missing input day enters the composite as the substitute value,
-    # 10000, except where every present input of the composite is the
-    # low-sun value, 16000 (polar night under LowSun le0): there it enters
-    # as 16000.  Without this, tiles whose polar-night granules are missing
-    # (every v01 tile in 2019) composite their winter periods lower than
-    # tiles whose polar-night granules exist, which made a step in the bare
-    # map at the v01 / v02 boundary.  The masks of the missing day are kept
-    # (all bad).  Only called when some, but not all, inputs are missing.
     # ------------------------------------------------------------------------
     @staticmethod
     def fillMissing(rastersWithQa: list, missing: list) -> list:
-
+        """A missing input day enters the composite as the substitute value,
+        10000, except where every present input of the composite is the
+        low-sun value, 16000 (polar night under LowSun le0): there it enters
+        as 16000.  Without this, tiles whose polar-night granules are missing
+        (every v01 tile in 2019) composite their winter periods lower than
+        tiles whose polar-night granules exist, which made a step in the bare
+        map at the v01 / v02 boundary.  The masks of the missing day are kept
+        (all bad).  Only called when some, but not all, inputs are missing.
+        """
         present = [r for (r, _, _), m in zip(rastersWithQa, missing) if not m]
         clamp = BandDayFile.ZENITH_CLAMP
 

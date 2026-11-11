@@ -1,20 +1,23 @@
 """Pooled bare split: the training table of the pooled bare model (2000-2023).
 
-The pooled bare model is one non-vegetated model used for every year.  It is fitted on the bare training rows of many years at once,
-so that it does not depend on the spectral quirks of one year.  The labels do not change from year to year (the same pixels, the same
-label rasters), so every year's bare split has the same rows in the same order; only the predictors (the year's metrics) differ.
+The pooled bare model is one non-vegetated model used for every year.  It is fitted on the bare training rows of many years at
+once, so that it does not depend on the spectral quirks of one year.  The labels do not change from year to year (the same pixels,
+the same label rasters), so every year's bare split has the same rows in the same order; only the predictors (the year's metrics)
+differ.
 
 build() makes one split from the per-year splits:
 
-- every year's Train part must have the same keys (tile, row x, column y) and the same labels, in the same order (fatal otherwise);
+- every year's Train part must have the same keys (tile, row x, column y) and the same labels, in the same order (fatal
+  otherwise);
 - each row takes all its predictors from one year.  The years are assigned per stratum (tile x label bin 0-20 / 21-40 / 41-60 /
-  61-99 / 100): the stratum's rows are shuffled and dealt to the years in turn, from a random start, so every year gets the same share
-  of every stratum (+-1 row).  Random generator: numpy default_rng(seed), seed 0 for the delivered model;
+  61-99 / 100): the stratum's rows are shuffled and dealt to the years in turn, from a random start, so every year gets the same
+  share of every stratum (+-1 row).  Random generator: numpy default_rng(seed), seed 0 for the delivered model;
 - the keys and labels are written as they are (the first year's keys file).
 
-Outputs in <out>: xTrain.parq, yTrain.parq, keysTrain.parq (the inputs of view/fitAltModel.py), assign.parq (the keys plus the year
-each row was taken from) and pooled_split.json (years, seed, predictors, rows per year, SHA-256 of the four output files and of the
-source files).  check() re-reads the sources and fails unless sampled rows equal their year's row and every stratum is even.
+Outputs in <out>: xTrain.parq, yTrain.parq, keysTrain.parq (the inputs of view/fitAltModel.py), assign.parq (the keys plus the
+year each row was taken from) and pooled_split.json (years, seed, predictors, rows per year, SHA-256 of the four output files and
+of the source files).  check() re-reads the sources and fails unless sampled rows equal their year's row and every stratum is
+even.
 
 The delivered model was made as: build (years 2000-2023, the 21 bare predictors, seed 0) -> view/fitAltModel.py --algo rf
 --nEstimators 60 --maxFeatures sqrt --minSamplesLeaf 1 --randomState 0 --trainingType pctbare -> model/CompactForest.py.

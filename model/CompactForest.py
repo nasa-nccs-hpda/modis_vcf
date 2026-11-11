@@ -1,3 +1,9 @@
+"""A fitted random forest stored as flat arrays, for memory-mapped prediction (the product's model format, <name>.cf).
+
+CompactForest.fromSklearn converts a scikit-learn RandomForestRegressor; predictions are identical tree by tree.  Command line:
+python -m modis_vcf.model.CompactForest <model.bin (joblib)> <out.cf>.
+"""
+
 import json
 import sys
 from pathlib import Path
@@ -9,17 +15,16 @@ import numpy as np
 
 # ----------------------------------------------------------------------------
 # Class CompactForest
-#
-# The same trees as a fitted scikit-learn RandomForestRegressor, stored as flat arrays (about 10 bytes per node instead of
-# scikit-learn's 64) and predicted by a small numba loop.  Predictions are identical to scikit-learn's, tree by tree:
-#   - scikit-learn predicts on float32 X and goes left when x <= threshold (float64).  For any float32 x that is the same
-#     test as x <= t32, where t32 is the largest float32 not above the threshold, which is what is stored.
-#   - Leaf values are kept in float64 (a table of the distinct leaf values).
-#   - Combining the trees (clip, median, SD, rounding) stays in VcfPredict, unchanged.
-# A model is a directory (by convention <name>.cf) of .npy files plus meta.json, so it can be memory-mapped.
 # ----------------------------------------------------------------------------
 class CompactForest(object):
-
+    """The same trees as a fitted scikit-learn RandomForestRegressor, stored as flat arrays (about 10 bytes per node instead of
+    scikit-learn's 64) and predicted by a small numba loop.  Predictions are identical to scikit-learn's, tree by tree:
+      - scikit-learn predicts on float32 X and goes left when x <= threshold (float64).  For any float32 x that is the same
+        test as x <= t32, where t32 is the largest float32 not above the threshold, which is what is stored.
+      - Leaf values are kept in float64 (a table of the distinct leaf values).
+      - Combining the trees (clip, median, SD, rounding) stays in VcfPredict, unchanged.
+    A model is a directory (by convention <name>.cf) of .npy files plus meta.json, so it can be memory-mapped.
+    """
     FILES = ('feature', 'threshold', 'node', 'roots', 'values')
 
     # ------------------------------------------------------------------------
@@ -42,7 +47,9 @@ class CompactForest(object):
     # ------------------------------------------------------------------------
     @staticmethod
     def fromSklearn(model, source: str = '') -> 'CompactForest':
-
+        """The compact copy of a fitted single-output RandomForestRegressor (BaggingRegressor models with per-member
+        feature subsets are refused).
+        """
         if getattr(model, 'estimators_features_', None) is not None:
             raise ValueError('Only RandomForestRegressor is supported (this model has per-member feature subsets).')
 
@@ -102,7 +109,7 @@ class CompactForest(object):
     # save
     # ------------------------------------------------------------------------
     def save(self, outDir: Path) -> None:
-
+        """Write the arrays (.npy) and meta.json to the folder outDir, which must not exist."""
         outDir = Path(outDir)
         outDir.mkdir(parents=True, exist_ok=False)
 
@@ -116,7 +123,7 @@ class CompactForest(object):
     # ------------------------------------------------------------------------
     @staticmethod
     def load(inDir: Path, mmap: bool = False) -> 'CompactForest':
-
+        """Read a compact forest folder; mmap=True memory-maps the arrays (pages shared between processes)."""
         inDir = Path(inDir)
         arrays = {name: np.load(inDir / (name + '.npy'), mmap_mode='r' if mmap else None) for name in CompactForest.FILES}
         meta = json.loads((inDir / 'meta.json').read_text())
@@ -128,20 +135,21 @@ class CompactForest(object):
     # ------------------------------------------------------------------------
     @staticmethod
     def isCompact(path: Path) -> bool:
+        """Whether path is a compact forest folder (a directory with meta.json), not a joblib file."""
         return Path(path).is_dir() and (Path(path) / 'meta.json').exists()
 
     # ------------------------------------------------------------------------
-    # set_params: n_jobs has no meaning here (VcfPredict threads the members); kept for VcfPredict's call.
     # ------------------------------------------------------------------------
     def set_params(self, **kwargs) -> 'CompactForest':
+        """No effect: n_jobs has no meaning here (VcfPredict threads the members); kept for VcfPredict's call."""
         return self
 
     # ------------------------------------------------------------------------
-    # predict: the trees' mean, summed in tree order then divided (scikit-learn sums in thread-completion order,
-    # so the two can differ in the last bit; the product uses the members' median, not this).
     # ------------------------------------------------------------------------
     def predict(self, X) -> np.ndarray:
-
+        """The trees' mean, summed in tree order then divided.  scikit-learn sums in thread-completion order, so the two can
+        differ in the last bit; the product uses the members' median (VcfPredict), not this.
+        """
         X = CompactTree.prepare(X, self.n_features_in_)
         out = np.zeros(X.shape[0], dtype=np.float64)
 
@@ -155,7 +163,7 @@ class CompactForest(object):
 # Class CompactTree: one member, with a predict() that matches DecisionTreeRegressor.predict.
 # ----------------------------------------------------------------------------
 class CompactTree(object):
-
+    """One member of a CompactForest (a view of its arrays), with a predict() that matches DecisionTreeRegressor.predict."""
     def __init__(self, forest: CompactForest, k: int):
 
         a, b = int(forest.roots[k]), int(forest.roots[k + 1])
@@ -179,7 +187,7 @@ class CompactTree(object):
         return X
 
     def predict(self, X) -> np.ndarray:
-
+        """The member's prediction for every row of X (float32 predictors, NaN not allowed)."""
         X = CompactTree.prepare(X, self.n_features_in_)
         out = np.empty(X.shape[0], dtype=np.float64)
         _walk(X, self.feature, self.threshold, self.node, self.values, out)

@@ -1,3 +1,5 @@
+"""The base class of the input product types (ProductTypeMod44, ProductTypeMod44W)."""
+
 
 from abc import ABC
 from abc import abstractmethod
@@ -16,7 +18,9 @@ import numpy as np
 #       must have some value for machine learning.
 # ----------------------------------------------------------------------------
 class ProductType(ABC):
-
+    """An input product: its band names, input folder and file search, band layout in the files, QA mask and the days of the
+    processing year (DOY 065 of the year to DOY 049 of the next).  Implemented by ProductTypeMod44 (the MOD44CH / MOD44CQ
+    16-day composites) and ProductTypeMod44W (the MOD44W land / water mask)."""
     BAND1 = 'Band_1'
     BAND2 = 'Band_2'
     BAND3 = 'Band_3'
@@ -70,7 +74,7 @@ class ProductType(ABC):
         self._h5NameXref: dict = None
         self._productType: str = productType
 
-        # MOD09 uses MOD44 for band 31.  Ensure the correct PT is chosen.
+        # {band name: the product type whose files hold it} (getProductTypeForBand).
         self._productTypeXref: dict = None
 
         # Compositing data members. 
@@ -93,6 +97,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def bandXref(self) -> dict:
+        """{band name: subdataset index} in the product's files."""
         return self._bandXref
 
     # ------------------------------------------------------------------------
@@ -100,6 +105,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def fileSuffix(self) -> str:
+        """The input file suffix: '.hdf' (HDF4) or '.h5' (HDF-EOS5, Collection 7 MOD44C)."""
         return self._fileSuffix
 
     # ------------------------------------------------------------------------
@@ -107,6 +113,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def h5NameXref(self) -> dict:
+        """{band name: dataset name} for HDF-EOS5 inputs, read by name; None for HDF4 inputs."""
         return self._h5NameXref
         
     # ------------------------------------------------------------------------
@@ -117,6 +124,7 @@ class ProductType(ABC):
                      state: np.ndarray,
                      solz: np.ndarray,
                      zenithCutOff: int) -> np.ndarray:
+        """The QA pass mask (1 = pass, int16) of one input day from its state word and solar zenith."""
         pass
         
     # ------------------------------------------------------------------------
@@ -124,12 +132,11 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def dayStep(self) -> int:
+        """Days between input files (16 for the MOD44C composites)."""
         return self._dayStep
         
     # ------------------------------------------------------------------------
     # findFile
-    #
-    # The altDir argument is a kludge until this can be redesigned.
     # ------------------------------------------------------------------------
     def findFile(self, 
                  tileId: str, 
@@ -137,18 +144,11 @@ class ProductType(ABC):
                  day: int,
                  bandName: str,
                  altDir: Path = None) -> Path:
-        
+        """The input file of a tile, year, day and band (the product type that holds the band, see getProductTypeForBand),
+        searched in <inputDir>/<year> or in altDir; the first match.  Raises RuntimeError when there is none."""
+        # The altDir argument is a kludge until this can be redesigned.
         searchPt: ProductType = self.getProductTypeForBand(bandName)
         globDir = altDir or searchPt._inputDir / str(year)
-
-        # ---
-        # The new input directory now has year subdirectories.  If the day
-        # corresponds to the following year, from wrapping, subtract one
-        # from the year.  In the new directory structure, for example,
-        # 2019 wrapped days, like 2020033, will reside in the 2019 directory.
-        # ---
-        # dirYear = year if day in self._yearOneDays else int(year - 1)
-        # globDir = altDir or searchPt._inputDir / Path(str(dirYear))
 
         prefix = searchPt._prefixXref[bandName]
         yNj = str(year) + str(day).zfill(3)
@@ -167,11 +167,9 @@ class ProductType(ABC):
         
     # ------------------------------------------------------------------------
     # getProductTypeForBand
-    #
-    # MOD09 uses MOD44 for band 31.  Ensure the correct PT is chosen.
     # ------------------------------------------------------------------------
     def getProductTypeForBand(self, bandName: str):
-        
+        """The product type whose files hold bandName (a product type can take a band from another one)."""
         if bandName in self._productTypeXref:
             
             return self._productTypeXref[bandName]
@@ -186,6 +184,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def inputDir(self) -> Path:
+        """The input folder (<inputDir>/<year>/...)."""
         return self._inputDir
         
     # ------------------------------------------------------------------------
@@ -193,6 +192,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def productType(self) -> str:
+        """The product name used in file names (e.g. 'MOD44')."""
         return self._productType
         
     # -------------------------------------------------------------------------
@@ -200,6 +200,7 @@ class ProductType(ABC):
     # -------------------------------------------------------------------------
     @property
     def solarZenithScaleFactor(self) -> float:
+        """The factor that turns stored solar zenith into degrees."""
         return self._solzScaleFactor
         
     # ------------------------------------------------------------------------
@@ -207,6 +208,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def yearOneDays(self) -> list:
+        """The input days of the processing year in its first calendar year (DOY 065 onwards)."""
         return self._yearOneDays
 
     # ------------------------------------------------------------------------
@@ -214,6 +216,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def yearTwoDays(self) -> list:
+        """The input days of the processing year in the next calendar year (up to DOY 049)."""
         return self._yearTwoDays
         
     # ------------------------------------------------------------------------
@@ -221,6 +224,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def yearOneStartDay(self) -> int:
+        """First input day of the processing year (first calendar year)."""
         return self._yearOneStartDay
 
     # ------------------------------------------------------------------------
@@ -228,6 +232,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def yearOneEndDay(self) -> int:
+        """End (exclusive) of the input days in the first calendar year."""
         return self._yearOneEndDay
         
     # ------------------------------------------------------------------------
@@ -235,6 +240,7 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def yearTwoStartDay(self) -> int:
+        """First input day in the next calendar year."""
         return self._yearTwoStartDay
         
     # ------------------------------------------------------------------------
@@ -242,5 +248,6 @@ class ProductType(ABC):
     # ------------------------------------------------------------------------
     @property
     def yearTwoEndDay(self) -> int:
+        """End (exclusive) of the input days in the next calendar year."""
         return self._yearTwoEndDay
         

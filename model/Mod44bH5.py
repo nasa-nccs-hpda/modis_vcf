@@ -421,6 +421,7 @@ def find(mapsDir: Path, tid: str, year: int) -> Path:
 
 
 def readLayer(path: Path, field: str) -> np.ndarray:
+    """One layer (e.g. 'Percent_Tree_Cover') of a product .h5 file, as stored."""
     with h5py.File(path, 'r') as f:
         return f[FIELDS_PATH + '/' + field][()]
 

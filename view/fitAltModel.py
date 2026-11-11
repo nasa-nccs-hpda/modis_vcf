@@ -21,6 +21,7 @@ import pandas as pd
 
 
 def main():
+    """Command line (module docstring)."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('--algo', required=True, choices=['rf'], help='rf (the only model; kept so existing command lines still work).')
     ap.add_argument('-o', type=Path, required=True, help='Write the fitted model here.')

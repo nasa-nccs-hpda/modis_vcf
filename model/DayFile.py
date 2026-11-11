@@ -1,3 +1,6 @@
+"""The base class of the per-band rasters of one tile and day (BandDayFile: an input day; CompositeDayFile: a composite period).
+"""
+
 
 from abc import ABC
 from abc import abstractmethod
@@ -16,12 +19,13 @@ from modis_vcf.model.ProductType import ProductType
 
 # ----------------------------------------------------------------------------
 # Class DayFile
-#
-# TODO: Validate tid with regex.
-# TODO: geoTransform cannot be set when a DF is read from a Numpy array.
 # ----------------------------------------------------------------------------
 class DayFile(ABC):
-    
+    """One band of one tile on one input day (BandDayFile) or one composite period (CompositeDayFile): the raster, with its
+    product type, band, tile, year and day.  raster() reads <outDir>/<name>.bin when it exists, otherwise computes the raster and
+    writes that file (composites always; dailies only with VCF_WRITE_DAILIES / --writeIntermediates)."""
+    # TODO: Validate tid with regex.
+    # TODO: geoTransform cannot be set when a DF is read from a Numpy array.
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
@@ -50,7 +54,9 @@ class DayFile(ABC):
                        day: int,
                        outDir: Path,
                        logger: logging.RootLogger = None):
-        
+        """Set the product type, band, tile, year, day and output folder (validated); returns self, so that
+        BandDayFile().initFromParams(...) gives a ready object.
+        """
         if not productType:
             raise ValueError('A product type must be specified.')
             
@@ -101,11 +107,9 @@ class DayFile(ABC):
         
     # ------------------------------------------------------------------------
     # copy
-    #
-    # This method returns an identical DayFile, but for a new year and day.
     # ------------------------------------------------------------------------
     def copy(self, otherDayFile, year: int, day: int):
-        
+        """This method returns an identical DayFile, but for a new year and day."""
         self.initFromParams(otherDayFile.productType,
                             otherDayFile.bandName,
                             otherDayFile.tid,
@@ -121,6 +125,7 @@ class DayFile(ABC):
     # ------------------------------------------------------------------------
     @property
     def bandName(self) -> str:
+        """The band (e.g. 'Band_1')."""
         return self._bandName
         
     # ------------------------------------------------------------------------
@@ -128,6 +133,7 @@ class DayFile(ABC):
     # ------------------------------------------------------------------------
     @property
     def day(self) -> str:
+        """The day of year."""
         return self._day
         
     # ------------------------------------------------------------------------
@@ -149,7 +155,7 @@ class DayFile(ABC):
     # ------------------------------------------------------------------------
     @property
     def outName(self) -> Path:
-
+        """The cache file: <outDir>/<product>-<tile>-<year><day>-<band>.bin."""
         if not self._outName:
             
             self._outName: Path = self._outDir / \
@@ -170,13 +176,16 @@ class DayFile(ABC):
     # ------------------------------------------------------------------------
     @property
     def productType(self) -> str:
+        """The ProductType of the input."""
         return self._productType
         
     # ------------------------------------------------------------------------
     # raster
     # ------------------------------------------------------------------------
     def raster(self, applyQa: bool = True) -> np.ndarray:
-
+        """The raster (rows x columns, int16): read from outName when it exists, else computed (_getRaster) and written when
+        caching is on for this kind of file.
+        """
         if not type(self._raster) is np.ndarray:
 
             if self.outName.exists():
@@ -222,13 +231,16 @@ class DayFile(ABC):
     # ------------------------------------------------------------------------
     @property
     def tid(self) -> str:
+        """The tile, hXXvYY."""
         return self._tid
 
     # ------------------------------------------------------------------------
     # toTif
     # ------------------------------------------------------------------------
     def toTif(self, bands: dict = None) -> None:
-        
+        """Write the raster (or the given {name: raster} bands) as a GeoTIFF next to outName, in MODIS sinusoidal; no-op when it
+        exists.
+        """
         outName = self.outName.with_suffix('.tif')        
         if outName.exists(): return
         
@@ -278,6 +290,7 @@ class DayFile(ABC):
     # ------------------------------------------------------------------------
     @property
     def year(self) -> str:
+        """The calendar year of the day."""
         return self._year
         
         

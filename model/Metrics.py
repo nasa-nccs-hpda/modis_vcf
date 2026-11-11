@@ -1,3 +1,5 @@
+"""Predictor metrics of a tile-year (the Metrics class); see the class docstring."""
+
 
 from concurrent.futures import ProcessPoolExecutor
 import inspect
@@ -25,39 +27,48 @@ from modis_vcf.model.ProductType import ProductType
 
 # ----------------------------------------------------------------------------
 # Class Metrics
-#
-# Metrics must be computed considering invalid pixels.  Numpy can ignore NaNs.
-# Bands, by definition, are 16-bit unsigned integers.  This class stores
-# combined bands as binary files instead of recomputing them each time.  These
-# binary files include NaNs not no-data values.  Whenever this class computes
-# a metric or a band as a metric(, it converts float NaN no-data values and
-# 16-bit integers.
-#
-# Furthermore, the Parquet, at least when converted to CSV for viewing, 
-# does not seem to support NaN.  Therefore, the NaNs in the metrics must be
-# converted back to Band.NO_DATA.
-#
-# See comment in metricAmpGreenestBandRefl() for an important note regarding
-# NaNs.
-#
-# TODO:  A metric should be its own class.  They can inherit from a base, and 
-# it will eliminate much of this copy and paste. Metrics can have different
-# data types.  This matters because of memory limits.  Another reason for 
-# separate classes is that the rigorous unit tests for each metric has a lot
-# of repeated code that should be in its own methods.  While this could be
-# done in MetricsTestCase, it would confuse the structure with so many 
-# ancillary methods that relate only to specific test methods.
-#
-# TODO:  Is band xref needed?  Possibly only for tests.
-# TODO:  Make DirStructure class.
-# TODO:  Add "debug" mode, as in BDF and CDF?  Also, limit logging unless in
-#        debug mode?
-# TODO:  Thermal's minimum -32768 and conflict with -10001
-# TODO:  Why does CDF write BAND31, instead of B_31 like the others?
-# TODO:  Move call to getNdvi() into getBandCube().
 # ----------------------------------------------------------------------------
 class Metrics(object):
+    """The predictor metrics of one tile and processing year (PGE61's make_metrics).
 
+    The year has 8 composite periods (DOY 065, 113, 161, 209, 257, 305, 353 and 033 of the next year), each the composite of the
+    16-day MOD44C inputs of the period (CompositeDayFile, built in parallel processes).  A metric is a statistic over the 8
+    periods, per band (Band_1-7, Band_31 and NDVI): plain maximum / median / minimum, the values at the greenest (NDVI) or warmest
+    (Band_31) period, means of the lowest / greenest / warmest 3, 6 or 8 periods, amplitudes, the unsorted period values, and the
+    C-mirror families (CMirrorMetrics).  Each metric is written once, as one GeoTIFF with one band per input band, to
+    <metricsDir>/<tile>/<year>/3-Metrics; models name their predictors <metric>-<band>[-Day_<yyyyddd>] (getMetricFromRf). Low-sun
+    mode: LowSun.guard checks and stamps the root at construction.
+    """
+    # Notes from the original code:
+    # Metrics must be computed considering invalid pixels.  Numpy can ignore NaNs.
+    # Bands, by definition, are 16-bit unsigned integers.  This class stores
+    # combined bands as binary files instead of recomputing them each time.  These
+    # binary files include NaNs not no-data values.  Whenever this class computes
+    # a metric or a band as a metric(, it converts float NaN no-data values and
+    # 16-bit integers.
+    #
+    # Furthermore, the Parquet, at least when converted to CSV for viewing,
+    # does not seem to support NaN.  Therefore, the NaNs in the metrics must be
+    # converted back to Band.NO_DATA.
+    #
+    # See comment in metricAmpGreenestBandRefl() for an important note regarding
+    # NaNs.
+    #
+    # TODO:  A metric should be its own class.  They can inherit from a base, and
+    # it will eliminate much of this copy and paste. Metrics can have different
+    # data types.  This matters because of memory limits.  Another reason for
+    # separate classes is that the rigorous unit tests for each metric has a lot
+    # of repeated code that should be in its own methods.  While this could be
+    # done in MetricsTestCase, it would confuse the structure with so many
+    # ancillary methods that relate only to specific test methods.
+    #
+    # TODO:  Is band xref needed?  Possibly only for tests.
+    # TODO:  Make DirStructure class.
+    # TODO:  Add "debug" mode, as in BDF and CDF?  Also, limit logging unless in
+    #        debug mode?
+    # TODO:  Thermal's minimum -32768 and conflict with -10001
+    # TODO:  Why does CDF write BAND31, instead of B_31 like the others?
+    # TODO:  Move call to getNdvi() into getBandCube().
     # ---
     # This holds a metric's information, in lieu of a proper class.  Metric
     # computations put their results in this.  Metrics are written to file
@@ -256,7 +267,9 @@ class Metrics(object):
     # Has test
     # ------------------------------------------------------------------------
     def getBandCube(self, bandName: str) -> (np.ndarray, dict):
-
+        """(cube, xref) of one band over the year's 8 composite periods: cube is (8, rows, cols) float with NaN for no data, xref
+        maps 'yyyyddd' to the period index.  Builds the composites first when needed.  NDVI comes from getNdvi.
+        """
         if bandName == Metrics.NDVI:
             return self.getNdvi()
 
@@ -318,7 +331,9 @@ class Metrics(object):
     # getMetric
     # ------------------------------------------------------------------------
     def getMetric(self, metricName: str) -> list[Metric]:
-        
+        """The metric's per-band values (a list of Metric): read from its GeoTIFF in 3-Metrics when it exists (cached in memory),
+        else computed by its metric<Name> method and written.
+        """
         self._logger.info('Getting ' + metricName)
         metricFileName = self._getOutName(metricName)
         metrics: list[Metric] = None
@@ -341,17 +356,13 @@ class Metrics(object):
         
     # ------------------------------------------------------------------------
     # getMetricBand
-    #
-    # This is a bit of a mess from doing OO half way.  There is one metric,
-    # UnsortedMonthlyBands, that is comprised of days.  When requesting that
-    # metric, day must be specified or it will fail.  For all other metrics,
-    # if day IS specified it will fail.
     # ------------------------------------------------------------------------
     def getMetricBand(self, 
                       metricName: str, 
                       bandName: str,
                       day: str = None) -> np.ndarray:
-        
+        """One band of a metric, as an array.  UnsortedMonthlyBands has one band per period, so day (yyyyddd) is required for it
+        and must not be given for any other metric; raises RuntimeError when the band is not in the metric."""
         metrics: list[Metric] = self.getMetric(metricName)
         soughtName = self._bandName(metricName, bandName, day)
         
@@ -459,16 +470,15 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # getRowsFromRf
-    #
-    # The values of RandomForestClassifier-format bands at given pixels only,
-    # without holding whole metric files: each file is read once, a block of
-    # lines at a time, and only the lines holding a pixel are read.  The
-    # values equal getMetricFromRf(name)[xs, ys].  rowsByPart maps a part to
-    # (xs, ys) = (raster rows, columns).  A metric file that does not exist
-    # yet is made and read through getMetricFromRf.
     # ------------------------------------------------------------------------
     def getRowsFromRf(self, rfMetricNames: list, rowsByPart: dict, linesPerRead: int = 256) -> dict:
-
+        """The values of RandomForestClassifier-format bands at given pixels only,
+        without holding whole metric files: each file is read once, a block of
+        lines at a time, and only the lines holding a pixel are read.  The
+        values equal getMetricFromRf(name)[xs, ys].  rowsByPart maps a part to
+        (xs, ys) = (raster rows, columns).  A metric file that does not exist
+        yet is made and read through getMetricFromRf.
+        """
         out = {part: {} for part in rowsByPart}
 
         for metric, names in self._rfByFile(rfMetricNames).items():
@@ -504,17 +514,16 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # iterTableFromRf
-    #
-    # The full-tile predictor table of RandomForestClassifier-format names, a
-    # block of lines at a time: yields (r0, r1, table rows r0 to r1 - 1).  Rows
-    # are pixels (row-major, as ravel()), columns the distinct names in the
-    # order of first appearance (as a DataFrame built column by column), in
-    # dtype.  Every metric file is opened once and read a block of lines at a
-    # time, so no whole file or whole table is held.  A metric file that does
-    # not exist yet is made and read through getMetricFromRf.
     # ------------------------------------------------------------------------
     def iterTableFromRf(self, rfMetricNames: list, dtype=np.float32, linesPerRead: int = 256):
-
+        """The full-tile predictor table of RandomForestClassifier-format names, a
+        block of lines at a time: yields (r0, r1, table rows r0 to r1 - 1).  Rows
+        are pixels (row-major, as ravel()), columns the distinct names in the
+        order of first appearance (as a DataFrame built column by column), in
+        dtype.  Every metric file is opened once and read a block of lines at a
+        time, so no whole file or whole table is held.  A metric file that does
+        not exist yet is made and read through getMetricFromRf.
+        """
         columns = list(dict.fromkeys(rfMetricNames))
         col = {n: j for j, n in enumerate(columns)}
         rows, cols = self._productType.ROWS, self._productType.COLS
@@ -558,13 +567,12 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # getTableFromRf
-    #
-    # The whole table of iterTableFromRf in one array.  It equals the
-    # DataFrame of getMetricFromRf(name).ravel() columns, to_numpy(dtype).
-    # Returns (table, column names).
     # ------------------------------------------------------------------------
     def getTableFromRf(self, rfMetricNames: list, dtype=np.float32, linesPerRead: int = 256) -> tuple:
-
+        """The whole table of iterTableFromRf in one array.  It equals the
+        DataFrame of getMetricFromRf(name).ravel() columns, to_numpy(dtype).
+        Returns (table, column names).
+        """
         columns = list(dict.fromkeys(rfMetricNames))
         table = np.empty((self._productType.ROWS * self._productType.COLS, len(columns)), dtype=dtype)
 
@@ -575,19 +583,16 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # getMetricFromRf
-    #
-    # This returns a specific metric, band and day based on names passed in
-    # RandomForestClassifier's format.  The requested yyyyddd can refer to
-    # a model of a different year, so replace that yyyy with these metrics'
-    # year, careful to adjust for the day wrapping to the next year.
-    #
-    # Special cases: 
-    # UnsortedMonthlyBands-NDVI-Day_2020017
-    # UnsortedMonthlyBands-Band_6-Day_2019289
-    # TempMeanWarmest3
     # ------------------------------------------------------------------------
     def getMetricFromRf(self, rfMetricName: str) -> np.ndarray:
+        """This returns a specific metric, band and day based on names passed in
+        RandomForestClassifier's format.  The requested yyyyddd can refer to
+        a model of a different year, so replace that yyyy with these metrics'
+        year, careful to adjust for the day wrapping to the next year.
 
+        Special cases:
+        UnsortedMonthlyBands-NDVI-Day_2020017 UnsortedMonthlyBands-Band_6-Day_2019289 TempMeanWarmest3
+        """
         return self.getMetricBand(*self._rfParts(rfMetricName))
 
     # ------------------------------------------------------------------------
@@ -619,22 +624,21 @@ class Metrics(object):
     # getYearForDay
     # ------------------------------------------------------------------------
     def getYearForDay(self, day: int) -> int:
-        
+        """The calendar year of a composite period's day of year (the 033 period is in the next year)."""
         year = [yd[0] for yd in self._daysSought if yd[1] == day][0]
         return year
 
     # ------------------------------------------------------------------------
     # getPeriodFlags
-    #
-    # The product's Quality and Cloud layers: one bit per composite period,
-    # period 1 in bit 0, in the order of _daysSought.  Quality bit n is set
-    # when period n fell back to the mean of all its input days (no day
-    # passed QA); Cloud bit n when it fell back and none of its days was
-    # clear.  The flags are the same for every band, so Band_1's are used,
-    # read from the stored masks when present (no write access needed).
     # ------------------------------------------------------------------------
     def getPeriodFlags(self) -> (np.ndarray, np.ndarray):
-
+        """The product's Quality and Cloud layers: one bit per composite period,
+        period 1 in bit 0, in the order of _daysSought.  Quality bit n is set
+        when period n fell back to the mean of all its input days (no day
+        passed QA); Cloud bit n when it fell back and none of its days was
+        clear.  The flags are the same for every band, so Band_1's are used,
+        read from the stored masks when present (no write access needed).
+        """
         quality = np.zeros((self._productType.ROWS,
                             self._productType.COLS), dtype=np.uint8)
 
@@ -659,17 +663,15 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # getNdvi
-    #
-    # NDVI is not added to the list of bands because it is not truly an input
-    # band and some metrics do not use it.
-    #
-    # Do NDVI thresholding here, so it is written.  When it is read, it will
-    # already have the threshold applied.
-    #
     # Has test
     # ------------------------------------------------------------------------
     def getNdvi(self) -> (np.ndarray, dict):
+        """NDVI is not added to the list of bands because it is not truly an input
+        band and some metrics do not use it.
 
+        Do NDVI thresholding here, so it is written.  When it is read, it will
+        already have the threshold applied.
+        """
         self._logger.info('Computing NDVI')
 
         # The xref is always needed.
@@ -760,7 +762,7 @@ class Metrics(object):
     # printAvailableMetrics
     # ------------------------------------------------------------------------
     def printAvailableMetrics(self) -> None:
-
+        """Print the names of every metric method."""
         for item in self.availableMetrics.items():
             print(item[0])
 
@@ -813,7 +815,9 @@ class Metrics(object):
     # readMetric
     # ------------------------------------------------------------------------
     def readMetric(self, metricPath: Path) -> list[Metric]:
-        
+        """Read a metric GeoTIFF into a list of Metric (one per band, named by its 'Name' metadata item); the file must exist,
+        open in GDAL and have a valid spatial reference.
+        """
         if self._logger:
             self._logger.info('Reading ' + str(metricPath))
             
@@ -856,7 +860,7 @@ class Metrics(object):
     # writeMetric
     # ------------------------------------------------------------------------
     def writeMetric(self, metrics: list[Metric], name: str = None) -> None:
-
+        """Write a metric's bands as one GeoTIFF in 3-Metrics (int16, MODIS sinusoidal, lossless ZSTD), named after the metric."""
         if not metrics:
             return
             
@@ -899,13 +903,11 @@ class Metrics(object):
 
     # ------------------------------------------------------------------------
     # metricUnsortedMonthlyBands
-    #
-    # "Unsorted monthly bands (1 – 7 and NDVI) = 96 metrics"
-    #
     # Has test
     # ------------------------------------------------------------------------
     def metricUnsortedMonthlyBands(self) -> list:
-        
+        """UnsortedMonthlyBands: every band's (Band_1-7, Band_31, NDVI) value in each of the 8 periods, in period order (72 bands
+        in one file, named <band>-Day_<yyyyddd>)."""
         desc = 'unsorted monthly bands (1 – 7 and NDVI) = 96 metrics'
         self._logger.info('Running ' + desc)
             
@@ -933,7 +935,7 @@ class Metrics(object):
     # metricBandReflMax
     # ------------------------------------------------------------------------
     def metricBandReflMax(self) -> list:
-        
+        """BandReflMax: per band (Band_1-7, Band_31, NDVI), the maximum over the 8 periods."""
         desc = 'maximum band X value (include NDVI) = 8 metrics'
         self._logger.info('Running ' + desc)
             
@@ -955,7 +957,7 @@ class Metrics(object):
     # metricBandReflMedian
     # ------------------------------------------------------------------------
     def metricBandReflMedian(self) -> list:
-        
+        """BandReflMedian: per band (Band_1-7, Band_31, NDVI), the median over the 8 periods."""
         desc = 'median band X value (include NDVI) = 8 metrics'
         self._logger.info('Running ' + desc)
             
@@ -977,7 +979,7 @@ class Metrics(object):
     # metricBandReflMin
     # ------------------------------------------------------------------------
     def metricBandReflMin(self) -> list[Metric]:
-        
+        """BandReflMin: per band (Band_1-7, Band_31, NDVI), the minimum over the 8 periods."""
         desc = 'minimum band X value (include NDVI) = 8 metrics'
         self._logger.info('Running ' + desc)
             
@@ -999,7 +1001,7 @@ class Metrics(object):
     # metricBandReflMaxGreenness
     # ------------------------------------------------------------------------
     def metricBandReflMaxGreenness(self) -> list:
-        
+        """BandReflMaxGreenness: per band, the value of the greenest period (highest NDVI)."""
         desc = 'band x reflectance associated with peak ' + \
                'greenness = 8 metrics'
                
@@ -1024,7 +1026,7 @@ class Metrics(object):
     # metricBandReflMedianGreenness
     # ------------------------------------------------------------------------
     def metricBandReflMedianGreenness(self) -> list:
-
+        """BandReflMedianGreenness: per band, the median of the periods sorted by NDVI."""
         desc = 'band x reflectance associated with median ' + \
                'greenness = 8 metrics'
 
@@ -1051,7 +1053,7 @@ class Metrics(object):
     # metricBandReflMinGreenness
     # ------------------------------------------------------------------------
     def metricBandReflMinGreenness(self) -> list:
-        
+        """BandReflMinGreenness: per band, the value of the least green period (lowest NDVI; no data sorted high)."""
         desc = 'band x reflectance associated with minimum ' + \
                'greenness = 8 metrics'
                
@@ -1076,7 +1078,7 @@ class Metrics(object):
     # metricBandReflMaxTemp
     # ------------------------------------------------------------------------
     def metricBandReflMaxTemp(self) -> list:
-        
+        """BandReflMaxTemp: per band, the value of the warmest period (highest Band_31)."""
         desc = 'band x reflectance associated with max ' + \
                'surface temp = 8 metrics'
                
@@ -1101,7 +1103,7 @@ class Metrics(object):
     # metricBandReflMedianTemp
     # ------------------------------------------------------------------------
     def metricBandReflMedianTemp(self) -> list:
-        
+        """BandReflMedianTemp: per band, the median of the periods sorted by Band_31."""
         desc = 'band x reflectance associated with median ' + \
                'surf temp = 8 metrics'
                
@@ -1128,7 +1130,7 @@ class Metrics(object):
     # metricBandReflMinTemp
     # ------------------------------------------------------------------------
     def metricBandReflMinTemp(self) -> list:
-        
+        """BandReflMinTemp: per band, the value of the coldest period (lowest Band_31; no data sorted high)."""
         desc = 'band x reflectance associated with min ' + \
                'surface temp = 8 metrics'
                
@@ -1180,18 +1182,21 @@ class Metrics(object):
     # metricLowest3MeanBandRefl
     # ------------------------------------------------------------------------
     def metricLowest3MeanBandRefl(self) -> list:        
+        """Lowest3MeanBandRefl: per band (Band_1-7, Band_31; no NDVI), the mean of its 3 lowest period values."""
         return self._lowestMeanBandRefl(3)
         
     # ------------------------------------------------------------------------
     # metricLowest6MeanBandRefl
     # ------------------------------------------------------------------------
     def metricLowest6MeanBandRefl(self) -> list:        
+        """Lowest6MeanBandRefl: per band (Band_1-7, Band_31; no NDVI), the mean of its 6 lowest period values."""
         return self._lowestMeanBandRefl(6)
         
     # ------------------------------------------------------------------------
     # metricLowest8MeanBandRefl
     # ------------------------------------------------------------------------
     def metricLowest8MeanBandRefl(self) -> list:        
+        """Lowest8MeanBandRefl: per band (Band_1-7, Band_31; no NDVI), the mean of its 8 lowest period values."""
         return self._lowestMeanBandRefl(8)
         
     # ------------------------------------------------------------------------
@@ -1225,18 +1230,21 @@ class Metrics(object):
     # metricGreenest3MeanBandRefl
     # ------------------------------------------------------------------------
     def metricGreenest3MeanBandRefl(self) -> list:
+        """Greenest3MeanBandRefl: per band, the mean over the 3 greenest periods (highest NDVI)."""
         return self._greenestMeanBandRefl(3)
         
     # ------------------------------------------------------------------------
     # metricGreenest6MeanBandRefl
     # ------------------------------------------------------------------------
     def metricGreenest6MeanBandRefl(self) -> list:
+        """Greenest6MeanBandRefl: per band, the mean over the 6 greenest periods (highest NDVI)."""
         return self._greenestMeanBandRefl(6)
         
     # ------------------------------------------------------------------------
     # metricGreenest8MeanBandRefl
     # ------------------------------------------------------------------------
     def metricGreenest8MeanBandRefl(self) -> list:
+        """Greenest8MeanBandRefl: per band, the mean over the 8 greenest periods (highest NDVI)."""
         return self._greenestMeanBandRefl(8)
         
     # ------------------------------------------------------------------------
@@ -1270,25 +1278,28 @@ class Metrics(object):
     # metricWarmest3MeanBandRefl
     # ------------------------------------------------------------------------
     def metricWarmest3MeanBandRefl(self) -> list:
+        """Warmest3MeanBandRefl: per band, the mean over the 3 warmest periods (highest Band_31)."""
         return self._warmestMeanBandRefl(3)
         
     # ------------------------------------------------------------------------
     # metricWarmest6MeanBandRefl
     # ------------------------------------------------------------------------
     def metricWarmest6MeanBandRefl(self) -> list:
+        """Warmest6MeanBandRefl: per band, the mean over the 6 warmest periods (highest Band_31)."""
         return self._warmestMeanBandRefl(6)
         
     # ------------------------------------------------------------------------
     # metricWarmest8MeanBandRefl
     # ------------------------------------------------------------------------
     def metricWarmest8MeanBandRefl(self) -> list:
+        """Warmest8MeanBandRefl: per band, the mean over the 8 warmest periods (highest Band_31)."""
         return self._warmestMeanBandRefl(8)
 
     # ------------------------------------------------------------------------
     # metricAmpBandRefl
     # ------------------------------------------------------------------------
     def metricAmpBandRefl(self) -> list:
-        
+        """AmpBandRefl: per band (Band_1-7, Band_31, NDVI), maximum minus minimum over the periods (0 where they are equal)."""
         desc = 'Sort band X low to high: ' + \
                'amp == value 8 – value 1 = 8 metrics'
                
@@ -1317,7 +1328,7 @@ class Metrics(object):
     # metricAmpGreenestBandRefl
     # ------------------------------------------------------------------------
     def metricAmpGreenestBandRefl(self) -> list:
-        
+        """AmpGreenestBandRefl: per band, |value of the greenest period - value of the least green period| (sorted by NDVI)."""
         desc = 'Sort band X by NDVI high to low:' + \
                ' amp == value 8 – value 1 = 8 metric'
                
@@ -1345,7 +1356,7 @@ class Metrics(object):
     # metricAmpWarmestBandRefl
     # ------------------------------------------------------------------------
     def metricAmpWarmestBandRefl(self) -> list:
-        
+        """AmpWarmestBandRefl: per band, |value of the warmest period - value of the coldest period| (sorted by Band_31)."""
         desc = 'Sort band X by temp high to low:' + \
                ' amp == value 8 – value 1 = 8 metric'
                
@@ -1380,7 +1391,7 @@ class Metrics(object):
     # metricTempMeanWarmest3
     # ------------------------------------------------------------------------
     def metricTempMeanWarmest3(self) -> list:
-        
+        """TempMeanWarmest3: the mean of the 3 highest Band_31 period values (one band)."""
         desc = 'Mean temp of warmest 3 months = 1 metric'
         self._logger.info(desc)
 
@@ -1395,15 +1406,12 @@ class Metrics(object):
         
     # ------------------------------------------------------------------------
     # metricTempMeanGreenest3
-    #
-    # Temperature (aka B31)
-    # Sorted by NDVI (aka Greenness)
-    # Calculate the mean of the top 3 values (i.e. the greenest 3)
-    #
-    # Result will be a single band representing Temperature.
     # ------------------------------------------------------------------------
     def metricTempMeanGreenest3(self) -> list:
-        
+        """Temperature (aka B31) Sorted by NDVI (aka Greenness) Calculate the mean of the top 3 values (i.e. the greenest 3)
+
+        Result will be a single band representing Temperature.
+        """
         desc = 'Mean temp of greenest 3 months = 1 metric'
         self._logger.info(desc)
 

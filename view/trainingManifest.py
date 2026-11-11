@@ -1,3 +1,19 @@
+"""Training sample as a key manifest (model/TrainingManifest.py).
+
+trainingManifest.py extract --split <split dir> -o <manifest.parq> --version v1.4.0 [--notes text]
+trainingManifest.py sample --labels <pattern with {tile}> --tiles <file> --trainingType pcttree|pctbare -y <year>
+                    -o <manifest.parq> --version <name> [--extra <parquet>] [--index range|position] [--notes text]
+  fresh-sample mode: the sample drawn from the label rasters (TrainingManifest.sample).
+trainingManifest.py build --manifest <manifest.parq> --predictors <file> --root <metrics root> [--roots <file>]
+                    -y <year> -o <split dir> [--tiles <file>] [--keysOnly] [--lowSun le0|s70|off] [--lowSunCheck on|off]
+                    [--workers N]
+  --roots: lines "<tile> <metrics root>" overriding --root for those tiles.
+trainingManifest.py accept --cloudFallbackTree <cloud-fallback tree split dir> --standard <standard split dir>
+                    --counts <cloud-fallback counts dir> --root <standard metrics root> [--roots <file>] -y <year>
+                    -o <report.json>
+  acceptance test of the cloud-fallback tree model's split (TrainingManifest.accept); exit 1 on FAIL.
+"""
+
 import argparse
 import logging
 from pathlib import Path
@@ -12,22 +28,9 @@ from modis_vcf.model.VcfPredict import MOD44_DIR
 
 # -----------------------------------------------------------------------------
 # main
-#
-# Training sample as a key manifest (model/TrainingManifest.py).
-#
-# trainingManifest.py extract --split <split dir> -o <manifest.parq> --version v1.4.0 [--notes text]
-# trainingManifest.py sample --labels <pattern with {tile}> --tiles <file> --trainingType pcttree|pctbare -y <year>
-#                     -o <manifest.parq> --version <name> [--extra <parquet>] [--index range|position] [--notes text]
-#   fresh-sample mode: the sample drawn from the label rasters (TrainingManifest.sample).
-# trainingManifest.py build --manifest <manifest.parq> --predictors <file> --root <metrics root> [--roots <file>]
-#                     -y <year> -o <split dir> [--tiles <file>] [--keysOnly] [--lowSun le0|s70|off] [--lowSunCheck on|off] [--workers N]
-#   --roots: lines "<tile> <metrics root>" overriding --root for those tiles.
-# trainingManifest.py accept --cloudFallbackTree <cloud-fallback tree split dir> --standard <standard split dir> --counts <cloud-fallback counts dir>
-#                     --root <standard metrics root> [--roots <file>] -y <year> -o <report.json>
-#   acceptance test of the cloud-fallback tree model's split (TrainingManifest.accept); exit 1 on FAIL.
 # -----------------------------------------------------------------------------
 def main():
-
+    """Command line: extract, sample, build or accept (module docstring)."""
     # SIGTERM (a stopped run) ends the build through its clean-up path, which also ends the split's workers.
     signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(128 + signum))
 

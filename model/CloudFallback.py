@@ -1,29 +1,35 @@
-"""Cloud-fallback composites and snow-aware cloud counts in the package (cloud-fallback tree model inputs), from the HDF inputs, without daily files.
+"""Cloud-fallback composites and snow-aware cloud counts (the inputs of the cloud-fallback tree model), made from the HDF inputs
+without daily files.
 
-The arithmetic is that of v1.4.0's original script (blend/the original script, removed in v1.5.2, at tag v1.5.1), unchanged; only the
-source of the inputs differs.  the original script read the unsubstituted
-(low-sun mode off) dailies and standard composites of a separate mode-off root.  Here each period's inputs are read directly
-in mode off (BandDayFile, as that root was built), the mode-off standard composite is made with CompositeDayFile's own
-compositing, and the cloud-fallback composite, masks and counts are written.  Periods are independent and run in parallel processes.
+The arithmetic is that of v1.4.0's blend/v4r_year.py (removed in v1.5.2; at tag v1.5.1), unchanged; only the source of the inputs
+differs.  That script read the unsubstituted (low-sun mode off) dailies and standard composites of a separate mode-off root.  Here
+each period's inputs are read directly in mode off (BandDayFile, as that root was built), the mode-off standard composite is made
+with CompositeDayFile's own compositing, and the cloud-fallback composite, masks and counts are written.  Periods are independent
+and run in parallel processes.
 
-Per period (3 inputs; the last period has 2 and the original script's never-read 24th slot), from MOD44CQ state (bits 0-1, 2, 5, 6) and
-solar zenith, the mode-off Band_1 / Band_2 inputs and the composite's fallback flag (Band_1 -qa.npy, which does not depend on
-the low-sun mode):
+Per period (3 inputs; the last period has 2 and the script's never-read 24th slot), from the MOD44CQ state word (bits 0-1 cloud,
+2 shadow, 5 snow, 6 cloud adjacency) and solar zenith, the mode-off Band_1 / Band_2 inputs and the composite's fallback flag
+(Band_1 -qa.npy, which does not depend on the low-sun mode):
 - trigger = every present input cloudy or cloud-adjacent, and the period fell back; pick = the input with the lowest red among
   present, not-shadow, valid, NDVI >= 0, NIR >= 1500 inputs; use = trigger and some input qualifies;
 - cloud-fallback composite of each of the 8 bands = the picked input where use, else the mode-off standard composite;
-- counts CUR_Z (use and some input with 0 < zenith < 65), CUR_ZS (... and not NDSI snow on the cloud-fallback composite), CUR_ZB (... and
-  state bit 5 of the pick not set), and the number of periods replaced per pixel.
-Self-checks (fatal, as in the original script): the pick's Band_1 equals the cloud-fallback Band_1 at every counted pixel-period; the mean of all
-inputs equals the mode-off standard composite at fallback pixels (here over all fallback pixels; the original script used land only).
+- counts CUR_Z (use and some input with 0 < zenith < 65), CUR_ZS (... and not NDSI snow on the cloud-fallback composite),
+  CUR_ZB (... and state bit 5 of the pick not set), and the number of periods replaced per pixel.
+Self-checks (fatal, as in the script): the pick's Band_1 equals the cloud-fallback Band_1 at every counted pixel-period; the mean
+of all inputs equals the mode-off standard composite at fallback pixels (here over all fallback pixels; the script used land
+only).
 
-Outputs: <cloud-fallback root>/<tile>/<year>/2-Composites (cloud-fallback composites with the -qa.npy / -cloudfb.npy of the standard root), a low-sun
-stamp 'off' on that root, and in <counts dir>: <tile>_counts_snow.npz (CUR_Z, CUR_ZS, CUR_ZB), <tile>_cloudfallback_used_count.npy and
-<tile>_cloudfallback_periods.npz (per-period trigger and use bits, zenith-ok counts: for the statistics computed after the map).
+Outputs: <cloud-fallback root>/<tile>/<year>/2-Composites (cloud-fallback composites with the -qa.npy / -cloudfb.npy of the
+standard root), a low-sun stamp 'off' on that root, and in <counts dir>: <tile>_counts_snow.npz (CUR_Z, CUR_ZS, CUR_ZB),
+<tile>_cloudfallback_used_count.npy and <tile>_cloudfallback_periods.npz (per-period trigger and use bits, zenith-ok counts: for
+the statistics computed after the map).
 
-Usage: python -m modis_vcf.model.CloudFallback build <tile> <year> <standard metrics root> <cloud-fallback metrics root> <counts dir> [workers]
-       python -m modis_vcf.model.CloudFallback compose <tile> <year> <cloud-fallback metrics root> <standard metrics root> <counts dir> <tree map>
-         (after the map: <tile>_compose.json statistics from the tree map, no C6; decision D5)
+Usage:
+  python -m modis_vcf.model.CloudFallback build <tile> <year> <standard metrics root> <cloud-fallback metrics root>
+      <counts dir> [workers]
+  python -m modis_vcf.model.CloudFallback compose <tile> <year> <cloud-fallback metrics root> <standard metrics root>
+      <counts dir> <tree map>
+    (after the map: <tile>_compose.json statistics from the tree map; diagnostic only)
 """
 import json
 import logging
@@ -44,7 +50,7 @@ ROWS = COLS = 4800
 # slots
 # ----------------------------------------------------------------------------
 def slots(year: int) -> list:
-    """the original script's 24 input slots: DOY 065-353 of the year, 001-049 of the next, and the never-read 065 of the next."""
+    """v4r_year.py's 24 input slots: DOY 065-353 of the year, 001-049 of the next, and the never-read 065 of the next."""
 
     s = [(year, d) for d in range(65, 366, 16)] + [(year + 1, d) for d in (1, 17, 33, 49)] + [(year + 1, 65)]
     assert len(s) == 24
@@ -80,7 +86,7 @@ def _period(tile: str, year: int, p: int, stdComp: str, cloudFallbackComp: str, 
     def bdf(yd, band):
         return BandDayFile().initFromParams(pt, band, tile, yd[0], yd[1], tmpDir, log)
 
-    # State and zenith per slot, read once (the original script's sub(); the 24th slot is never read).
+    # State and zenith per slot, read once (v4r_year.py's sub(); the 24th slot is never read).
     st, zen = [], []
 
     for yd in sl:
@@ -106,7 +112,7 @@ def _period(tile: str, year: int, p: int, stdComp: str, cloudFallbackComp: str, 
             masks[yd] = None
 
     def offDaily(yd, band):
-        """The mode-off daily of a slot, or None (the original script's day())."""
+        """The mode-off daily of a slot, or None (v4r_year.py's day())."""
         if yd == S[-1] or yd not in daysToFind:
             return None
         try:
@@ -199,7 +205,8 @@ def _period(tile: str, year: int, p: int, stdComp: str, cloudFallbackComp: str, 
 # ----------------------------------------------------------------------------
 def buildTile(tile: str, year: int, stdRoot: Path, cloudFallbackRoot: Path, countsDir: Path, workers: int = 8,
               logger: logging.Logger = None) -> dict:
-    """Cloud-fallback composites, counts and per-period masks of one tile-year.  Refuses an existing cloud-fallback tile-year folder."""
+    """Cloud-fallback composites, counts and per-period masks of one tile-year.  Refuses an existing cloud-fallback tile-year
+    folder."""
 
     log = logger or logging.getLogger('cloudFallback')
     stdComp = Path(stdRoot) / tile / str(year) / '2-Composites'
@@ -265,9 +272,9 @@ def buildTile(tile: str, year: int, stdRoot: Path, cloudFallbackRoot: Path, coun
 # ----------------------------------------------------------------------------
 def composeStats(tile: str, year: int, cloudFallbackRoot: Path, stdRoot: Path, countsDir: Path, treeMap: Path) -> dict:
     """<tile>_compose.json statistics (diagnostic only; nothing reads them back), from the saved per-period bits, the
-    cloud-fallback composites, the standard composites' fallback flags and the year's tree map: land = map <= 100, dense = map 60-100.
-    No external reference is read (until v1.5.1, land and dense also used C6 MOD44B when present).  The alignment
-    figure is the build's (all fallback pixels, not land only)."""
+    cloud-fallback composites, the standard composites' fallback flags and the year's tree map: land = map <= 100, dense = map
+    60-100. No external reference is read (until v1.5.1, land and dense also used C6 MOD44B when present).  The alignment figure
+    is the build's (all fallback pixels, not land only)."""
 
     from osgeo import gdal
     countsDir = Path(countsDir)
@@ -333,7 +340,7 @@ def composeStats(tile: str, year: int, cloudFallbackRoot: Path, stdRoot: Path, c
 # main
 # ----------------------------------------------------------------------------
 def main() -> int:
-
+    """Command line: build or compose (module docstring); prints the result as JSON.  Returns 2 on a usage error."""
     a = sys.argv[1:]
     logging.basicConfig(level=logging.WARNING, stream=sys.stdout)
 

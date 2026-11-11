@@ -1,3 +1,13 @@
+"""Prediction of the 7 map layers of a tile-year, the product's map step (MOD_PR44B3 in the C code).
+
+The tree and non-vegetated models (60-tree random forests or their CompactForest copies) are predicted on the tile's metrics, the
+members combined by MEDIAN and rounded half up.  Then, in order (docs/ALGORITHM.md section 7): the cloud-fallback tree blend on
+rows v06-v11 (CloudFallbackBlend), the sum cap, the v00 rule, the water / outside-projection codes from MOD44W, and the
+bare-priority rule (BarePriority).  Written: Percent_Tree_Cover, Percent_NonVegetated, Percent_NonTree_Vegetation, their two SD
+layers, Quality and Cloud, as the Collection 7 .h5 product file (Mod44bH5) and / or GeoTIFFs, plus <tile>-<year>-chain.json (blend
+and rule counts). Rule tiles (rows v15-v17) are written from MOD44W alone (RuleTile).
+"""
+
 
 from concurrent.futures import ThreadPoolExecutor
 import joblib
@@ -37,7 +47,10 @@ from modis_vcf.model.Settings import MOD44_DIR, MOD44W_DIR   # also imported fro
 # VcfPredict
 # ----------------------------------------------------------------------------
 class VcfPredict(object):
-    
+    """The map step for tiles and years with one set of models (tree, non-vegetated, optional cloud-fallback tree model).  The
+    constructor loads the models; runTileForYear writes one tile-year.  forRuleTiles() makes an instance without models for rows
+    v15-v17.
+    """
     MASK_WATER = 1
     MASK_OUT_OF_PROJ = 250
     PRED_WATER = 200
@@ -522,7 +535,9 @@ class VcfPredict(object):
     # runTileForYear
     # ------------------------------------------------------------------------
     def runTileForYear(self, tid: str, year: int) -> list[np.ndarray]:
-
+        """Predict, apply the rules to and write the 7 layers of one tile-year (rule tiles from MOD44W alone).  Returns
+        (tree, non-vegetated, non-tree vegetation) as written.
+        """
         self._logger.info('Running ' + tid + ' for ' + str(year))
 
         if RuleTile.isRuleTile(tid):
@@ -676,7 +691,7 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     def run(self, tids: list[str], years: list[int]) -> \
         list[list[np.ndarray]]:
-        
+        """runTileForYear for every tile and year; returns their results in that order."""
         results = [self.runTileForYear(t, y) for t in tids for y in years]
         return results
 

@@ -15,7 +15,23 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Pooled bare split builder, fixed-model checksums, split-only years (2026-11-11; hash filled in by the next commit)
+### Docstrings for every production module and public class and function (2026-11-11; hash filled in by the next commit)
+
+**Exact (documentation only, plus the removal of four unused methods).** Decision 109 (Q-R3): a module docstring in every production
+module and a docstring on every public class and function (26 files; private helpers keep their comments).
+
+- Descriptions that sat in the original code's header comments were moved into the docstrings (the `# --- name ---` separators stay);
+  the original authors' TODO notes stay as comments.  The rest were written from the code.
+- Corrected on the way: stale references to the removed MOD09A1 input; a misleading "cached" description of the dailies (they are
+  written only with `VCF_WRITE_DAILIES`); the band set of the metrics (Band_1-7, Band_31 and NDVI); the UnsortedMonthlyBands count
+  (72 bands, not 96); `model/CloudFallback.py`'s description of the v1.4.0 script it follows.
+- **Removed: `ProductTypeMod44.getCloud`, `getShadow`, `getAdjacency`, `getAerosol`** (never called; `getAdjacency` and `getAerosol`
+  read MOD09 bit positions, 13 and 6-7, which in the MOD44C state word are not adjacency and aerosol).  The QA mask the product
+  uses (`createQaMask`: bits 0-1, 2, 6 and 15) is unchanged and is now documented with the MOD44C bit names.
+- Checked: the code of every changed module, docstrings aside, is identical to `600e4f4` except for the four removed methods; every
+  module imports; `--help` of every command.
+
+### Pooled bare split builder, fixed-model checksums, split-only years (`600e4f4`, 2026-11-11)
 
 **Exact for existing runs (new options only).** For the pooled bare model (2000-2023), which v1.9.0 delivers as a ready-made model.
 

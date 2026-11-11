@@ -1,3 +1,7 @@
+"""One band of one tile on one input day, read from the MOD44CH / MOD44CQ file (ProductTypeMod44), as PGE61's fix_bands.c
+prepares it: the low-sun substitution (LowSun) on Band_1-7 and Band_31, and the Band_31 clamp above solar zenith 70.
+"""
+
 import os
 
 import numpy as np
@@ -15,7 +19,7 @@ gdal.UseExceptions()
 # Class BandDayFile
 # ----------------------------------------------------------------------------
 class BandDayFile(DayFile):
-
+    """A daily input band (DayFile).  Kept in memory by default; written to <outDir> only when writeDailies() is on."""
     ZENITH_CUTOFF = 65
     ZENITH_CLAMP = 16000
 
@@ -53,10 +57,14 @@ class BandDayFile(DayFile):
     # ------------------------------------------------------------------------
     @staticmethod
     def setWriteDailies(write: bool) -> None:
+        """Write the daily inputs to 1-Days (True) or keep them in memory only (False, the default), for this process and the
+        composite workers it starts (through VCF_WRITE_DAILIES).
+        """
         os.environ[BandDayFile.WRITE_DAILIES_ENV] = '1' if write else '0'
 
     @staticmethod
     def writeDailies() -> bool:
+        """Whether daily inputs are written to 1-Days (setWriteDailies, VCF_WRITE_DAILIES=1)."""
         return os.environ.get(BandDayFile.WRITE_DAILIES_ENV, '0') == '1'
 
     def _writeCache(self) -> bool:
@@ -66,8 +74,8 @@ class BandDayFile(DayFile):
     # getSolz
     # ------------------------------------------------------------------------
     def getSolz(self, productType: ProductType = None) -> np.ndarray:
-        
-        # This supports MOD09 using the thermal band from MOD44.
+        """The day's solar zenith (degrees, scaled by the product type's factor), as int16."""
+        # productType: read from another product type's file (a band borrowed from it).
         productType = productType or self._productType
 
         solz: np.ndarray = self._readSubdataset(ProductType.SOLZ,
@@ -82,8 +90,8 @@ class BandDayFile(DayFile):
     # getState
     # ------------------------------------------------------------------------
     def getState(self, productType: ProductType = None) -> np.ndarray:
-        
-        # This supports MOD09 using the thermal band from MOD44.
+        """The day's MOD44C state QA word, as stored (bit layout: ProductTypeMod44.createQaMask)."""
+        # productType: read from another product type's file (a band borrowed from it).
         productType = productType or self._productType
 
         state: np.ndarray = self._readSubdataset(ProductType.STATE, 

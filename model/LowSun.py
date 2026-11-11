@@ -1,3 +1,27 @@
+"""Low-sun bright substitution (PGE61 fix_bands.c's intent; LE0 in v1.4.0).
+Band_1-7 and Band_31 inputs with solar zenith above a threshold, and with
+LE0 also solz <= 0 (polar night), become BandDayFile.ZENITH_CLAMP (16000).
+
+Modes:
+  le0  threshold 70 + solz <= 0 (default since v1.4.1; v1.4.0's setting)
+  s70  threshold 70 only
+  off  no substitution (v1.3.0 behaviour; Band_31 keeps its own > 70 clamp)
+
+The mode travels in the environment (VCF_LOWSUN_T, VCF_LOWSUN_LE0), because
+composite workers are spawned processes.  These variables are internal:
+configure() sets them (the entry points call it with --lowSun, le0 when
+not given), and values set by hand are replaced.
+
+Cache guard: dailies in 1-Days are cached and reused whatever the current
+mode, which is how 34 v1.4.0 tiles kept unsubstituted inputs.  guard()
+stamps each tile-year root with lowsun.json; a root without a stamp is
+checked from its cached Band_1 dailies against solar zenith, and a
+mismatch stops the run.  The check can be switched off (--lowSunCheck off,
+VCF_LOWSUN_CHECK=0); in production, where every run builds fresh roots,
+it is probably unnecessary.  guard() also writes lowsun_counts.csv (pixels
+substituted per input day) once per root.
+"""
+
 import csv
 import json
 import os
@@ -6,32 +30,6 @@ from pathlib import Path
 import numpy as np
 
 
-# ----------------------------------------------------------------------------
-# LowSun
-#
-# Low-sun bright substitution (PGE61 fix_bands.c's intent; LE0 in v1.4.0).
-# Band_1-7 and Band_31 inputs with solar zenith above a threshold, and with
-# LE0 also solz <= 0 (polar night), become BandDayFile.ZENITH_CLAMP (16000).
-#
-# Modes:
-#   le0  threshold 70 + solz <= 0 (default since v1.4.1; v1.4.0's setting)
-#   s70  threshold 70 only
-#   off  no substitution (v1.3.0 behaviour; Band_31 keeps its own > 70 clamp)
-#
-# The mode travels in the environment (VCF_LOWSUN_T, VCF_LOWSUN_LE0), because
-# composite workers are spawned processes.  These variables are internal:
-# configure() sets them (the entry points call it with --lowSun, le0 when
-# not given), and values set by hand are replaced.
-#
-# Cache guard: dailies in 1-Days are cached and reused whatever the current
-# mode, which is how 34 v1.4.0 tiles kept unsubstituted inputs.  guard()
-# stamps each tile-year root with lowsun.json; a root without a stamp is
-# checked from its cached Band_1 dailies against solar zenith, and a
-# mismatch stops the run.  The check can be switched off (--lowSunCheck off,
-# VCF_LOWSUN_CHECK=0); in production, where every run builds fresh roots,
-# it is probably unnecessary.  guard() also writes lowsun_counts.csv (pixels
-# substituted per input day) once per root.
-# ----------------------------------------------------------------------------
 MODES = {'le0': (70, True), 's70': (70, False), 'off': (0, False)}
 DEFAULT_MODE = 'le0'
 ENV_T = 'VCF_LOWSUN_T'
@@ -86,7 +84,7 @@ def settings() -> tuple:
 # modeName
 # ----------------------------------------------------------------------------
 def modeName(t: int = None, le0: bool = None) -> str:
-
+    """The name of a (threshold, le0) setting ('le0', 's70', 'off', or 't<n>[_le0]'); the one in force when not given."""
     if t is None:
         t, le0 = settings()
 
@@ -104,7 +102,7 @@ def modeName(t: int = None, le0: bool = None) -> str:
 # appliesTo
 # ----------------------------------------------------------------------------
 def appliesTo(tid: str) -> bool:
-
+    """Whether the substitution is on for tile tid in the mode in force (every tile when on)."""
     t, _ = settings()
     return t > 0
 
@@ -113,7 +111,7 @@ def appliesTo(tid: str) -> bool:
 # mask
 # ----------------------------------------------------------------------------
 def mask(solz: np.ndarray, t: int = None, le0: bool = None) -> np.ndarray:
-
+    """The pixels substituted at solar zenith solz: solz > threshold, and with le0 also solz <= 0; none when the mode is off."""
     if t is None:
         t, le0 = settings()
 

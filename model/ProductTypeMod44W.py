@@ -1,3 +1,6 @@
+"""The MOD44W land / water mask (Collection 6.1, one file per tile and year: <dir>/<year>/001/MOD44W.A<year>001.<tile>.061.*.hdf).
+"""
+
 
 from pathlib import Path
 
@@ -10,7 +13,7 @@ from modis_vcf.model.ProductType import ProductType
 # Class ProductTypeMod44W
 # ----------------------------------------------------------------------------
 class ProductTypeMod44W(ProductType):
-
+    """MOD44W as a product type: one band, water_mask (land, water, outside projection), one day per year."""
     WATER_MASK = 'water_mask'
 
     DAY_STEP = 365
@@ -49,7 +52,7 @@ class ProductTypeMod44W(ProductType):
                      state: np.ndarray,
                      solz: np.ndarray,
                      zenithCutOff: int) -> np.ndarray:
-
+        """MOD44W has no QA: returns None."""
         return None
 
     # ------------------------------------------------------------------------
@@ -61,7 +64,7 @@ class ProductTypeMod44W(ProductType):
                  day: int,
                  bandName: str,
                  altDir: Path = None) -> Path:
-        
+        """The tile's MOD44W file of the year, from <inputDir>/<year>/001."""
         altDir: Path = \
             self.inputDir / Path(str(year)) / Path(str(day).zfill(3))
             
