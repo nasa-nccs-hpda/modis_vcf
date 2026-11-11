@@ -320,7 +320,7 @@ class VcfPredict(object):
         """
         Returns (prediction, sd).  prediction is the masked int16 layer; sd is the members' population SD stored
         as round(100 * SD) (0 on water and out-of-projection), or None when the SD is switched off or the model
-        has no ensemble members (e.g. XGBoost).
+        has no ensemble members.
         """
         # ---
         # Ensemble models: one pass over the members gives the value (combined by agg) and the SD.
@@ -391,8 +391,7 @@ class VcfPredict(object):
         # codes below (200 and 250 are legitimate values outside 0-100 and must not be
         # clamped).  Random Forest/Bagging predictions are already bounded to the training
         # range by construction (an average of decision-tree leaf means), so this never
-        # changes their output; boosted models such as XGBoost are not bounded this way and
-        # can genuinely predict outside 0-100.
+        # changes their output; it guards models that are not bounded this way.
         prediction = np.clip(prediction, 0, 100)
 
         # Apply the water mask.
@@ -464,7 +463,7 @@ class VcfPredict(object):
         """
         The ensemble members as (estimator, feature indices or None), or None if the model has none.
         Random Forest: estimators_.  BaggingRegressor: estimators_ with estimators_features_, because each
-        member sees only its own subset of the predictors.  XGBoost has no members.
+        member sees only its own subset of the predictors.
         """
         ests = getattr(model, 'estimators_', None)
 

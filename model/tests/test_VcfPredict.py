@@ -4,7 +4,6 @@ import unittest
 
 import numpy as np
 
-from modis_vcf.model.TrainingType import TrainingType
 from modis_vcf.model.VcfPredict import VcfPredict
 
 ROWS = COLS = 4800   # MODIS 500 m tile

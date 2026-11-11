@@ -8,9 +8,8 @@ import sys
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model import LowSun
-from modis_vcf.model.ProductTypeMod09A import ProductTypeMod09A
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
-from modis_vcf.model.Settings import MOD09A1_DIR, MOD44_DIR
+from modis_vcf.model.Settings import MOD44_DIR
 
 
 # -----------------------------------------------------------------------------
@@ -46,15 +45,9 @@ def main():
                              'and exit.')
 
     parser.add_argument('--productType',
-                        choices=[ProductTypeMod09A.PRODUCT_TYPE,
-                                 ProductTypeMod44.PRODUCT_TYPE],
+                        choices=[ProductTypeMod44.PRODUCT_TYPE],
                         default=ProductTypeMod44.PRODUCT_TYPE,
                         help='Choose the product type to run.')
-
-    parser.add_argument('--mod09Dir',
-                        type=Path,
-                        default=MOD09A1_DIR,
-                        help='MOD09A1 input directory (<dir>/<year>/*.hdf)')
 
     parser.add_argument('-t',
                         nargs='+',
@@ -123,13 +116,7 @@ def main():
     #
     # This can be accomplished with registration, instead of this hard coding.
     # ---
-    modisDir = MOD44_DIR
-
-    # MOD09A1: bands 1-7 from MOD09A1, band 31 from MOD44C.
-    if args.productType == ProductTypeMod09A.PRODUCT_TYPE:
-        prodType = ProductTypeMod09A(args.mod09Dir, modisDir)
-    else:
-        prodType = ProductTypeMod44(modisDir)
+    prodType = ProductTypeMod44(MOD44_DIR)
     
     # ---
     # Composites are built in this many processes.

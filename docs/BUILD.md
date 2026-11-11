@@ -24,9 +24,8 @@ If conda is a shared installation you cannot write to, set a writable package ca
 `PROJ_DATA` and `GDAL_DATA`; calling the environment's `python` directly without it leaves PROJ unable to open its database, and map
 writing fails with `PROJ: proj_create_from_name: Open of .../share/proj failed` (found in our own clean-environment test).
 
-Optional (testing only, not used by the production chain): `conda env update -n modis_vcf -f environment-optional.yml` (xgboost).
-The GPU Monte Carlo predictor search (`model/MonteCarloSimGpu.py`, `view/monteCarloSimGpu*.py`) needs NVIDIA RAPIDS (cuml, cudf,
-cupy 23.12) on a GPU node and is not covered here.
+The testing-only modules of earlier versions and their environment (`environment-optional.yml`) are at tag
+`optional-modules-v1.8.0`, not on this branch.
 
 ## 2. Install the code
 
@@ -47,7 +46,6 @@ Set in `model/Settings.py`; override with environment variables:
 | `VCF_MOD44_COLLECTION` | which MOD44CH / MOD44CQ collection is read: `7` (**required for v1.8.0**) or `61` (default, v1.7.1) | - |
 | `VCF_MOD44_DIR` | MOD44CH and MOD44CQ | Collection 7: `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.007.*.h5`; Collection 6.1: `<dir>/<year>/MOD44C[HQ].A<year><doy>.<tile>.061.*.hdf`; a year needs its own folder and the next year's |
 | `VCF_MOD44W_DIR` | MOD44W land/water mask (Collection 6.1) | `<dir>/<year>/001/MOD44W.A<year>001.<tile>.061.*.hdf` |
-| `VCF_MOD09A1_DIR` | MOD09A1 (optional input, testing only) | `<dir>/<year>/*.hdf` |
 | `VCF_OUTPUT_COLLECTION` | collection number in the product file name and `GranuleID` (three digits) | `071` (default, this code's product) or e.g. `007` for an operational MODAPS run |
 
 Command-line options (e.g. `vcfPredict.py --modisDir`) still override them.
@@ -66,9 +64,9 @@ python -m modis_vcf.view.runYear --help
 
 ## 5. Unit tests
 
-`model/tests/` (`python -m unittest modis_vcf.model.tests.<test_file>` with the parent of `modis_vcf` on `PYTHONPATH`). Eight test files read inputs at NCCS
-paths (`/css/...`, `/explore/...`): `test_BandDayFile`, `test_CompositeDayFile`, `test_Metrics`, `test_MonteCarloSim`,
-`test_ProductTypeMod09A`, `test_ProductTypeMod44`, `test_ProductTypeMod44W`, `test_VcfPredict`. Point them at your copies of those
+`model/tests/` (`python -m unittest modis_vcf.model.tests.<test_file>` with the parent of `modis_vcf` on `PYTHONPATH`). Six test files read inputs at NCCS
+paths (`/css/...`, `/explore/...`): `test_BandDayFile`, `test_CompositeDayFile`, `test_Metrics`, `test_ProductTypeMod44`,
+`test_ProductTypeMod44W`, `test_VcfPredict`. Point them at your copies of those
 granules, or skip them. The others run anywhere.
 
 ## 6. The Collection 7 product file and its corrections

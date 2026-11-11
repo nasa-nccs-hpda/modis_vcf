@@ -15,7 +15,22 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Metrics GeoTIFFs written with lossless ZSTD compression (2026-11-06; hash filled in by the next commit)
+### Testing-only modules removed from the branch (2026-11-11; hash filled in by the next commit)
+
+**Exact expected (only code the production run never reaches is removed); proven by the v1.9.0 exactness check after the renames.**
+The branch now holds only the production chain, so the MODAPS team sees what they run. Everything removed is kept at the annotated
+tag `optional-modules-v1.8.0` (on `41de034`, the last commit holding it).
+
+- **Removed:** the Monte Carlo predictor search (`model/MonteCarloSim.py`, `MonteCarloSimGpu.py`, `MasterTraining.py`, `Trial.py`,
+  `TrainingType.py`; `view/monteCarloSim.py`, `monteCarloSimGpu.py`, `monteCarloSimGpuFinalFit.py`); the MOD09A1 input
+  (`model/ProductTypeMod09A.py`, `makeMetrics.py --productType MOD09A` and `--mod09Dir`, `VCF_MOD09A1_DIR`); the XGBoost and HGB
+  fits in `view/fitAltModel.py` (`--algo rf` remains, the only choice); `environment-optional.yml`; the tests of those modules and
+  their 25.7 MB of sample training files; the MOD09A1 parts of `test_BandDayFile`, `test_CompositeDayFile` and `test_Metrics`.
+- **Kept, although first listed for removal:** `model/CMirrorMetrics.py` and `model/CAttributes.py`. The product predictor lists
+  use them (tree 40 of 64 predictors, non-vegetated 6 of 21), so they are part of the production chain.
+- Docs: README layout, BUILD environment and test lists.
+
+### Metrics GeoTIFFs written with lossless ZSTD compression (`41de034`, 2026-11-06)
 
 **Exact (values unchanged; the files' bytes change).** `model/Metrics.py` writes the `3-Metrics/*.tif` files with
 `COMPRESS=ZSTD, ZSTD_LEVEL=1, PREDICTOR=2, TILED=YES, NUM_THREADS=4` (was uncompressed, `BIGTIFF=YES` only). The 256 x 256 tiles

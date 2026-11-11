@@ -15,7 +15,6 @@ from osgeo.osr import SpatialReference
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompositeDayFile import CompositeDayFile
 from modis_vcf.model.Metrics import Metrics
-from modis_vcf.model.ProductTypeMod09A import ProductTypeMod09A
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 
 
@@ -24,7 +23,7 @@ from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 #
 # python -m unittest discover modis_vcf/model/tests/
 # python -m unittest modis_vcf.model.tests.test_Metrics
-# python -m unittest modis_vcf.model.tests.test_Metrics.MetricsTestCase.testMod09
+# python -m unittest modis_vcf.model.tests.test_Metrics.MetricsTestCase.testDirs
 #
 # TODO: update all tests for new set up
 # TODO: complete metrics 
@@ -67,25 +66,6 @@ class MetricsTestCase(unittest.TestCase):
                                self.productTypeMod44,
                                self._mod44OutDir,
                                self._logger)
-                           
-        # MOD09
-        self._mod09InDir = \
-            Path('/explore/nobackup/projects/ilab/data/MODIS/MOD09A1')
-
-        self.productTypeMod09A = \
-            ProductTypeMod09A(self._mod09InDir, self._mod44InDir)
-
-        self._mod09OutDir = Path('/explore/nobackup/people/rlgill' +      
-                                 '/SystemTesting/modis-vcf/UnitTests/' + 
-                                 'Metrics/MOD09A')
-
-        self._mod09OutDir.mkdir(exist_ok=True)
-
-        self.mmMod09A = Metrics(self.h09v05,
-                                self.year2019,
-                                self.productTypeMod09A,
-                                self._mod09OutDir,
-                                self._logger)
                            
         self.days = [(2019,  65), (2019,  97), (2019, 129), (2019, 161),
                     (2019, 193), (2019, 225), (2019, 257), (2019, 289),
@@ -140,8 +120,8 @@ class MetricsTestCase(unittest.TestCase):
     def getRandomCoords(self) -> list:
         
         rng = np.random.default_rng()
-        rows = rng.integers(low=0, high=ProductTypeMod09A.ROWS, size=5)
-        cols = rng.integers(low=0, high=ProductTypeMod09A.COLS, size=5)
+        rows = rng.integers(low=0, high=ProductTypeMod44.ROWS, size=5)
+        cols = rng.integers(low=0, high=ProductTypeMod44.COLS, size=5)
         coords = np.array(np.meshgrid(rows, cols)).T.reshape(-1, 2)
         return coords
         
@@ -444,95 +424,6 @@ class MetricsTestCase(unittest.TestCase):
         self.assertEqual(year, self.mmMod44._year + 1)
 
     # -------------------------------------------------------------------------
-    # testGetNdvi
-    # -------------------------------------------------------------------------
-    def testGetNdvi(self):
-        
-        # ---
-        # This was a problem case.
-        # ---
-        mm = Metrics('h12v02', 
-                     self.year2019, 
-                     self.productTypeMod09A, 
-                     self._mod09OutDir, 
-                     self._logger)
-        
-        # Remove existing files.
-        ndviName = mm._metricsDir / 'MOD09A-NDVI.bin'
-        ndviName.unlink(missing_ok=True)
-        
-        ndvi, nXref = mm.getNdvi()
-        b1, xref = mm.getBandCube(self.productTypeMod09A.BAND1)
-        b2, xref = mm.getBandCube(self.productTypeMod09A.BAND2)
-        
-        # Now there should be no NaNs.
-        self.assertFalse(np.isnan(b1).any())
-        self.assertFalse(np.isnan(b2).any())
-        self.assertFalse(np.isnan(ndvi).any())
-
-        # ---
-        # Test MOD09A.  Elsewhere, NDVI had no NaNs.
-        # Remove existing file.
-        # ---
-        mm = self.mmMod09A
-        name = mm._metricsDir / (mm._productType._productType + '-NDVI.bin')
-        name.unlink(missing_ok=True)
-
-        ndvi, ndviXref = mm.getNdvi()
-        b1, b1Xref = mm.getBandCube(self.productTypeMod09A.BAND1)
-        b2, b2Xref = mm.getBandCube(self.productTypeMod09A.BAND2)
-        
-        self.assertFalse(np.isnan(b1).any())
-        self.assertFalse(np.isnan(b2).any())
-        self.assertFalse(np.isnan(ndvi).any())
-        self.assertFalse((b1 == -10001).any())
-        self.assertFalse((b2 == -10001).any())
-        self.assertFalse((ndvi == -10001).any())
-        
-        # Remove existing file.
-        mm = self.mmMod44
-        name = mm._metricsDir / (mm._productType._productType + '-NDVI.bin')
-        name.unlink(missing_ok=True)
-
-        ndvi, ndviXref = mm.getNdvi()
-        b1, b1Xref = mm.getBandCube(self.productTypeMod44.BAND1)
-        b2, b2Xref = mm.getBandCube(self.productTypeMod44.BAND2)
-        
-        self.assertFalse(np.isnan(b1).any())
-        self.assertFalse(np.isnan(b2).any())
-        self.assertFalse(np.isnan(ndvi).any())
-        self.assertFalse((b1 == -10001).any())
-        self.assertFalse((b2 == -10001).any())
-        self.assertFalse((ndvi == -10001).any())
-
-        # Ensure division by zero works as expected.
-        d, r, c = np.argwhere(b1 + b2 == 0)[0]
-        self.assertEqual(ndvi[d, r, c], 0)
-        
-        # Test some values.
-        d, r, c = (0, 0, 0)
-        v1 = b1[d, r, c]
-        v2 = b2[d, r, c]
-        exp = ((v2 - v1) / (v2 + v1)) * 1000
-        self.assertEqual(ndvi[d, r, c], exp)
-        
-        d, r, c = (2, 1, 12)
-        v1 = b1[d, r, c]
-        v2 = b2[d, r, c]
-        exp = ((v2 - v1) / (v2 + v1)) * 1000
-        self.assertEqual(ndvi[d, r, c], exp)
-
-        d, r, c = (2, 11, 2)
-        v1 = b1[d, r, c]
-        v2 = b2[d, r, c]
-        exp = ((v2 - v1) / (v2 + v1)) * 1000
-        self.assertEqual(ndvi[d, r, c], exp)
-
-        # Test reading ndvi.
-        ndviRead, ndviXref = mm.getNdvi()
-        self.assertTrue(np.array_equal(ndvi, ndviRead, equal_nan=True))
-        
-    # -------------------------------------------------------------------------
     # testSortByNdvi
     # -------------------------------------------------------------------------
     def testSortByNdvi(self):
@@ -651,114 +542,6 @@ class MetricsTestCase(unittest.TestCase):
         self.assertAlmostEqual(thermal[maxIndex, x, y], 29255)
         self.assertEqual(tSortedBand[-1, x, y], band[maxIndex, x, y])
 
-    # -------------------------------------------------------------------------
-    # testUnsortedMonthlyBands
-    # -------------------------------------------------------------------------
-    def testUnsortedMonthlyBands(self):
-        
-        METRIC_TITLE = 'UnsortedMonthlyBands'
-        METRIC_NAME = 'metric' + METRIC_TITLE
-        mm = self.mmMod09A
-        
-        # ---
-        # Write and review a tile with a moderate solar zenith.
-        # ---
-        tid = 'h09v05'
-        metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (96, 4800, 4800))
-        self.assertEqual(metric.name, METRIC_TITLE)
-        
-        # Day 193, July 12, is summer and should have a decent sun angle.
-        day = 193
-        
-        xrefKey = METRIC_TITLE + '-' + ProductTypeMod09A.BAND1 + '-Day_' + \
-                  str(self.year2019) + str(day).zfill(3)
-
-        index = metric.dayXref[xrefKey]
-        
-        compDir = self._mod09OutDir / \
-                  Path(tid) / \
-                  Path(str(self.year2019)) / \
-                  Path('2-Composites')
-        
-        dayDir = self._mod09OutDir / \
-                  Path(tid) / \
-                  Path(str(self.year2019)) / \
-                  Path('1-Days')
-
-        cdf = CompositeDayFile().initFromParams(self.productTypeMod09A, 
-                                                ProductTypeMod09A.BAND1,
-                                                tid, 
-                                                self.year2019, 
-                                                day, 
-                                                compDir,
-                                                logger=None,
-                                                dayDir=dayDir)
-
-        raster = cdf.raster()
-        raster = np.where(np.isnan(raster), -10001, raster).astype(int)
-        self.assertTrue(np.array_equal(metric.cube[index], raster))
-        
-        # Test some random coordinates.
-        coords = self.getRandomCoords()
-        
-        for coord in coords:
-            
-            self.assertEqual(metric.cube[index, coord[0], coord[1]],
-                             raster[coord[0], coord[1]])
-        
-        # ---
-        # Write and review a tile with a significant solar zenith.
-        # ---
-        tid = 'h12v02'
-        day = 289
-        
-        xrefKey = METRIC_TITLE + '-' + ProductTypeMod09A.BAND1 + '-Day_' + \
-                  str(self.year2019) + str(day).zfill(3)
-
-        mm = Metrics(tid, 
-                     self.year2019, 
-                     self.productTypeMod09A, 
-                     self._mod09OutDir, 
-                     self._logger)
-        
-        metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (96, 4800, 4800))
-        self.assertEqual(metric.name, 'UnsortedMonthlyBands')
-
-        index = metric.dayXref[xrefKey]
-
-        compDir = self._mod09OutDir / \
-                  Path(tid) / \
-                  Path(str(self.year2019)) / \
-                  Path('2-Composites')
-        
-        dayDir = self._mod09OutDir / \
-                  Path(tid) / \
-                  Path(str(self.year2019)) / \
-                  Path('1-Days')
-
-        cdf = CompositeDayFile().initFromParams(self.productTypeMod09A, 
-                                                ProductTypeMod09A.BAND1,
-                                                tid, 
-                                                self.year2019, 
-                                                day, 
-                                                compDir,
-                                                logger=None,
-                                                dayDir=dayDir)
-
-        raster = cdf.raster()
-        raster = np.where(np.isnan(raster), -10001, raster).astype(int)
-
-        x = 2888
-        y = 426
-        self.assertTrue(np.array_equal(metric.cube[index], raster))
-
-        for coord in coords:
-            
-            self.assertEqual(metric.cube[index, coord[0], coord[1]],
-                             raster[coord[0], coord[1]])
-        
     # -------------------------------------------------------------------------
     # testBandReflMax
     # -------------------------------------------------------------------------
@@ -1346,91 +1129,6 @@ class MetricsTestCase(unittest.TestCase):
     # -------------------------------------------------------------------------
     def testLowest8MeanBandRefl(self):
         self._testLowestMeanBandRefl(8)
-        
-    # -------------------------------------------------------------------------
-    # testGreenestMeanBandRefl
-    # -------------------------------------------------------------------------
-    def _testGreenestMeanBandRefl(self, numGreenest: int):
-        
-        mm = self.mmMod09A
-        
-        # Run the metric.
-        METRIC_TITLE = 'Greenest' + str(numGreenest) + 'MeanBandRefl'
-        METRIC_NAME = 'metric' + METRIC_TITLE
-        metName = mm._metricsDir / (METRIC_TITLE + '.tif')
-        metName.unlink(missing_ok=True)
-        metric: Band = mm.getMetric(METRIC_NAME)
-        self.assertEqual(metric.cube.shape, (9, 4800, 4800))
-        self.assertEqual(metric.name, METRIC_TITLE)
-        
-        xrefKey = METRIC_TITLE + '-' + ProductTypeMod44.BAND3
-        bIndex = metric.dayXref[xrefKey]
-        band, bXref = mm.getBandCube(ProductTypeMod44.BAND3)
-        bSorted = np.sort(band, axis=0)
-
-        ndvi, nXref = mm.getNdvi()
-        nSorted = np.sort(ndvi, axis=0)
-        bSortedByN = mm._sortByNDVI(band)
-
-        # Case 1:  band with no NaNs and NDVI with no NaNs
-        x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-                           ~np.isnan(ndvi[11, :, :]))[0]
-
-        bSliced = bSortedByN[-numGreenest:, x, y]
-        exp = int(np.nanmean(bSliced))
-        self.assertEqual(metric.cube[bIndex, x, y], exp)
-        
-        # ---
-        # Case 2:  band with no NaNs and NDVI with some NaNs
-        # There are no locations where all 12 months are not NaN.
-        # x, y = np.argwhere(~np.isnan(bSorted[11, :, :]) &
-        #                    np.isnan(nSorted[11, :, :]))[0]
-        # ---
-
-        # ---
-        # Case 3:  band with some NaNs and NDVI with no NaNs
-        # There are no locations where all 12 months of NDVI are not NaN.
-        # x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-        #                    ~np.isnan(bSorted[1, :, :]) &
-        #                    np.isnan(bSorted[11, :, :]) &
-        #                    ~np.isnan(nSorted[11, :, :]))[0]
-        # ---
-
-        # Case 4:  band with some NaNs and NDVI with some NaNs (2894, 708)
-        x, y = np.argwhere(~np.isnan(bSorted[0, :, :]) &
-                           ~np.isnan(bSorted[1, :, :]) &
-                           np.isnan(bSorted[11, :, :]) &
-                           np.isnan(nSorted[11, :, :]))[0]
-
-        bSliced = bSortedByN[-numGreenest:, x, y]
-        exp = int(np.nanmean(bSliced))
-        self.assertEqual(metric.cube[bIndex, x, y], exp)
-        
-        # Case 5:  band all NaN (0, 0)
-        x, y = np.argwhere(np.isnan(bSorted[0, :, :]))[0]
-        self.assertEqual(metric.cube[bIndex, x, y], ProductTypeMod09A.NO_DATA)
-        
-        # Case 6:  ndvi all NaN (0, 0)
-        x, y = np.argwhere(np.isnan(nSorted[0, :, :]))[0]
-        self.assertEqual(metric.cube[bIndex, x, y], ProductTypeMod09A.NO_DATA)
-
-    # -------------------------------------------------------------------------
-    # testGreenest3MeanBandRefl
-    # -------------------------------------------------------------------------
-    def testGreenest3MeanBandRefl(self):
-        self._testGreenestMeanBandRefl(3)
-        
-    # -------------------------------------------------------------------------
-    # testGreenest6MeanBandRefl
-    # -------------------------------------------------------------------------
-    def testGreenest6MeanBandRefl(self):
-        self._testGreenestMeanBandRefl(6)
-        
-    # -------------------------------------------------------------------------
-    # testGreenest8MeanBandRefl
-    # -------------------------------------------------------------------------
-    def testGreenest8MeanBandRefl(self):
-        self._testGreenestMeanBandRefl(8)
         
     # -------------------------------------------------------------------------
     # testWarmestMeanBandRefl

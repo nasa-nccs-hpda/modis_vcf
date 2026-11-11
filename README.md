@@ -26,11 +26,10 @@ set `VCF_MOD44_COLLECTION=7` ([docs/RUNNING.md](docs/RUNNING.md)); the code defa
 | `view/` | command-line entry points: `runYear`, `trainingManifest`, `fitAltModel`, `vcfPredict`, `makeMetrics` |
 | `model/tests/` | unit tests |
 | `docs/` | documentation and the predictor lists (`predictors_tree.txt`, `predictors_bare.txt`) |
-| `environment.yml`, `environment-optional.yml` | conda environments |
+| `environment.yml` | conda environment |
 
-Testing only, not part of the production chain: the GPU Monte Carlo predictor search (`model/MonteCarloSim*.py`,
-`model/MasterTraining.py`, `model/Trial.py`, `model/TrainingType.py`, `view/monteCarloSim*.py`), the MOD09A1 input
-(`model/ProductTypeMod09A.py`, `makeMetrics.py --productType`) and the XGBoost / HGB models (`fitAltModel.py --algo xgb|hgb`).
+Only the production chain is on this branch. The testing-only modules of earlier versions (the Monte Carlo predictor search on
+CPU and GPU, the MOD09A1 input, the XGBoost / HGB fits and `environment-optional.yml`) are kept at tag `optional-modules-v1.8.0`.
 
 ## Quick start
 

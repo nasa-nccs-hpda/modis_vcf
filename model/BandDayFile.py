@@ -188,11 +188,11 @@ class BandDayFile(DayFile):
         if self.bandName == ProductType.BAND31:
 
             # ---
-            # MOD09 uses the thermal band from MOD44.  When reading a band
-            # from another product type, get the QA bands from that product
-            # type, too.  ReadSubDataset() calls ProductType.findFile(),
-            # which looks up the product type mapping.  We must override this.
-            # Self._productType will be ProductTypeMod09A (or G?).
+            # A product type may take the thermal band from another product
+            # type.  When reading a band from another product type, get the
+            # QA bands from that product type, too.  ReadSubDataset() calls
+            # ProductType.findFile(), which looks up the product type
+            # mapping.  We must override this.
             # ---
             productType = self._productType
             bandPt = self._productType.getProductTypeForBand(self.bandName)
