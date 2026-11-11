@@ -15,7 +15,7 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Renamed: cloud-fallback composites, cloud-fallback tree model, cloud-fallback tree blend (2026-11-11; hash filled in by the next commit)
+### Renamed: cloud-fallback composites, cloud-fallback tree model, cloud-fallback tree blend (`9f29f50`, 2026-11-11)
 
 **Exact expected (names only); proven by the v1.9.0 exactness check.** Clearer names for what the parts are (project lead,
 2026-11-10). Clean break: the old names are not accepted.
@@ -35,6 +35,7 @@ version are fitted with the recipe given here. Maintained with every code commit
 - Checked: the year driver's task list, dependencies and every task command for all 319 tiles of 2019 are identical to the
   previous commit's (old spec there, renamed spec here) apart from the names.
 - The "borrowed" form reads the counts of another run by the new file names; counts written by earlier versions use the old names.
+- Docs (README layout, ALGORITHM section 7, RUNNING steps and spec, BUILD) use the new names (docs commit after `9f29f50`).
 
 ### Input folders required, collection 7 default, no rule switches (`5ac3a71`, 2026-11-11)
 

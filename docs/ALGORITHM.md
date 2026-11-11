@@ -104,19 +104,20 @@ with numba). Its predictions are identical to the scikit-learn model's, tree by 
 
 ## 7. Rules applied after prediction (in this order, `model/VcfPredict.py`)
 
-1. **Blend A** (tree cover only, tile rows v06-v11 = about 30 N to 30 S; `model/BlendA.py`). Persistent cloud in the tropics makes the
-   standard composites fall back to cloudy means. A second tree model, the **partner**, is trained on **V4r composites**
-   (`model/V4r.py`): in a period where every input is cloudy and the period fell back, V4r takes the single input with the lowest red
-   reflectance among those that are not shadow and look vegetated (NDVI >= 0, NIR >= 1500), instead of the mean. V4r is built without
-   the low-sun substitution. The partner has the same predictors and recipe as the tree model and is refitted every year on V4r metrics
-   of the same tree labels. For each pixel:
+1. **Cloud-fallback tree blend** (tree cover only, tile rows v06-v11 = about 30 N to 30 S; `model/CloudFallbackBlend.py`). Persistent cloud in the tropics makes the
+   standard composites fall back to cloudy means. A second tree model, the **cloud-fallback tree model**, is trained on **cloud-fallback composites**
+   (`model/CloudFallback.py`): in a period where every input is cloudy and the period fell back, the cloud-fallback composite takes the single input with the lowest red
+   reflectance among those that are not shadow and look vegetated (NDVI >= 0, NIR >= 1500), instead of the mean. These composites are built without
+   the low-sun substitution. The cloud-fallback tree model has the same predictors and recipe as the tree model and is fitted every year on cloud-fallback metrics
+   of the same tree labels. For each pixel, with `clear` the standard tree model's value and `fallback` the cloud-fallback tree
+   model's:
 
-   `tree = floor((1 - w) x clear + w x partner + 0.5)`, with `w = cloud weight x cover weight`,
-   cloud weight = CUR_ZS / 8 when CUR_ZS >= 5 of the 8 periods, else 0 (CUR_ZS = periods that used a V4r pick with a usable sun angle
+   `tree = floor((1 - w) x clear + w x fallback + 0.5)`, with `w = cloud weight x cover weight`,
+   cloud weight = CUR_ZS / 8 when CUR_ZS >= 5 of the 8 periods, else 0 (CUR_ZS = periods that used a cloud-fallback pick with a usable sun angle
    and no snow), cover weight = clip((clear - 20) / 30, 0, 1).
 
    So the blend acts only where at least 5 periods were persistently cloudy and the standard model already sees more than 20% tree.
-   The tree SD layer stays the standard model's. The partner's training split is checked against the standard split
+   The tree SD layer stays the standard model's. The cloud-fallback tree model's training split is checked against the standard split
    (`trainingManifest accept`).
 2. **Sum cap.** Bare is lowered (never tree) so that tree + bare <= 100; non-tree vegetation = 100 - tree - bare.
 3. **High-latitude rule.** On row v00 (north of about 80 N) every land pixel is tree 0, bare 100 (the C code's rule).
@@ -135,7 +136,7 @@ with numba). Its predictions are identical to the scikit-learn model's, tree by 
 
 The C code trains M5P model trees (Weka) and is the source of the historical MOD44B. The Python code keeps its inputs, QA, periods and
 derived metrics (the C-mirror metrics are bit-identical), and differs in: Random Forest models with the median of the trees; the SD,
-Quality and Cloud layers; low-sun substitution as the C code intended; blend A; BP10; the Greenland ice training points; the
+Quality and Cloud layers; low-sun substitution as the C code intended; the cloud-fallback tree blend; BP10; the Greenland ice training points; the
 v15-v17 rule tiles. The development history and evidence are in `CHANGELOG.md`.
 
 ## 10. Known limitations

@@ -107,5 +107,5 @@ test tiles (h12v09, h17v01, h16v02, h20v09): composites byte for byte, metrics a
 those tiles, and the three models byte for byte. See `CHANGELOG.md` (v1.5.2).
 
 On 2026-10-22 the v1.6.0 code in this environment (no container) reproduced the global 2019 v1.6.0 run, with its fitted models, on
-h12v01 (a v01 tile, where the winter fill for missing inputs acts) and h12v09 (a blend tile): composites byte for byte (V4r composites
+h12v01 (a v01 tile, where the winter fill for missing inputs acts) and h12v09 (a blend tile): composites byte for byte (cloud-fallback composites
 too), metrics and all 7 map layers by value. See `CHANGELOG.md` (v1.6.0).

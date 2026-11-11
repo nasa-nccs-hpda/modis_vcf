@@ -4,11 +4,11 @@ One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 
 
 ```
 labels ──► 1 sample ──► manifests ─┐
-MOD44C ──► 2 metrics (+ V4r on blend and tree-training tiles) ──► 3 splits ──► 4 fits ──► 5 maps ──► 1 C7 .h5 per tile
+MOD44C ──► 2 metrics (+ cloud-fallback composites on blend and tree-training tiles) ──► 3 splits ──► 4 fits ──► 5 maps ──► 1 C7 .h5 per tile
 MOD44W ────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Models are refitted every year (Terra only). Steps 2 and 5 are per tile; 3 and 4 run once per model (tree, bare, partner).
+Models are refitted every year (Terra only). Steps 2 and 5 are per tile; 3 and 4 run once per model (tree, bare, cloud-fallback tree).
 
 There are two ways to run it:
 
@@ -54,16 +54,16 @@ or one file per tile. `tree_tiles.txt` / `bare_tiles.txt` = the tiles in the lab
 ## Step 2: metrics (per tile)
 
 Reads the year's 23 MOD44C composites, applies QA and the low-sun substitution, builds the 8 period composites and the metrics. On
-**blend tiles** (rows v06-v11) and on the **tree training tiles** it also builds the V4r composites and metrics (the blend partner's
+**blend tiles** (rows v06-v11) and on the **tree training tiles** it also builds the cloud-fallback composites and metrics (the cloud-fallback tree model's
 inputs) and the cloud counts.
 
 ```bash
 python -m modis_vcf.view.runYear metrics --spec spec.json --tile h12v09
 ```
 
-Output per tile: `<metrics root>/<tile>/<year>/{2-Composites, 3-Metrics, lowsun.json, lowsun_counts.csv}`; V4r tiles also
-`<v4r root>/<tile>/<year>/...` and `<counts dir>/<tile>_{counts_snow.npz, v4r_used_count.npy, v4r_periods.npz, v4r_build.json}`.
-(`view/makeMetrics.py` builds the standard metrics alone, without V4r.)
+Output per tile: `<metrics root>/<tile>/<year>/{2-Composites, 3-Metrics, lowsun.json, lowsun_counts.csv}`; cloud-fallback tiles also
+`<cloud-fallback root>/<tile>/<year>/...` and `<counts dir>/<tile>_{counts_snow.npz, cloudfallback_used_count.npy, cloudfallback_periods.npz, cloudfallback_build.json}`.
+(`view/makeMetrics.py` builds the standard metrics alone, without the cloud-fallback composites.)
 
 ## Step 3: splits (per model, after the metrics of its training tiles)
 
@@ -73,12 +73,12 @@ python -m modis_vcf.view.trainingManifest build --manifest manifest_tree_2021.pa
     --root <metrics root> -y 2021 -o splits/tree --workers 6 --lowSun le0
 python -m modis_vcf.view.trainingManifest build --manifest manifest_bare_2021.parq --predictors docs/predictors_bare.txt \
     --root <metrics root> -y 2021 -o splits/bare --workers 6 --lowSun le0
-# partner: the tree manifest and predictors, from the V4r metrics, low-sun off
+# cloud-fallback tree model: the tree manifest and predictors, from the cloud-fallback metrics, low-sun off
 python -m modis_vcf.view.trainingManifest build --manifest manifest_tree_2021.parq --predictors docs/predictors_tree.txt \
-    --root <v4r root> -y 2021 -o splits/partner --workers 6 --lowSun off
-# check that the partner split lines up with the tree split (exit 1 = FAIL)
-python -m modis_vcf.view.trainingManifest accept --partner splits/partner --standard splits/tree \
-    --counts <counts dir> --root <metrics root> -y 2021 -o splits/partner_accept.json
+    --root <cloud-fallback root> -y 2021 -o splits/cloudFallbackTree --workers 6 --lowSun off
+# check that the cloud-fallback tree split lines up with the tree split (exit 1 = FAIL)
+python -m modis_vcf.view.trainingManifest accept --cloudFallbackTree splits/cloudFallbackTree --standard splits/tree \
+    --counts <counts dir> --root <metrics root> -y 2021 -o splits/cloudFallbackTree_accept.json
 ```
 
 Output: `xTrain / yTrain / xTest / yTest / keysTrain / keysTest .parq`.
@@ -92,7 +92,7 @@ python -m modis_vcf.view.fitAltModel --algo rf -o models/tree --xTrainPath split
 python -m modis_vcf.model.CompactForest models/tree/pcttree.bin models/tree/pcttree.cf
 ```
 
-The same for `bare` (`pctbare`, `predictors_bare.txt`) and `partner` (`pcttree`, `predictors_tree.txt`, from `splits/partner`).
+The same for `bare` (`pctbare`, `predictors_bare.txt`) and `cloudFallbackTree` (`pcttree`, `predictors_tree.txt`, from `splits/cloudFallbackTree`).
 Output: `<type>.bin` (scikit-learn, joblib), `<type>TopN.bin` (predictor order), `<type>.cf` (compact copy, used for the maps).
 
 ## Step 5: maps (per tile, after its metrics and the fits)
@@ -102,8 +102,8 @@ python -m modis_vcf.view.vcfPredict -o maps --metricsDir <metrics root> -t h12v0
     --tc models/tree/pcttree.cf --tcn models/tree/pcttreeTopN.bin \
     --nv models/bare/pctbare.cf --nvn models/bare/pctbareTopN.bin \
     --nJobs 8 --tcAgg median --nvAgg median --lowSun le0 \
-    --partner models/partner/pcttree.cf --partnerTopN models/partner/pcttreeTopN.bin \
-    --partnerMetricsDir <v4r root> --counts <counts dir>          # the last two lines on blend tiles (rows v06-v11) only
+    --cloudFallbackTree models/cloudFallbackTree/pcttree.cf --cloudFallbackTreeTopN models/cloudFallbackTree/pcttreeTopN.bin \
+    --cloudFallbackMetricsDir <cloud-fallback root> --counts <counts dir>          # the last two lines on blend tiles (rows v06-v11) only
 ```
 
 - **`--tcAgg median --nvAgg median` are required**: the command's defaults are `mean`, which is not the product.
@@ -115,7 +115,7 @@ python -m modis_vcf.view.vcfPredict -o maps --metricsDir <metrics root> -t h12v0
   7 layers as GeoTIFFs (`<layer>-<tile>-<year>.tif`), and `--format geotiff` writes only those. In a `runYear` spec this is
   `"mapFormat"`, default `"h5"`. `--h5Attr NAME=VALUE` (spec: `"h5Attrs": {NAME: VALUE}`) sets root attributes of the file, e.g.
   the production `PGEVersion`.
-- After the map of a blend tile, `python -m modis_vcf.model.V4r compose ...` writes diagnostic statistics (optional; nothing reads
+- After the map of a blend tile, `python -m modis_vcf.model.CloudFallback compose ...` writes diagnostic statistics (optional; nothing reads
   them).
 
 ## A. The year driver
@@ -138,11 +138,11 @@ Spec (all paths absolute):
   "bare": {"manifest": ".../manifest_bare_2021.parq", "predictors": ".../docs/predictors_bare.txt", "trainingType": "pctbare",
            "fit": {"nEstimators": 60, "maxFeatures": "sqrt", "nJobs": 12, "randomState": 0, "minSamplesLeaf": 1}}
  },
- "partner": {"tiles": ["<every map tile in rows v06-v11>"], "manifest": ".../manifest_tree_2021.parq",
+ "cloudFallbackTree": {"tiles": ["<every map tile in rows v06-v11>"], "manifest": ".../manifest_tree_2021.parq",
              "predictors": ".../docs/predictors_tree.txt", "trainingType": "pcttree",
              "fit": {"nEstimators": 60, "maxFeatures": "sqrt", "nJobs": 12, "randomState": 0, "minSamplesLeaf": 1}},
  "mapTiles": ["h00v08", "...", "h35v10"],
- "workers": {"metrics": 8, "split": 6, "mapJobs": 8, "v4r": 8},
+ "workers": {"metrics": 8, "split": 6, "mapJobs": 8, "cloudFallback": 8},
  "fitHosts": ["<hosts allowed to fit>"],
  "slots": {"<host name prefix>": 4},
  "memGB": {"metrics": 35, "split": 130, "fit": 90, "map": 10},
@@ -178,7 +178,7 @@ the zenith-only NDVI rule always applies on its Greenland tiles.
 
 | Task | Count | Time per task (median) | Peak memory | Notes |
 |---|---|---|---|---|
-| metrics | 292 | 14-15 min (8 workers, 24-core node); 38-48 min on 12-core nodes | 33-34 GB | 21 GB written per tile, 13 GB more on V4r tiles (deleted by clean-up) |
+| metrics | 292 | 14-15 min (8 workers, 24-core node); 38-48 min on 12-core nodes | 33-34 GB | 21 GB written per tile, 13 GB more on cloud-fallback tiles (deleted by clean-up) |
 | split | 3 | 2-6 min | 8 GB | 6 workers |
 | fit | 3 | 15-25 min | 47-58 GB | 12 jobs |
 | map | 292 | 6.5-7 min | 8-11 GB | 8 jobs; 2-4 per node at once |
