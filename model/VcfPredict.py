@@ -9,13 +9,11 @@ import sys
 
 import numpy as np
 import pandas as pd
-# CPU/sklearn: models are now BaggingRegressor (see
-# Sync_Plan_and_Model_Retraining_Alternate.md), not RandomForest.
-# Aliased so the RandomForestRegressor type hints below still read
-# correctly without renaming each one.
+# The type hints below say RandomForestRegressor.  The product models are
+# scikit-learn RandomForestRegressor fits (view/fitAltModel.py) or their
+# CompactForest copies; BaggingRegressor models of the original code
+# predict through the same path.  The name is an alias for type hints only.
 from sklearn.ensemble import BaggingRegressor as RandomForestRegressor
-# GPU/cuML (forest203 has no GPU; not currently usable):
-# from cuml.ensemble import RandomForestRegressor
 
 from osgeo import gdal
 from osgeo import gdal_array
@@ -325,7 +323,7 @@ class VcfPredict(object):
         # ---
         # Ensemble models: one pass over the members gives the value (combined by agg) and the SD.
         # The members' mean equals predict() exactly for Random Forest and BaggingRegressor
-        # (Reports/SD_Layer_Results.md), so 'mean' gives the same layer as the predict() path below.
+        # (checked on full tiles), so 'mean' gives the same layer as the predict() path below.
         # The tile is predicted a block of lines at a time (as the C code predicts pixel by pixel): each
         # block's float32 predictor rows are read straight from the metric files (Metrics.iterTableFromRf),
         # the same values as _getMetrics(...).to_numpy(dtype=np.float32), and every pixel's value and SD
@@ -364,19 +362,10 @@ class VcfPredict(object):
 
         if self._writeSd:
             self._logger.info(type(rf).__name__ + ' has no ensemble members: SD layer skipped.')
-        # X = X.replace(-10001, 10001)
         
         self._logger.info('Predicting ...')
         
-        # GPU/cuML: .predict() returns a cuDF object needing .to_numpy().
-        # Not currently usable (forest203 has no GPU).
-        # prediction: np.ndarray = rf.predict(X). \
-        #                          to_numpy(). \
-        #                          astype(np.int16). \
-        #                          reshape(self._productType.ROWS,
-        #                                  self._productType.COLS)
-
-        # CPU/sklearn: .predict() already returns a plain numpy ndarray.
+        # .predict() returns a numpy ndarray.
         # Predict in blocks of rows with threads, which bounds memory and uses every core.
         with joblib.parallel_backend('threading', n_jobs=self._nJobs):
             parts = [rf.predict(X.iloc[i:i + VcfPredict.PREDICT_CHUNK_ROWS])
@@ -433,8 +422,7 @@ class VcfPredict(object):
     def _roundValue(value: np.ndarray) -> np.ndarray:
         """
         Round to the nearest integer, halves up, as the C code does (floor(prediction + 0.5), MOD44B3.c).
-        Truncating instead biased both layers down by about half a point
-        (Reports/Rounding_vs_Truncation_Results.md).
+        Truncating instead biased both layers down by about half a point.
         """
         return np.floor(value + 0.5).astype(np.int16)
 
@@ -444,10 +432,9 @@ class VcfPredict(object):
     @staticmethod
     def _loadModel(modelFile: Path):
         """
-        A joblib model file, or a CompactForest directory (the same trees in compact form, identical predictions;
-        Reports/Smaller_RF_Models_Compact_And_Subsample_Plan.md).  A compact model is memory-mapped by default: map
-        tasks on one node share its pages through the file cache, and its pages are not private memory
-        (Reports/Map_Memory_Proof_Results.md).  VCF_COMPACT_MMAP=0 reads it into memory instead.
+        A joblib model file, or a CompactForest directory (the same trees in compact form, identical predictions).
+        A compact model is memory-mapped by default: map tasks on one node share its pages through the file cache,
+        and its pages are not private memory.  VCF_COMPACT_MMAP=0 reads it into memory instead.
         """
         if CompactForest.isCompact(modelFile):
             return CompactForest.load(modelFile, mmap=os.environ.get('VCF_COMPACT_MMAP', '1') != '0')
@@ -506,7 +493,7 @@ class VcfPredict(object):
         """
         Predict every member on X in blocks of rows, each member clipped to 0-100 as the C code does for its
         30 models (MOD44B3.c).  Returns (value, sd): value combines the members by agg, and sd is their
-        population SD (ddof = 0), without the C code's +0.5 offset (Reports/SD_Layer_Plan.md).  The SD is the
+        population SD (ddof = 0), without the C code's +0.5 offset.  The SD is the
         spread of the members whichever way the value is combined.
         """
         members = VcfPredict._members(model)

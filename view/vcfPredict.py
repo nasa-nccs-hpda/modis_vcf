@@ -13,7 +13,8 @@ from modis_vcf.model.VcfPredict import VcfPredict
 # -----------------------------------------------------------------------------
 # main
 #
-# modis_vcf/view/vcfPredict.py --tc /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/3-Models/pcttree.bin --nv /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/3-Models/pctbare.bin -o /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/4-VcfProcess --metricsDir /explore/nobackup/people/rlgill/SystemTesting/modis-vcf/SystemTests/1-Metrics -t h09v05 h11v02 -y 2019
+# python -m modis_vcf.view.vcfPredict --tc <models>/pcttree.bin --nv <models>/pctbare.bin -o <output dir>
+#     --metricsDir <metrics dir> -t h09v05 h11v02 -y 2019
 # -----------------------------------------------------------------------------
 def main():
     

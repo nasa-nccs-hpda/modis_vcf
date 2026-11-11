@@ -154,9 +154,8 @@ class BandDayFile(DayFile):
         # bands (Bands 1-7 are processed before solar_zenith in
         # fix_bands.c's band loop). C's real, shipped value for these
         # bands is therefore always the raw reading, regardless of solar
-        # zenith - confirmed via
-        # Reports/Single_Pixel_Trace_h12v02_row50_col2264.txt. Matching
-        # C's real behavior means Python must not substitute a value
+        # zenith (confirmed by a single-pixel trace through the C code).
+        # Matching C's real behavior means Python must not substitute a value
         # here either.
         # ---
         outBand = self._readSubdataset()

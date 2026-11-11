@@ -17,7 +17,6 @@ import numpy as np
 #   - Leaf values are kept in float64 (a table of the distinct leaf values).
 #   - Combining the trees (clip, median, SD, rounding) stays in VcfPredict, unchanged.
 # A model is a directory (by convention <name>.cf) of .npy files plus meta.json, so it can be memory-mapped.
-# Reports/Smaller_RF_Models_Compact_And_Subsample_Plan.md, part A (2026-10-14).
 # ----------------------------------------------------------------------------
 class CompactForest(object):
 

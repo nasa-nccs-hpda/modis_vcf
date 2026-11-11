@@ -15,7 +15,17 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Testing-only modules removed from the branch (2026-11-11; hash filled in by the next commit)
+### Dead code, internal references and usage examples (2026-11-11; hash filled in by the next commit)
+
+**Exact (no code change: the parsed code of every changed module is identical, comments and docstrings aside).**
+
+- Commented-out code deleted (`Metrics.py`, `VcfPredict.py`: earlier NDVI, threshold, median-loop and GPU / cuML versions).
+- Comments that cited development report files now give the reason in a line (`BandDayFile`, `CompactForest`, `Metrics`,
+  `VcfPredict`); the `BaggingRegressor` alias in `VcfPredict` is described as what it is (type hints only).
+- Usage examples in `view/makeMetrics.py` and `view/vcfPredict.py` use placeholders instead of another user's folders.
+- `.gitignore`: a short project list in place of the generic Python template.
+
+### Testing-only modules removed from the branch (`780884a`, 2026-11-11)
 
 **Exact expected (only code the production run never reaches is removed); proven by the v1.9.0 exactness check after the renames.**
 The branch now holds only the production chain, so the MODAPS team sees what they run. Everything removed is kept at the annotated
@@ -50,7 +60,7 @@ match the package's 256-line block reads.
 
 ---
 
-## v1.8.0 (tag `v1.8.0`, 2026-10-31): Collection 7 MOD44C inputs, all three models refitted
+## v1.8.0 (tag `v1.8.0` on `d51bbeb`, 2026-11-05): Collection 7 MOD44C inputs, all three models refitted
 
 **Input change + model change, all three models** (code = `115b4fc`; models fitted with the recipe below). Version named by the
 project lead 2026-10-28 (decision 84); the B refit kept for all three models 2026-10-29 (decision 85). **v1.8.0 requires the
@@ -75,7 +85,7 @@ Evidence: `Reports/C7_MOD44C_Inputs_Plan.md`, `Reports/C7_MOD44C_Inputs_Results.
 
 Changes in v1.8.0:
 
-- **Product files named with collection 071** (2026-11-05; hash filled in by the next commit). The `.h5` product file name and
+- **Product files named with collection 071** (`d51bbeb`, 2026-11-05). The `.h5` product file name and
   `GranuleID` now carry `071` (`MOD44B.A<yyyy>065.<tile>.071.<yyyydddhhmmss>.h5`) instead of `007`, so this code's files cannot be
   confused with the MODAPS Collection 7 MOD44B made with the C code. New setting `VCF_OUTPUT_COLLECTION` (three digits, default
   `071`; e.g. `007` for an operational MODAPS run). `VersionID` (7), `identifier_product_doi` (`10.5067/MODIS/MOD44B.007`) and

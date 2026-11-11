@@ -73,17 +73,10 @@ class Metrics(object):
     # day under the zenith cutoff (0 < solz < 65).  Polar-night periods
     # otherwise reach the models unfiltered and give spurious tree cover.
     # Iceland (h17v02) is excluded: the fix did not lower its MAE against C6.
-    # See Greenland_Iceland_Scoped_Fix_v2_Results.md.
     # ---
     ZENITH_ONLY_NDVI_TILES = ('h15v02', 'h16v00', 'h16v01', 'h16v02',
                               'h17v00', 'h17v01')
     
-    # ---
-    # There must be this many valid values in a pixel stack for the metric to
-    # be computed at this location.
-    # ---
-    # NO_DATA_THRESHOLD = 3     OBSOLETE?
-
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
@@ -138,14 +131,6 @@ class Metrics(object):
         self._readCache: dict = {}   # metric name -> list of Metric read from disk, so each file is read once
         self._year: int = year
 
-        # Two sixteen-day composites
-        # self._daysSought = \
-        #     [(self._year,  65), (self._year,  97), (self._year, 129),
-        #      (self._year, 161), (self._year, 193), (self._year, 225),
-        #      (self._year, 257), (self._year, 289), (self._year, 321),
-        #      (self._year, 353), (self._year + 1,  17),
-        #      (self._year + 1,  49)]
-
         # Three sixteen-day composites
         self._daysSought = \
             [(self._year,  65), (self._year, 113), (self._year, 161),
@@ -197,11 +182,6 @@ class Metrics(object):
         # a no-data must be removed.  Do I already to this when writing the
         # Parquet file?  No.
         # ---
-        # threshed = np.where( \
-        #     np.count_nonzero(np.isnan(cube), axis=0) > self._nanThreshold,
-        #     np.nan,
-        #     cube)
-
         threshed = ma.where( \
             np.count_nonzero(np.isnan(cube), axis=0) > self._nanThreshold,
             np.nan,
@@ -307,8 +287,6 @@ class Metrics(object):
             xref[key] = cubeIndex
             cubeIndex += 1
             
-        # cube = self._applyThreshold(cube)
-
         return cube, xref
         
     # ------------------------------------------------------------------------
@@ -716,36 +694,8 @@ class Metrics(object):
         # ---
         b2, b2Xref = self.getBandCube(self._productType.BAND2)
 
-        # # ---
-        # # Numpy division warnings are caused by NaNs and acceptable.
-        # # When b1 == NaN or b2 == NaN, the desired result is NaN.
-        # # ---
-        # with np.errstate(divide = 'ignore', invalid = 'ignore'):
-        #
-        #     ndviRaw = np.where(b1 + b2 != 0, ((b2 - b1) / (b2 + b1)), 0)
-        #     # ndviClamp = np.where(ndviRaw > 1, 1, ndviRaw)
-        #     # ndviCube = ndviClamp * 1000
-        #     ndviRaw = np.where(np.isnan(ndviRaw), 0, ndviRaw)
-        #     ndviCube = ndviRaw * 1000
-        #
-        # ndviCube = self._applyThreshold(ndviCube)
-        
-        # ---
-        # When both band 1 and band 2 have solz violations (and are assigned
-        # a pixel value of 10000), NDVI becomes 0.  Instead of this behavior,
-        # use the composite's mask to change solz violations to 10000 in the
-        # NDVI output.
-        # ---
-        # ndviCube = np.where(b1.mask == True, 10000, ndviCube)
-
         # Use -1.001 to get -1001 when multiplied by 1000.
         ndviRaw = np.where(b1 + b2 != 0, ((b2 - b1) / (b2 + b1)), -1.001)
-        
-        # ---
-        # LATER
-        # zc = BandDayFile.ZENITH_CLAMP
-        # np.where(b1 == zc == b2, -1.001, ndviRaw)
-        # ---
         
         ndviCube = ndviRaw * 1000
 
@@ -1090,22 +1040,6 @@ class Metrics(object):
         for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
             cube, xref = self.getBandCube(bandName)
-            # cNanToNdvi = np.where(np.isnan(cube), np.nan, ndvi)
-            # ascIndexes = np.argsort(cNanToNdvi, axis=0)
-            # sortedCube = np.take_along_axis(cube, ascIndexes, axis=0)
-            # numNdviNotNan = (~np.isnan(ndvi)).sum(axis=0)  #2
-            #
-            # # This is considerably slower than Numpy functions.
-            # value = np.empty((self._productType.ROWS, self._productType.COLS))
-            #
-            # for r in range(self._productType.ROWS):
-            #
-            #     for c in range(self._productType.COLS):
-            #
-            #         thisNnnn = numNdviNotNan[r, c]
-            #         index = int(thisNnnn / 2)
-            #         value[r, c] = sortedCube[index, r, c]
-
             sortedCube = self._sortByNDVI(cube)
             value = np.median(sortedCube, axis=0)
             
@@ -1183,22 +1117,6 @@ class Metrics(object):
         for bandName in self._productType.BANDS + [Metrics.NDVI]:
 
             cube, xref = self.getBandCube(bandName)
-            # cNanToTherm = np.where(np.isnan(cube), np.nan, thermal)
-            # ascIndexes = np.argsort(cNanToTherm, axis=0)
-            # sortedCube = np.take_along_axis(cube, ascIndexes, axis=0)
-            # numThermNotNan = (~np.isnan(thermal)).sum(axis=0)  #2
-            #
-            # # This is considerably slower than Numpy functions.
-            # value = np.empty((self._productType.ROWS, self._productType.COLS))
-            #
-            # for r in range(self._productType.ROWS):
-            #
-            #     for c in range(self._productType.COLS):
-            #
-            #         thisNtnn = numThermNotNan[r, c]
-            #         index = int(thisNtnn / 2)
-            #         value[r, c] = sortedCube[index, r, c]
-
             sortedCube = self._sortByThermal(cube)
             value = np.median(sortedCube, axis=0)
             
@@ -1415,26 +1333,6 @@ class Metrics(object):
             cube, xref = self.getBandCube(bandName)
             sortedCube = self._sortByNDVI(cube)
 
-            # # ---
-            # # Nanargmin and nanargmax do not always work because it sometimes
-            # # encounters all-nan slices and raises a value error.
-            # #
-            # # SortByNDVI() puts the band values related to NDVI NaN values
-            # # at the beginning of the sorted array.
-            # # ---
-            # ndvi, ndviXref = self.getNdvi()
-            # firstIndex = (np.isnan(ndvi).sum(axis=0))
-            #
-            # # Ensure the index is within the bounds.
-            # firstIndex = np.where(firstIndex >= sortedCube.shape[0],
-            #                       sortedCube.shape[0] - 1,
-            #                       firstIndex)
-            #
-            # minBand = \
-            #     np.take_along_axis(sortedCube,
-            #                        firstIndex[None, :, :],
-            #                        axis=0).reshape(firstIndex.shape)
-
             minBand = sortedCube[0]
             maxBand = sortedCube[-1]
             value = abs(maxBand - minBand)
@@ -1468,39 +1366,6 @@ class Metrics(object):
             # at the beginning of the sorted array.
             # ---
             cube, xref = self.getBandCube(bandName)
-
-            # # ---
-            # # Where the band is NaN, set thermal to NaN.  This prevents the
-            # # minimum and maximum thermal values from corresponding to a NaN
-            # # in the band, and limiting the amplitude value selection to
-            # # valid values as much as possible.  This is effectively finding
-            # # the extreme thermal indexes where the band is not NaN.
-            # # ---
-            # thermal, tXref = self.getBandCube(ProductType.BAND31)
-            # thermal = np.where(np.isnan(cube), np.nan, thermal)
-            #
-            # # ---
-            # # Using np.expand_dims() and np.squeeze() are necessary because
-            # # our current version of Numpy, 1.21.5, does not have the
-            # # keepdims argument for np.argmax() or np.argmin().
-            # #
-            # # Numpy propagates NaNs in min() and max().  Meanwhile nanmin()
-            # # and nanmax() throw ValueError when encountering an all-NaN
-            # # slice.  To work around all this, set NaNs to high values before
-            # # finding the minimums, ...
-            # # ---
-            # thermalNansToHigh = np.where(np.isnan(thermal), np.inf, thermal)
-            # minLocs = np.argmin(thermalNansToHigh, axis=0)
-            # minLocs = np.expand_dims(minLocs, axis=0)
-            # minValues = np.take_along_axis(cube, minLocs, axis=0).squeeze()
-            #
-            # # ---
-            # # ...then set NaNs to low values before finding maximums.
-            # # ---
-            # thermalNansToLow = np.where(np.isnan(thermal), -np.inf, thermal)
-            # maxLocs = np.argmax(thermalNansToLow, axis=0)
-            # maxLocs = np.expand_dims(maxLocs, axis=0)
-            # maxValues = np.take_along_axis(cube, maxLocs, axis=0).squeeze()
 
             sortedCube = self._sortByThermal(cube)
             minValues = sortedCube[0, :, :]
@@ -1547,17 +1412,6 @@ class Metrics(object):
         baseName = 'TempMeanGreenest3'
         thermal, tXref = self.getBandCube(self._productType.BAND31)
         sortedCube = self._sortByNDVI(thermal)
-
-        # ---
-        # There remains cases where there are fewer than three valid
-        # values.  Create a masked array, masking the low values, take the
-        # last three elements from the array, which may contain low values,
-        # and compute the mean with masked_array.mean().
-        # ---
-        # mArray = ma.masked_equal(sortedCube, self._productType.NO_DATA)
-        # slicedArray = mArray[-3:, :, :]
-        # value = slicedArray.mean(axis=0).astype(int)
-        # noDataValue = value.filled(self._productType.NO_DATA)
 
         slicedArray = sortedCube[-3:, :, :]
         value = slicedArray.mean(axis=0)
