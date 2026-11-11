@@ -28,24 +28,24 @@ from modis_vcf.model import RuleTile
 #   metrics:<tile>   the predictor metrics of every model, one tile          []
 #   split:<model>    TrainingManifest.build (S5: tiles in parallel)          [metrics of the manifest's tiles]
 #   fit:<model>      fitAltModel.py, then the compact copy (CompactForest)   [split:<model>]
-#   map:<tile>       vcfPredict, one step (blend A + BP10 inside)            [metrics:<tile>, fit:tree, fit:bare, fit:partner]
-#                    then, on blend tiles with V4r built in the run, the V4r statistics (model/V4r.py compose)
+#   map:<tile>       vcfPredict, one step (cloud-fallback tree blend + BP10 inside)            [metrics:<tile>, fit:tree, fit:bare, fit:cloudFallbackTree]
+#                    then, on blend tiles with cloud-fallback composites built in the run, the cloud-fallback statistics (model/CloudFallback.py compose)
 #                    A rule tile (model/RuleTile.py, rows v15-v17: no MOD44C) has only its map task, written from MOD44W
 #                    with no metrics and no models                                        []
 # A model can instead be given ready-made (spec "models"/<name>/"fixed"); it then has no split or fit task.
-# Blend A partner (spec "partner"; S7 / D4): V4r composites, counts and V4r metrics are built in metrics:<tile> (model/V4r.py,
-# low-sun mode off) for the partner's blend tiles and, when the partner is fitted, its training tiles; split:partner builds the
-# partner's training rows from the V4r root, fit:partner fits it.
+# Cloud-fallback tree model (spec "cloudFallbackTree"; S7 / D4): cloud-fallback composites, counts and cloud-fallback metrics are built in metrics:<tile> (model/CloudFallback.py,
+# low-sun mode off) for the cloud-fallback tree model's blend tiles and, when the cloud-fallback tree model is fitted, its training tiles; split:cloudFallbackTree builds the
+# cloud-fallback tree model's training rows from the cloud-fallback root, fit:cloudFallbackTree fits it.
 # metrics, split and fit failures are fatal (they break the year); a map is retried once, then recorded.
 # Every attempt appends one row to <runRoot>/timing/tasks.csv: task, host, start, end, seconds, CPU seconds
 # (user + system, from wait4: the commands and the descendants they reaped), peak RSS of the task's process tree
-# and bytes read / written (/proc/<pid>/io rchar / wchar: through read and write calls, incl. page-cache hits), both sampled every 5 s (short-lived processes may be undercounted), return code.  The partner's V4r metrics and the cloud counts are inputs
-# made elsewhere only in the "borrowed" partner form below.
+# and bytes read / written (/proc/<pid>/io rchar / wchar: through read and write calls, incl. page-cache hits), both sampled every 5 s (short-lived processes may be undercounted), return code.  The cloud-fallback metrics and the cloud counts are inputs
+# made elsewhere only in the "borrowed" form below.
 #
 # Spec (JSON): year, runRoot, lowSun, models {tree, bare: {manifest, predictors, trainingType, fit {...}} or
-# {fixed: {model, topN}}}, partner (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
-# {tiles, fixed: {model, topN}} (fixed model, V4r built in the run) or {tiles, model, topN, metricsDir, counts} (borrowed: no V4r
-# built), mapTiles,
+# {fixed: {model, topN}}}, cloudFallbackTree (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
+# {tiles, fixed: {model, topN}} (fixed model, cloud-fallback composites built in the run) or {tiles, model, topN, metricsDir, counts} (borrowed: no cloud-fallback
+# composites built), mapTiles,
 # metricsTiles (optional; default: the manifests' tiles and mapTiles), workers {metrics, split, mapJobs},
 # fitHosts, slots {host prefix: n}, memGB {task type: GB},
 # cleanup (optional) {mode: after_map (default) | off, keepTiles: [...]}, maxBacklog (optional),
@@ -148,11 +148,16 @@ class YearRun(object):
 
         self.logger = logger or logging.getLogger('runYear')
         self.models = self.spec['models']
-        self.partner = self.spec.get('partner')
-        self.partnerMode = None if not self.partner else 'borrowed' if 'metricsDir' in self.partner else \
-            'fixed' if 'fixed' in self.partner else 'fit'
-        self.v4rRoot = self.root / 'Python' / 'v4r'
-        self.countsDir = self.root / 'out' / 'v4r_counts'
+        # Keys renamed in v1.9.0: stop rather than run without the blend.
+        if 'partner' in self.spec or 'v4r' in self.spec.get('workers', {}):
+            raise ValueError('Spec keys renamed in v1.9.0: "partner" is now "cloudFallbackTree", workers "v4r" is now '
+                             'workers "cloudFallback".')
+
+        self.cloudFallbackTree = self.spec.get('cloudFallbackTree')
+        self.cloudFallbackTreeMode = None if not self.cloudFallbackTree else 'borrowed' if 'metricsDir' in self.cloudFallbackTree else \
+            'fixed' if 'fixed' in self.cloudFallbackTree else 'fit'
+        self.cloudFallbackRoot = self.root / 'Python' / 'cloudfallback'
+        self.countsDir = self.root / 'out' / 'cloudfallback_counts'
         cleanup = self.spec.get('cleanup', {})
         self.cleanupMode = cleanup.get('mode', 'after_map')
 
@@ -168,7 +173,7 @@ class YearRun(object):
     # manifest tiles
     # ------------------------------------------------------------------------
     def _model(self, name: str) -> dict:
-        return self.partner if name == 'partner' else self.models[name]
+        return self.cloudFallbackTree if name == 'cloudFallbackTree' else self.models[name]
 
     def _manifestTiles(self, name: str) -> list:
 
@@ -190,16 +195,16 @@ class YearRun(object):
         self.ruleTiles = {t for t in mapTiles if RuleTile.isRuleTile(t)}
         mt = self.spec.get('metricsTiles')
 
-        if self.partnerMode == 'fit':
-            fitted.append('partner')
+        if self.cloudFallbackTreeMode == 'fit':
+            fitted.append('cloudFallbackTree')
 
         self.trainingTiles = set().union(*[self._manifestTiles(m) for m in fitted])
-        partnerTiles = set(self.partner['tiles']) if self.partner else set()
-        self.v4rTiles = set() if self.partnerMode in (None, 'borrowed') else \
-            (partnerTiles & set(mapTiles)) | (set(self._manifestTiles('partner')) if self.partnerMode == 'fit' else set())
+        cloudFallbackTreeTiles = set(self.cloudFallbackTree['tiles']) if self.cloudFallbackTree else set()
+        self.cloudFallbackCompositeTiles = set() if self.cloudFallbackTreeMode in (None, 'borrowed') else \
+            (cloudFallbackTreeTiles & set(mapTiles)) | (set(self._manifestTiles('cloudFallbackTree')) if self.cloudFallbackTreeMode == 'fit' else set())
 
         if mt is None:
-            mt = sorted((set(mapTiles) - self.ruleTiles) | self.trainingTiles | self.v4rTiles)
+            mt = sorted((set(mapTiles) - self.ruleTiles) | self.trainingTiles | self.cloudFallbackCompositeTiles)
 
         tasks, deps, kind = [], {}, {}
 
@@ -218,7 +223,7 @@ class YearRun(object):
             k = 'map:' + t
             tasks.append(k)
             deps[k] = [] if t in self.ruleTiles else (['metrics:' + t] if t in mt else []) + \
-                ['fit:' + m for m in fitted if m != 'partner' or t in partnerTiles]
+                ['fit:' + m for m in fitted if m != 'cloudFallbackTree' or t in cloudFallbackTreeTiles]
             kind[k] = 'map'
 
         return tasks, deps, kind
@@ -301,7 +306,7 @@ class YearRun(object):
 
         m = self._model(name)
 
-        if name == 'partner' and self.partnerMode == 'borrowed':
+        if name == 'cloudFallbackTree' and self.cloudFallbackTreeMode == 'borrowed':
             return m['model'], m['topN']
 
         if 'fixed' in m:
@@ -326,8 +331,8 @@ class YearRun(object):
         m = self._model(arg) if kind in ('split', 'fit') else {}
 
         if kind == 'split':
-            # The partner's rows come from the V4r root, built in mode off (Q3).
-            root, sls = (self.v4rRoot, ['--lowSun', 'off']) if arg == 'partner' else (self.metricsRoot, ls)
+            # The cloud-fallback tree model's rows come from the cloud-fallback root, built in mode off (Q3).
+            root, sls = (self.cloudFallbackRoot, ['--lowSun', 'off']) if arg == 'cloudFallbackTree' else (self.metricsRoot, ls)
             return [py + ['-m', 'modis_vcf.view.trainingManifest', 'build', '--manifest', m['manifest'],
                           '--predictors', m['predictors'], '--root', str(root), '-y', str(self.year),
                           '-o', str(self.root / 'Python' / 'splits' / arg), '--workers', str(w.get('split', 6))] + sls]
@@ -359,22 +364,22 @@ class YearRun(object):
                         '--nvn', nvn, '-y', str(self.year), '--nJobs', str(w.get('mapJobs', 8)), '--tcAgg', 'median',
                         '--nvAgg', 'median'] + ls + mf
 
-            blend = self.partner and arg in self.partner['tiles']
+            blend = self.cloudFallbackTree and arg in self.cloudFallbackTree['tiles']
 
             if blend:
-                pm, pn = self.modelPaths('partner')
-                borrowed = self.partnerMode == 'borrowed'
-                cmd += ['--partner', pm, '--partnerTopN', pn,
-                        '--partnerMetricsDir', self.partner['metricsDir'] if borrowed else str(self.v4rRoot),
-                        '--counts', self.partner['counts'] if borrowed else str(self.countsDir)]
+                pm, pn = self.modelPaths('cloudFallbackTree')
+                borrowed = self.cloudFallbackTreeMode == 'borrowed'
+                cmd += ['--cloudFallbackTree', pm, '--cloudFallbackTreeTopN', pn,
+                        '--cloudFallbackMetricsDir', self.cloudFallbackTree['metricsDir'] if borrowed else str(self.cloudFallbackRoot),
+                        '--counts', self.cloudFallbackTree['counts'] if borrowed else str(self.countsDir)]
 
             if self.spec.get('lowSunCheck') == 'off':
                 cmd += ['--lowSunCheck', 'off']
 
             cmds = [cmd]
 
-            if blend and arg in self.v4rTiles:
-                cmds.append(py + ['-m', 'modis_vcf.model.V4r', 'compose', arg, str(self.year), str(self.v4rRoot),
+            if blend and arg in self.cloudFallbackCompositeTiles:
+                cmds.append(py + ['-m', 'modis_vcf.model.CloudFallback', 'compose', arg, str(self.year), str(self.cloudFallbackRoot),
                                   str(self.metricsRoot), str(self.countsDir),
                                   str(self.root / 'out' / 'maps' / ('Percent_Tree_Cover-%s-%d.tif' % (arg, self.year)))])
             return cmds
@@ -417,29 +422,29 @@ class YearRun(object):
         for n in names:
             mt.getMetricFromRf(n)
 
-        # Release this phase's composites and metric cache before the V4r build, which needs its own (a Metrics object
+        # Release this phase's composites and metric cache before the cloud-fallback build, which needs its own (a Metrics object
         # may be held in a reference cycle, so collect it now rather than at the next garbage collection).
         del mt
         gc.collect()
 
-        if tile not in self.v4rTiles:
+        if tile not in self.cloudFallbackCompositeTiles:
             return
 
-        # V4r composites and counts (S7), then the partner's predictors on the V4r root (mode off).
-        from modis_vcf.model import V4r
-        done = self.countsDir / ('%s_v4r_build.json' % tile)
-        comp = self.v4rRoot / tile / str(self.year) / '2-Composites'
+        # Cloud-fallback composites and counts (S7), then the cloud-fallback tree model's predictors on the cloud-fallback root (mode off).
+        from modis_vcf.model import CloudFallback
+        done = self.countsDir / ('%s_cloudfallback_build.json' % tile)
+        comp = self.cloudFallbackRoot / tile / str(self.year) / '2-Composites'
 
         if not done.exists():
             if comp.exists() and any(comp.iterdir()):
-                # An interrupted attempt (e.g. a guard kill): move its partial V4r composites aside, then rebuild.
-                aside = self.root / 'Python' / 'failed_attempts' / ('v4r_%s_%d' % (tile, int(time.time())))
+                # An interrupted attempt (e.g. a guard kill): move its partial cloud-fallback composites aside, then rebuild.
+                aside = self.root / 'Python' / 'failed_attempts' / ('cloudfallback_%s_%d' % (tile, int(time.time())))
                 aside.mkdir(parents=True)
                 shutil.move(str(comp), str(aside / '2-Composites'))
-            V4r.buildTile(tile, self.year, self.metricsRoot, self.v4rRoot, self.countsDir,
-                          int(self.spec.get('workers', {}).get('v4r', 8)), self.logger)
+            CloudFallback.buildTile(tile, self.year, self.metricsRoot, self.cloudFallbackRoot, self.countsDir,
+                          int(self.spec.get('workers', {}).get('cloudFallback', 8)), self.logger)
 
-        p = self.partner
+        p = self.cloudFallbackTree
 
         if 'fixed' in p:
             with open(p['fixed']['topN'], 'rb') as f:
@@ -447,7 +452,7 @@ class YearRun(object):
         else:
             pnames = Path(p['predictors']).read_text().split()
 
-        vm = Metrics(tile, self.year, ProductTypeMod44(MOD44_DIR), self.v4rRoot, self.logger, lowSun='off')
+        vm = Metrics(tile, self.year, ProductTypeMod44(MOD44_DIR), self.cloudFallbackRoot, self.logger, lowSun='off')
 
         for n in pnames:
             vm.getMetricFromRf(n)
@@ -609,13 +614,13 @@ class YearRun(object):
 
             freed, gone = 0, []
 
-            for base, name in [(b, n) for b in (self.metricsRoot, self.v4rRoot)
+            for base, name in [(b, n) for b in (self.metricsRoot, self.cloudFallbackRoot)
                                for n in ('1-Days', '2-Composites', '3-Metrics')]:
 
                 d = base / tile / str(self.year) / name
 
-                if base == self.v4rRoot:
-                    name = 'v4r/' + name
+                if base == self.cloudFallbackRoot:
+                    name = 'cloudfallback/' + name
 
                 if not d.exists() and not d.is_symlink():
                     continue

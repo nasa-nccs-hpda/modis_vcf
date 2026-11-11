@@ -158,7 +158,7 @@ class Metrics(object):
         # mode in force, and write the per-day substitution counts (LowSun).
         # ---
         # lowSun: the mode this root must have been built with, when it is not
-        # the one in force (the blend partner's V4r root is unsubstituted).
+        # the one in force (the cloud-fallback root is unsubstituted).
         LowSun.guard(self, lowSun)
             
     # ------------------------------------------------------------------------

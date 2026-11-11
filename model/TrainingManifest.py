@@ -27,7 +27,7 @@ from modis_vcf.model.Metrics import Metrics
 #                                    (fresh-sample mode)
 #   build(manifest)    -> split dir  xTrain / xTest / yTrain / yTest /
 #                                    keysTrain / keysTest, in manifest order
-#   accept(partner split, standard split) -> report   the partner split's
+#   accept(cloud-fallback tree split, standard split) -> report   the cloud-fallback tree split's
 #                                    acceptance test (PASS / FAIL)
 #
 # Keys: x = raster row, y = column (arr[x, y]).  The h16v02 ice rows of the
@@ -340,20 +340,20 @@ def build(manifestFile: Path, predictors: list, rootFor, year: int, productType,
 # ----------------------------------------------------------------------------
 # accept
 #
-# Acceptance test of the blend A partner's split (built from the V4r metrics
+# Acceptance test of the cloud-fallback tree model's split (built from the cloud-fallback metrics
 # root, low-sun mode off) against the standard split of the same manifest:
-#   - every tile: keys and labels equal (the V4r rows are the standard rows);
+#   - every tile: keys and labels equal (the cloud-fallback rows are the standard rows);
 #   - tiles with no low-sun substitution (lowsun_counts.csv of the standard
-#     root sums to 0): at rows whose pixel V4r never replaced (used count 0),
+#     root sums to 0): at rows whose pixel the cloud fallback never replaced (used count 0),
 #     every predictor equals the standard value (NaN = NaN).  On the other
-#     tiles the standard split is LE0 and the V4r split mode off, so their
+#     tiles the standard split is LE0 and the cloud-fallback tree split mode off, so their
 #     values differ by design and are not compared.
 # Reports the share of rows replaced and of their cells changed.  Writes
 # <outFile> (JSON) and returns it; RESULT is PASS or FAIL.
 # ----------------------------------------------------------------------------
-def accept(v4rSplit: Path, stdSplit: Path, countsDir: Path, stdRootFor, year: int, outFile: Path) -> dict:
+def accept(cloudFallbackSplit: Path, stdSplit: Path, countsDir: Path, stdRootFor, year: int, outFile: Path) -> dict:
 
-    v4rSplit, stdSplit, countsDir = Path(v4rSplit), Path(stdSplit), Path(countsDir)
+    cloudFallbackSplit, stdSplit, countsDir = Path(cloudFallbackSplit), Path(stdSplit), Path(countsDir)
     rep, ok, subst = {}, True, {}
 
     def substituted(t):
@@ -365,16 +365,16 @@ def accept(v4rSplit: Path, stdSplit: Path, countsDir: Path, stdRootFor, year: in
     for part in PARTS:
 
         K = pd.read_parquet(stdSplit / ('keys%s.parq' % part))
-        Kn = pd.read_parquet(v4rSplit / ('keys%s.parq' % part))
+        Kn = pd.read_parquet(cloudFallbackSplit / ('keys%s.parq' % part))
         sameKeys = K.equals(Kn)
         sameLabels = bool(pd.read_parquet(stdSplit / ('y%s.parq' % part)).equals(
-            pd.read_parquet(v4rSplit / ('y%s.parq' % part))))
+            pd.read_parquet(cloudFallbackSplit / ('y%s.parq' % part))))
         ok &= sameKeys and sameLabels
         rec = dict(rows=len(K), keys_equal=bool(sameKeys), labels_equal=sameLabels)
 
         if sameKeys:
 
-            Xn = pd.read_parquet(v4rSplit / ('x%s.parq' % part))
+            Xn = pd.read_parquet(cloudFallbackSplit / ('x%s.parq' % part))
             missing = [c for c in Xn.columns if c not in pd.read_parquet(stdSplit / ('x%s.parq' % part)).columns]
 
             if missing:
@@ -387,7 +387,7 @@ def accept(v4rSplit: Path, stdSplit: Path, countsDir: Path, stdRootFor, year: in
 
             for t in np.unique(tl):
                 m = tl == t
-                u = np.load(countsDir / ('%s_v4r_used_count.npy' % t))
+                u = np.load(countsDir / ('%s_cloudfallback_used_count.npy' % t))
                 used[m] = u[K.x.to_numpy()[m], K.y.to_numpy()[m]]
                 compared[m] = substituted(t) == 0
 

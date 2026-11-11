@@ -4,19 +4,19 @@ import numpy as np
 
 
 # ----------------------------------------------------------------------------
-# BlendA
+# CloudFallbackBlend
 #
 # The v1.4.0 map steps after the two models, moved into the package (v1.4.1):
 #
-# Blend A (tree layer, MODIS tile rows v06-v11 = 30N-30S), from v1.4.0's
+# Cloud-fallback tree blend (tree layer, MODIS tile rows v06-v11 = 30N-30S), from v1.4.0's
 # blend_year.py and gate_common.py (blend/, removed in v1.5.2; at tag v1.5.1):
-#   tree = floor((1 - w) * clear + w * partner + 0.5) on pixels valid (0-100)
+#   tree = floor((1 - w) * clear + w * fallbackTree + 0.5) on pixels valid (0-100)
 #   in both, w = cloud weight x cover weight:
 #   cloud weight = CUR_ZS / 8 where CUR_ZS >= 5 of the 8 periods, else 0
 #   (CUR_ZS: periods whose composite fell back to an all-cloudy mean, with no
-#   input of sun zenith 0-65, snow picks not counted; model/V4r.py);
+#   input of sun zenith 0-65, snow picks not counted; model/CloudFallback.py);
 #   cover weight = clip((clear - 20) / 30, 0, 1).
-#   The partner (V4R60) is a tree model fitted on the V4r composites, which
+#   The cloud-fallback tree model is a tree model fitted on the cloud-fallback composites, which
 #   are built without the low-sun substitution.
 #
 # BP10, from v1.4.0's bp10_apply.py (every tile): where the bare model's uncapped
@@ -43,13 +43,13 @@ def inScope(vTile: int) -> bool:
 # ----------------------------------------------------------------------------
 def loadCounts(countsDir: Path, tid: str) -> np.ndarray:
     """CUR_ZS from <countsDir>/<tile>_counts_snow.npz (written by
-    model/V4r.py in the metrics task for the year being mapped)."""
+    model/CloudFallback.py in the metrics task for the year being mapped)."""
 
     f = Path(countsDir) / (tid + '_counts_snow.npz')
 
     if not f.exists():
-        raise RuntimeError('Blend A needs the cloud counts ' + str(f) +
-                           ' (model/V4r.py, metrics task, for this tile-year).')
+        raise RuntimeError('Cloud-fallback tree blend needs the cloud counts ' + str(f) +
+                           ' (model/CloudFallback.py, metrics task, for this tile-year).')
 
     return np.load(f)[COUNTS_KEY]
 
@@ -68,14 +68,14 @@ def weights(counts: np.ndarray, clear: np.ndarray) -> np.ndarray:
 # ----------------------------------------------------------------------------
 # blend
 # ----------------------------------------------------------------------------
-def blend(clear: np.ndarray, partner: np.ndarray, counts: np.ndarray) -> tuple:
+def blend(clear: np.ndarray, fallbackTree: np.ndarray, counts: np.ndarray) -> tuple:
     """(blended tree, w, stats).  Pixels not valid in both keep clear."""
 
     ok = lambda v: (v >= 0) & (v <= 100)
     c = clear.astype(np.float64)
-    valid = ok(c) & ok(partner)
+    valid = ok(c) & ok(fallbackTree)
     w = weights(counts, c)
-    value = np.floor((1 - w) * c + w * partner.astype(np.float64) + 0.5)
+    value = np.floor((1 - w) * c + w * fallbackTree.astype(np.float64) + 0.5)
     tree = clear.copy()
     tree[valid] = value[valid].astype(clear.dtype)
 

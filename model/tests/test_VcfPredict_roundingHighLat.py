@@ -33,7 +33,7 @@ class VcfPredictRoundingHighLatTestCase(unittest.TestCase):
         # Stand-in models (_runPrediction is mocked); None would mean "no models" (rule tiles only).
         vp._treeCoverRf = vp._nonvegRf = object()
         vp._treeCoverTopN = vp._nonvegTopN = None
-        vp._partnerRf = None   # no blend A
+        vp._cloudFallbackTreeRf = None   # no cloud-fallback tree blend
         vp._bp10 = False       # the rules under test only
         vp._treeCoverAgg = vp._nonvegAgg = 'mean'
         vp._outDir = self._tmp.name     # <tile>-<year>-chain.json

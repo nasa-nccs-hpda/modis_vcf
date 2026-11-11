@@ -15,7 +15,28 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Input folders required, collection 7 default, no rule switches (2026-11-11; hash filled in by the next commit)
+### Renamed: cloud-fallback composites, cloud-fallback tree model, cloud-fallback tree blend (2026-11-11; hash filled in by the next commit)
+
+**Exact expected (names only); proven by the v1.9.0 exactness check.** Clearer names for what the parts are (project lead,
+2026-11-10). Clean break: the old names are not accepted.
+
+| Old | New |
+|---|---|
+| V4r composites, `model/V4r.py` | cloud-fallback composites, `model/CloudFallback.py` (`python -m modis_vcf.model.CloudFallback build / compose`) |
+| blend A partner (spec key `partner`, tasks `split:partner`, `fit:partner`, `models/partner/`) | cloud-fallback tree model (`cloudFallbackTree`, `split:cloudFallbackTree`, `fit:cloudFallbackTree`, `models/cloudFallbackTree/`) |
+| blend A, `model/BlendA.py` | cloud-fallback tree blend, `model/CloudFallbackBlend.py` (also holds BP10, as before) |
+| `vcfPredict.py --partner`, `--partnerTopN`, `--partnerMetricsDir` | `--cloudFallbackTree`, `--cloudFallbackTreeTopN`, `--cloudFallbackMetricsDir` |
+| `trainingManifest.py accept --partner` | `accept --cloudFallbackTree` |
+| run folders `Python/v4r`, `out/v4r_counts`; files `<tile>_v4r_used_count.npy`, `_v4r_periods.npz`, `_v4r_build.json` | `Python/cloudfallback`, `out/cloudfallback_counts`; `<tile>_cloudfallback_used_count.npy`, `_cloudfallback_periods.npz`, `_cloudfallback_build.json` |
+| spec `workers.v4r` | `workers.cloudFallback` |
+
+- A spec that still uses `partner` or `workers.v4r` is refused with a message naming the new keys (it would otherwise run without
+  the blend).
+- Checked: the year driver's task list, dependencies and every task command for all 319 tiles of 2019 are identical to the
+  previous commit's (old spec there, renamed spec here) apart from the names.
+- The "borrowed" form reads the counts of another run by the new file names; counts written by earlier versions use the old names.
+
+### Input folders required, collection 7 default, no rule switches (`5ac3a71`, 2026-11-11)
 
 **Exact for runs that set the input folders (product values unchanged); how a run is configured changes.**
 

@@ -21,7 +21,7 @@ from osgeo import osr
 
 import json
 
-from modis_vcf.model import BlendA
+from modis_vcf.model import CloudFallbackBlend
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompactForest import CompactForest
 from modis_vcf.model.Metrics import Metrics
@@ -86,11 +86,11 @@ class VcfPredict(object):
                  treeCoverAgg: str = 'mean',
                  nonvegAgg: str = 'mean',
                  writeSd: bool = True,
-                 partnerModelFile: Path = None,
-                 partnerTopNFile: Path = None,
-                 partnerMetricsDir: Path = None,
+                 cloudFallbackTreeFile: Path = None,
+                 cloudFallbackTreeTopNFile: Path = None,
+                 cloudFallbackMetricsDir: Path = None,
                  countsDir: Path = None,
-                 partnerAgg: str = 'median',
+                 cloudFallbackTreeAgg: str = 'median',
                  bp10: bool = True,
                  mapFormat: str = 'h5',
                  h5Overrides: dict = None):
@@ -101,7 +101,7 @@ class VcfPredict(object):
 
         self._outDir: Path = outDir
         self._setMapFormat(mapFormat, h5Overrides)
-        self._modelFiles: list = [f for f in (treeCoverModelFile, nonvegModelFile, partnerModelFile) if f is not None]
+        self._modelFiles: list = [f for f in (treeCoverModelFile, nonvegModelFile, cloudFallbackTreeFile) if f is not None]
 
         # Load the models.
         self._treeCoverRf: RandomForestRegressor = None
@@ -140,29 +140,29 @@ class VcfPredict(object):
         self._writeSd: bool = writeSd
 
         # ---
-        # Blend A partner (BlendA): a tree model on the V4r metrics, blended
+        # Cloud-fallback tree model (CloudFallbackBlend): a tree model on the cloud-fallback metrics, blended
         # into the tree layer on rows v06-v11 with the cloud counts in
-        # countsDir.  Without a partner the tree layer is the clear model's.
+        # countsDir.  Without a cloud-fallback tree model the tree layer is the clear model's.
         # ---
-        self._partnerRf = None
-        self._partnerTopN: list = None
-        self._partnerMetricsDir: Path = partnerMetricsDir
+        self._cloudFallbackTreeRf = None
+        self._cloudFallbackTreeTopN: list = None
+        self._cloudFallbackMetricsDir: Path = cloudFallbackMetricsDir
         self._countsDir: Path = countsDir
-        self._partnerAgg: str = partnerAgg
+        self._cloudFallbackTreeAgg: str = cloudFallbackTreeAgg
 
-        if partnerModelFile is not None:
+        if cloudFallbackTreeFile is not None:
 
-            if partnerTopNFile is None or partnerMetricsDir is None or countsDir is None:
-                raise ValueError('Blend A needs the partner model, its top-N file, the partner (V4r) metrics '
+            if cloudFallbackTreeTopNFile is None or cloudFallbackMetricsDir is None or countsDir is None:
+                raise ValueError('The cloud-fallback tree blend needs the cloud-fallback tree model, its top-N file, the cloud-fallback metrics '
                                  'directory and the cloud counts directory.')
 
-            self._partnerRf = VcfPredict._loadModel(partnerModelFile)
-            self._partnerRf.set_params(n_jobs=nJobs)
+            self._cloudFallbackTreeRf = VcfPredict._loadModel(cloudFallbackTreeFile)
+            self._cloudFallbackTreeRf.set_params(n_jobs=nJobs)
 
-            with open(partnerTopNFile, 'rb') as f:
-                self._partnerTopN = pickle.load(f)
+            with open(cloudFallbackTreeTopNFile, 'rb') as f:
+                self._cloudFallbackTreeTopN = pickle.load(f)
 
-        # BP10 (BlendA.bp10), the last step of the product since v1.4.0.
+        # BP10 (CloudFallbackBlend.bp10), the last step of the product since v1.4.0.
         self._bp10: bool = bp10
 
         # Instantiate the product type for the metrics.
@@ -556,28 +556,28 @@ class VcfPredict(object):
         okMask = (mask != VcfPredict.MASK_WATER) & (mask != VcfPredict.MASK_OUT_OF_PROJ)
 
         # ---
-        # Blend A (BlendA.blend) on rows v06-v11 when a partner is given.  The
-        # partner reads its own (V4r, unsubstituted) metrics.  The tree SD
+        # Cloud-fallback tree blend (CloudFallbackBlend.blend) on rows v06-v11 when a cloud-fallback tree model is given.  The
+        # cloud-fallback tree model reads its own (cloud-fallback, unsubstituted) metrics.  The tree SD
         # layer stays the clear model's.  The sum cap below then uses the
         # blended tree, as v1.4.0's blend_year.py --rawBare did.
         # ---
         chain = dict(tile=tid, year=year, blend=False, bp10=None)
 
-        if self._partnerRf is not None and BlendA.inScope(VcfPredict._vTile(tid)):
+        if self._cloudFallbackTreeRf is not None and CloudFallbackBlend.inScope(VcfPredict._vTile(tid)):
 
-            self._logger.info('Blend A: predicting the partner for ' + tid)
+            self._logger.info('Cloud-fallback tree blend: predicting the cloud-fallback tree model for ' + tid)
 
-            partner, _ = self._runPrediction(tid,
+            fallbackTree, _ = self._runPrediction(tid,
                                              year,
-                                             self._partnerRf,
-                                             self._partnerTopN,
-                                             self._partnerAgg,
-                                             metricsDir=self._partnerMetricsDir,
+                                             self._cloudFallbackTreeRf,
+                                             self._cloudFallbackTreeTopN,
+                                             self._cloudFallbackTreeAgg,
+                                             metricsDir=self._cloudFallbackMetricsDir,
                                              lowSun='off')
 
-            pctTc, _, stats = BlendA.blend(pctTc, partner, BlendA.loadCounts(self._countsDir, tid))
+            pctTc, _, stats = CloudFallbackBlend.blend(pctTc, fallbackTree, CloudFallbackBlend.loadCounts(self._countsDir, tid))
             chain.update(blend=True, **stats)
-            del partner
+            del fallbackTree
 
         pctNonveg: np.ndarray = np.where(okMask,
                                          np.minimum(pctNonvegRaw, 100 - pctTc),
@@ -600,11 +600,11 @@ class VcfPredict(object):
         pctNontreeVeg: np.ndarray = 100 - pctTc - pctNonveg
         pctNontreeVeg = self._maskPrediction(tid, year, pctNontreeVeg)
 
-        # BP10 (BlendA.bp10) on the final layers, from the uncapped non-vegetated value.
+        # BP10 (CloudFallbackBlend.bp10) on the final layers, from the uncapped non-vegetated value.
         if self._bp10:
 
             pctTc, pctNonveg, pctNontreeVeg, chain['bp10'] = \
-                BlendA.bp10(pctTc, pctNonveg, pctNontreeVeg, pctNonvegRaw)
+                CloudFallbackBlend.bp10(pctTc, pctNonveg, pctNontreeVeg, pctNonvegRaw)
 
         if chain['blend'] or self._bp10:
             (Path(self._outDir) / (tid + '-' + str(year) + '-chain.json')).write_text(json.dumps(chain))

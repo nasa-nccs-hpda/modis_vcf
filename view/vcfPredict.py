@@ -86,29 +86,29 @@ def main():
                         help='Do not write the Percent_Tree_Cover_SD and Percent_NonVegetated_SD layers.')
 
 
-    parser.add_argument('--partner',
+    parser.add_argument('--cloudFallbackTree',
                         type=Path,
                         default=None,
-                        help='Blend A partner tree model (V4R60; joblib file or compact .cf '
+                        help='Cloud-fallback tree model (joblib file or compact .cf '
                              'directory).  With it, the tree layer of tiles in rows v06-v11 '
-                             '(30N-30S) is blended with the partner (model/BlendA.py).')
+                             '(30N-30S) is blended with the cloud-fallback tree model (model/CloudFallbackBlend.py).')
 
-    parser.add_argument('--partnerTopN',
+    parser.add_argument('--cloudFallbackTreeTopN',
                         type=Path,
                         default=None,
-                        help='The partner model\'s top-N predictor file.')
+                        help='The cloud-fallback tree model\'s top-N predictor file.')
 
-    parser.add_argument('--partnerMetricsDir',
+    parser.add_argument('--cloudFallbackMetricsDir',
                         type=Path,
                         default=None,
-                        help='Metrics root of the partner\'s V4r composites (built with '
-                             '--lowSun off; model/V4r.py).')
+                        help='Metrics root of the cloud-fallback composites (built with '
+                             '--lowSun off; model/CloudFallback.py).')
 
     parser.add_argument('--counts',
                         type=Path,
                         default=None,
                         help='Directory with <tile>_counts_snow.npz (cloud counts CUR_ZS, '
-                             'model/V4r.py) for the year being mapped.')
+                             'model/CloudFallback.py) for the year being mapped.')
 
     parser.add_argument('--noBp10',
                         action='store_true',
@@ -185,9 +185,9 @@ def main():
                       treeCoverAgg=args.tcAgg,
                       nonvegAgg=args.nvAgg,
                       writeSd=not args.noSd,
-                      partnerModelFile=args.partner,
-                      partnerTopNFile=args.partnerTopN,
-                      partnerMetricsDir=args.partnerMetricsDir,
+                      cloudFallbackTreeFile=args.cloudFallbackTree,
+                      cloudFallbackTreeTopNFile=args.cloudFallbackTreeTopN,
+                      cloudFallbackMetricsDir=args.cloudFallbackMetricsDir,
                       countsDir=args.counts,
                       bp10=not args.noBp10,
                       mapFormat=args.format,

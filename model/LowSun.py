@@ -134,7 +134,7 @@ def mask(solz: np.ndarray, t: int = None, le0: bool = None) -> np.ndarray:
 def guard(metrics, mode: str = None) -> None:
     """Stamp, check and count the low-sun mode of one Metrics root.  mode
     names the mode the root must have been built with when it is not the one
-    in force (the blend partner's V4r root: off)."""
+    in force (the cloud-fallback root: off)."""
 
     root = metrics._outDir
     key = str(root)

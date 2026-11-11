@@ -22,9 +22,9 @@ from modis_vcf.model.VcfPredict import MOD44_DIR
 # trainingManifest.py build --manifest <manifest.parq> --predictors <file> --root <metrics root> [--roots <file>]
 #                     -y <year> -o <split dir> [--tiles <file>] [--keysOnly] [--lowSun le0|s70|off] [--lowSunCheck on|off] [--workers N]
 #   --roots: lines "<tile> <metrics root>" overriding --root for those tiles.
-# trainingManifest.py accept --partner <partner split dir> --standard <standard split dir> --counts <V4r counts dir>
+# trainingManifest.py accept --cloudFallbackTree <cloud-fallback tree split dir> --standard <standard split dir> --counts <cloud-fallback counts dir>
 #                     --root <standard metrics root> [--roots <file>] -y <year> -o <report.json>
-#   acceptance test of the blend A partner's split (TrainingManifest.accept); exit 1 on FAIL.
+#   acceptance test of the cloud-fallback tree model's split (TrainingManifest.accept); exit 1 on FAIL.
 # -----------------------------------------------------------------------------
 def main():
 
@@ -65,9 +65,9 @@ def main():
     bu.add_argument('--workers', type=int, default=1, help='Processes computing the tiles (same split for any number).')
 
     ac = sub.add_parser('accept')
-    ac.add_argument('--partner', type=Path, required=True, help='Partner split (built from the V4r root, low-sun off).')
+    ac.add_argument('--cloudFallbackTree', type=Path, required=True, help='Cloud-fallback tree split (built from the cloud-fallback root, low-sun off).')
     ac.add_argument('--standard', type=Path, required=True, help='Standard split of the same manifest.')
-    ac.add_argument('--counts', type=Path, required=True, help='Folder with <tile>_v4r_used_count.npy.')
+    ac.add_argument('--counts', type=Path, required=True, help='Folder with <tile>_cloudfallback_used_count.npy.')
     ac.add_argument('--root', type=Path, required=True, help='Standard metrics root (lowsun_counts.csv).')
     ac.add_argument('--roots', type=Path, default=None)
     ac.add_argument('-y', type=int, required=True)
@@ -107,9 +107,9 @@ def main():
 
     if args.cmd == 'accept':
 
-        rep = TrainingManifest.accept(args.partner, args.standard, args.counts, lambda t: roots.get(t, args.root),
+        rep = TrainingManifest.accept(args.cloudFallbackTree, args.standard, args.counts, lambda t: roots.get(t, args.root),
                                       args.y, args.o)
-        logger.info('Partner split acceptance ' + rep['RESULT'] + ': ' + str(args.o))
+        logger.info('Cloud-fallback tree split acceptance ' + rep['RESULT'] + ': ' + str(args.o))
         return 0 if rep['RESULT'] == 'PASS' else 1
 
     LowSun.configure(args.lowSun, None if args.lowSunCheck is None else args.lowSunCheck == 'on')
