@@ -15,7 +15,22 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### BP10 renamed the bare-priority rule, in its own module (2026-11-11; hash filled in by the next commit)
+### Pooled bare split builder, fixed-model checksums, split-only years (2026-11-11; hash filled in by the next commit)
+
+**Exact for existing runs (new options only).** For the pooled bare model (2000-2023), which v1.9.0 delivers as a ready-made model.
+
+- `model/PooledSplit.py` + `view/buildPooledSplit.py` (new): the pooled bare model's training table from the per-year bare splits
+  (keys and labels identical in every year, fatal otherwise; each row's predictors from one year, dealt evenly per tile x label bin,
+  seed 0), `pooled_split.json` with years, seed, predictors and SHA-256 of outputs and sources, and a `check` (sampled rows equal their
+  year's row, strata even, checksums). **Proof:** on the 24 v1.8.0 bare splits it gives the split the delivered model was fitted on
+  byte for byte (xTrain, yTrain, keysTrain, assign; 11,104,177 rows), 195 s on one node.
+- `YearRun`: a ready-made model may name a SHA-256 file (`"fixed": {..., "sha256": <file>}`); `run` checks every file of the model
+  and its top-N file before the first task and stops on a mismatch or an unlisted file.
+- `YearRun`: `"splitOnly": true` on a fitted model builds its split without a fit (no `mapTiles` allowed), the first step of
+  rebuilding the pooled split.
+- Docs: RUNNING "The pooled bare model (a ready-made model)" (spec, checksum, rebuild steps); README layout.
+
+### BP10 renamed the bare-priority rule, in its own module (`95d7b15`, 2026-11-11)
 
 **Exact (same rule; the new function gives identical layers and counts to the old one on 4 million random pixels, including
 water / outside codes).** Name decided by the project lead (2026-11-11). The rule sat in the blend module only because both came from

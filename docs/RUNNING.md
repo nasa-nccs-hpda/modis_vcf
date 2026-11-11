@@ -158,6 +158,35 @@ Spec (all paths absolute):
   8-9 TB otherwise). `keepTiles` keeps chosen tiles.
 - Per-task time, CPU, peak memory and bytes: `timing/tasks.csv`.
 
+## The pooled bare model (a ready-made model)
+
+The non-vegetated layer can use one model for every year, the pooled bare model (2000-2023), instead of a model fitted each year.
+It is delivered as a compact forest folder with its top-N file and a SHA-256 file. In the spec it replaces the bare model's fit:
+
+```json
+  "bare": {"trainingType": "pctbare",
+           "fixed": {"model": ".../pctbare_pooled_2000-2023.cf", "topN": ".../pctbare_pooled_2000-2023TopN.bin",
+                     "sha256": ".../pctbare_pooled_2000-2023.sha256"}}
+```
+
+The year then has no `split:bare` or `fit:bare` task. With `"sha256"` given, `runYear run` checks every file of the model and its
+top-N file against that file (format of `sha256sum`: `<hash>  <path>`, paths relative to the file's folder) before its first task, and
+stops on any mismatch or unlisted file.
+
+**Rebuilding it** (only for a new version of the model; the result should be the delivered model):
+
+1. For each year 2000-2023, the year's bare split, with `"splitOnly": true` in `models.bare` and no `mapTiles` (the run builds the
+   metrics of the bare training tiles and `split:bare`, nothing else): `<runRoot>/Python/splits/bare`.
+2. A file of lines `<year><TAB><that split dir>`, then
+   ```bash
+   python -m modis_vcf.view.buildPooledSplit build --years years.tsv --predictors docs/predictors_bare.txt -o pooled_split --seed 0
+   ```
+   (keys and labels must be identical in every year; each row takes its predictors from one year, dealt evenly per tile and label bin;
+   `pooled_split/pooled_split.json` records the years, seed and checksums; the command ends with `check`).
+3. Fit and compact it as any model: `fitAltModel --algo rf` on `pooled_split/xTrain.parq` / `yTrain.parq` with `--trainingType
+   pctbare --nEstimators 60 --maxFeatures sqrt --minSamplesLeaf 1 --randomState 0`, then `python -m modis_vcf.model.CompactForest
+   <out>/pctbare.bin <name>.cf`; write its SHA-256 file with `sha256sum`.
+
 ## Environment variables
 
 | Variable | Use | Default |

@@ -1,5 +1,6 @@
 import csv
 import gc
+import hashlib
 import json
 import logging
 import os
@@ -43,7 +44,8 @@ from modis_vcf.model import RuleTile
 # made elsewhere only in the "borrowed" form below.
 #
 # Spec (JSON): year, runRoot, lowSun, models {tree, bare: {manifest, predictors, trainingType, fit {...}} or
-# {fixed: {model, topN}}}, cloudFallbackTree (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
+# {fixed: {model, topN, sha256 (optional: checksum file, checked before the first task)}}; a fitted model with
+# "splitOnly": true gets its split but no fit (no mapTiles then)}, cloudFallbackTree (optional): {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
 # {tiles, fixed: {model, topN}} (fixed model, cloud-fallback composites built in the run) or {tiles, model, topN, metricsDir, counts} (borrowed: no cloud-fallback
 # composites built), mapTiles,
 # metricsTiles (optional; default: the manifests' tiles and mapTiles), workers {metrics, split, mapJobs},
@@ -213,9 +215,16 @@ class YearRun(object):
             k = 'metrics:' + t
             tasks.append(k); deps[k] = []; kind[k] = 'metrics'
 
+        splitOnly = [m for m in fitted if self._model(m).get('splitOnly')]
+
+        if splitOnly and mapTiles:
+            raise ValueError('splitOnly (%s) builds the split without a model: give no mapTiles.' % ', '.join(splitOnly))
+
         for m in fitted:
             k = 'split:' + m
             tasks.append(k); deps[k] = ['metrics:' + t for t in self._manifestTiles(m)]; kind[k] = 'split'
+            if m in splitOnly:
+                continue
             k = 'fit:' + m
             tasks.append(k); deps[k] = ['split:' + m]; kind[k] = 'fit'
 
@@ -671,8 +680,58 @@ class YearRun(object):
     # ------------------------------------------------------------------------
     # run (one node's share)
     # ------------------------------------------------------------------------
+    # ------------------------------------------------------------------------
+    # checkFixedModels
+    #
+    # A ready-made model may name a SHA-256 file ("fixed": {..., "sha256": <file>}), in the format of sha256sum: lines
+    # '<hash>  <path>', paths relative to that file's folder.  Every file of the model (a compact forest folder or a joblib file)
+    # and its top-N file must be listed, and every listed file must match.  Checked once, before the first task; fatal.
+    # ------------------------------------------------------------------------
+    def checkFixedModels(self) -> None:
+
+        fixed = [(n, m['fixed']) for n, m in list(self.models.items()) +
+                 ([('cloudFallbackTree', self.cloudFallbackTree)] if self.cloudFallbackTree else []) if 'fixed' in m]
+
+        for name, f in fixed:
+
+            if 'sha256' not in f:
+                continue
+
+            sums = Path(f['sha256'])
+            listed = {}
+
+            for line in sums.read_text().split('\n'):
+                if line.strip():
+                    h, p = line.split(None, 1)
+                    listed[(sums.parent / p.strip().lstrip('*')).resolve()] = h
+
+            model = Path(f['model'])
+            need = [p.resolve() for p in (sorted(model.iterdir()) if model.is_dir() else [model])] + [Path(f['topN']).resolve()]
+            missing = [str(p) for p in need if p not in listed]
+
+            if missing:
+                raise RuntimeError('Model %s: %s does not list %s' % (name, sums, ', '.join(missing)))
+
+            for p, h in listed.items():
+                if self._sha256(p) != h:
+                    raise RuntimeError('Model %s: %s does not match its SHA-256 in %s' % (name, p, sums))
+
+            self._log('model %s: SHA-256 of %d files match %s' % (name, len(listed), sums))
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+
+        h = hashlib.sha256()
+
+        with open(path, 'rb') as f:
+            for block in iter(lambda: f.read(1 << 24), b''):
+                h.update(block)
+
+        return h.hexdigest()
+
     def run(self) -> int:
 
+        self.checkFixedModels()
         slots = 1
 
         for prefix, n in self.spec.get('slots', {}).items():
