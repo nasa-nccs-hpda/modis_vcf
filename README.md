@@ -1,52 +1,46 @@
-# MODIS Vegetation Continuous Fields
+# MODIS Vegetation Continuous Fields (modis_vcf)
 
-## Overview
+Python code for the MODIS Vegetation Continuous Fields product (MOD44B, Terra): yearly percent tree cover, percent non-vegetated
+(bare) and percent non-tree vegetation for every MODIS land tile on the 250 m sinusoidal grid, with SD, Quality and Cloud layers,
+written as one Collection 7 HDF5 file per tile and year (`docs/RUNNING.md`). It
+replaces the operational C code (PGE61) and reads the same inputs, MOD44CH / MOD44CQ (PGE72) and MOD44W.
 
-Proportional estimates of cover are developed from global training data derived using 
-high-resolution imagery. The training data and phenological metrics are used with a 
-regression tree to derive percent cover globally. The model is then used to estimate 
-areal proportions of life form, leaf type, and leaf longevity. The current V004 
-collection of the yearly MODIS Vegetation Continuous Fields (VCF) product contains 
-only percent tree cover, with the other layers to follow in later releases.
+Version: **v1.9.0** (see `CHANGELOG.md`). It reads the **Collection 7 MOD44CH / MOD44CQ inputs** (`.h5`, the default collection).
+The tree cover models are fitted every year. Non-vegetated uses one delivered model for every year, the **pooled bare model**
+(2000-2023), which comes as a separate archive with its checksums ([docs/RUNNING.md](docs/RUNNING.md)).
 
-The data layers in the VCF product are generated on an annual basis from monthly 
-composites of 500-m Surface Reflectance data. Compositing is based on the second 
-darkest albedo to remove clouds and cloud shadow. For more information refer to
-the [MODIS VCF user manual](https://modis.gsfc.nasa.gov/data/dataprod/mod44.php).
+## Documentation
 
-## Installation
+| Document | For |
+|---|---|
+| [docs/BUILD.md](docs/BUILD.md) | the conda environment, installation, input locations, checks, tests |
+| [docs/ALGORITHM.md](docs/ALGORITHM.md) | what the product is and how each step computes it |
+| [docs/RUNNING.md](docs/RUNNING.md) | running a year: the commands, the year driver, resources |
+| [docs/TRAINING_LABELS.md](docs/TRAINING_LABELS.md) | the training labels (delivered as a separate archive) |
+| [CHANGELOG.md](CHANGELOG.md) | every change since the 2026 development started, with evidence |
 
-The following library is intended to be used to accelerate the production 
-development of MODIS VCF products. All dependencies have been housed inside
-OCI Docker containers that can be directly used with Docker, Singularity, Podman,
-among others.
+## Layout
 
-Note: PIP installations do not include CUDA libraries for GPU support. 
-Make sure NVIDIA libraries are installed locally in the system if not using conda/mamba.
+| Path | What |
+|---|---|
+| `model/` | the algorithm: inputs and QA (`BandDayFile`, `CompositeDayFile`, `LowSun`), metrics (`Metrics`, `CMirrorMetrics`), training (`TrainingManifest`, `PooledSplit`), prediction and rules (`VcfPredict`, `CloudFallbackBlend`, `CloudFallback`, `BarePriority`, `RuleTile`, `CompactForest`), the year driver (`YearRun`), input locations (`Settings`) |
+| `view/` | command-line entry points: `runYear`, `trainingManifest`, `buildPooledSplit`, `fitAltModel`, `vcfPredict`, `makeMetrics` |
+| `tests/`, `pytest.ini` | unit tests (`pytest` from the repository root; docs/BUILD.md section 5) |
+| `docs/` | documentation and the predictor lists (`predictors_tree.txt`, `predictors_bare.txt`) |
+| `environment.yml` | conda environment |
 
-## Production Container
+Only the production chain is on this branch. The testing-only modules of earlier versions (the Monte Carlo predictor search on
+CPU and GPU, the MOD09A1 input, the XGBoost / HGB fits and `environment-optional.yml`) are kept at tag `optional-modules-v1.8.0`.
+
+## Quick start
 
 ```bash
-module load singularity
-singularity build --sandbox /lscratch/$USER/container/modis-vcf docker://nasanccs/modis-vcf:latest
+conda env create -f environment.yml && conda activate modis_vcf
+export PYTHONPATH=<parent folder of modis_vcf>
+export VCF_MOD44_DIR=<MOD44C folder> VCF_MOD44W_DIR=<MOD44W folder>
+python -m pytest                                               # unit tests, about a minute (docs/BUILD.md)
+python -m modis_vcf.view.runYear run --spec spec.json          # docs/RUNNING.md
 ```
-
-## Development Container
-
-```bash
-module load singularity
-singularity build --sandbox /lscratch/$USER/container/modis-vcf-dev docker://nasanccs/modis-vcf:dev
-```
-
-## Additional Projects
-
-### Validation of MODIS VCF training with Very High Resolution Imagery
-
-Below is the documentation to reproduce the validation of MODIS VCF training
-data using Very High Resolution imagery. The following directions are meant to 
-assist in reproducing these steps for a future validation sceneario. The process
-is not fully automated given the need to select based on operator experience, the
-best scenes to work with. This documentation is work in progress.
 
 ## Contributors
 
@@ -54,10 +48,6 @@ best scenes to work with. This documentation is work in progress.
 - Roger L Gill, roger.l.gill@nasa.gov
 - Savannah L Strong, savannah.strong@nasa.gov
 - Jordan Alexis Caraballo-Vega, jordan.a.caraballo-vega@nasa.gov
-
-## Contributing
-
-Please see our guide for contributing to modis_vcf.
 
 ## References
 
