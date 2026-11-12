@@ -1,3 +1,5 @@
+"""Composites of the input days of one composite period (PGE61's compositing): CompositeDayFile."""
+
 
 import logging
 from pathlib import Path
@@ -13,11 +15,11 @@ from modis_vcf.model.ProductType import ProductType
 
 # ----------------------------------------------------------------------------
 # Class CompositeDayFile
-#
-# TODO: Validate input.
 # ----------------------------------------------------------------------------
 class CompositeDayFile(DayFile):
-
+    """One band of one tile for one composite period: the PGE61 composite of the period's input days (BandDayFile), with its
+    QA (fallback) and Cloud masks.  Missing input days enter as SUBSTITUTE_PIXEL_VALUE (see fillMissing)."""
+    # TODO: Validate input.
     SUBSTITUTE_PIXEL_VALUE = 10000
 
     # ------------------------------------------------------------------------
@@ -42,7 +44,9 @@ class CompositeDayFile(DayFile):
                        logger: logging.RootLogger,
                        dayDir: Path,
                        numDaysInComp: int = None):
-
+        """As DayFile.initFromParams, plus the folder of the input dailies (dayDir, must exist) and optionally the
+        number of input days per composite; returns self.
+        """
         super().initFromParams(productType,
                                bandName,
                                tid,
@@ -73,7 +77,9 @@ class CompositeDayFile(DayFile):
     # copy
     # ------------------------------------------------------------------------
     def copy(self, otherCDF, year: int, day: int):
-
+        """Re-initialise from another CompositeDayFile (same product type, band, tile and folders) for another year and day;
+        returns self.
+        """
         self.initFromParams(otherCDF.productType,
                             otherCDF.bandName,
                             otherCDF.tid,
@@ -88,21 +94,39 @@ class CompositeDayFile(DayFile):
 
     # ------------------------------------------------------------------------
     # getCloudMaskName
+    #
+    # '-cloudfb': the Cloud flag tied to the fallback (since 986892b).  Files
+    # named '-cloud.npy' were written before that fix with the old, inverted
+    # flag; they are not read.
     # ------------------------------------------------------------------------
     def _getCloudMaskName(self) -> Path:
 
-        n = self.outName.parent / Path(self.outName.stem + '-cloud.npy')
+        n = self.outName.parent / Path(self.outName.stem + '-cloudfb.npy')
         return n
+
+    # ------------------------------------------------------------------------
+    # getCompositeMasks
+    # ------------------------------------------------------------------------
+    def getCompositeMasks(self) -> (np.ndarray, np.ndarray):
+        """The composite's QA (fallback) and Cloud flags.  They are read from the
+        stored .npy files when both exist; otherwise the composite is built
+        once to make them (and they are saved, when the folder is writable).
+        """
+        qaName = self._getQaMaskName()
+        cloudName = self._getCloudMaskName()
+
+        if qaName.exists() and cloudName.exists():
+            return np.load(qaName), np.load(cloudName)
+
+        self._getRaster()
+        return self._outQa, self._outCloud
 
     # ------------------------------------------------------------------------
     # getCloudMask
     # ------------------------------------------------------------------------
     def getCloudMask(self) -> np.ndarray:
-
-        # Must get the raster to generate the mask.
-        self._getRaster()
-        mask = np.load(self._getCloudMaskName())
-        return mask
+        """The composite's Cloud flag (getCompositeMasks()[1])."""
+        return self.getCompositeMasks()[1]
 
     # ------------------------------------------------------------------------
     # getQaMaskName
@@ -116,11 +140,8 @@ class CompositeDayFile(DayFile):
     # getQaMask
     # ------------------------------------------------------------------------
     def getQaMask(self) -> np.ndarray:
-
-        # Must get the raster to generate the mask.
-        self._getRaster()
-        mask = np.load(self._getQaMaskName())
-        return mask
+        """The composite's QA fallback flag (getCompositeMasks()[0])."""
+        return self.getCompositeMasks()[0]
 
     # ------------------------------------------------------------------------
     # getRaster
@@ -138,12 +159,14 @@ class CompositeDayFile(DayFile):
         # their composite value later.  PGE61 uses two masks.
         # ---
         rastersWithQa = []
+        missing = []  # True where the input day is missing
 
         for year, day in daysToFind:
 
             raster: np.ndarray = None
             qa: np.ndarray = None
             cloud: np.ndarray = None
+            isMissing = False
 
             bdf = BandDayFile().initFromParams(self.productType,
                                                self.bandName,
@@ -156,24 +179,13 @@ class CompositeDayFile(DayFile):
             try:
 
                 # ---
-                # This is amateur hour.  Band 31 should have its own BDF
+                # Band 31 should have its own BDF
                 # derivation, and there should be a day file factory.
                 # ---
                 qa = False if self.bandName == ProductType.BAND31 else True
 
                 raster = bdf.raster(applyQa=qa)
-                state = bdf.getState()  # uint16
-                solz = bdf.getSolz()
-
-                # Like pge61's qa and cloud masks, 0 is bad and 1 is good.
-                qa = self._productType.createQaMask(state,
-                                                    solz,
-                                                    BandDayFile.ZENITH_CUTOFF)
-
-                cloud = self._productType.createCloudMask( \
-                    state,
-                    solz,
-                    BandDayFile.ZENITH_CUTOFF)
+                qa, cloud = self._getMasks(bdf, year, day)
 
                 if not self._geoTransform:
                     self._geoTransform = bdf._geoTransform
@@ -194,15 +206,98 @@ class CompositeDayFile(DayFile):
                 # ---
                 qa = np.zeros_like(raster)
                 cloud = np.zeros_like(raster)
+                isMissing = True
 
             rastersWithQa.append((raster, qa, cloud))
+            missing.append(isMissing)
+
+        if any(missing) and not all(missing):
+
+            rastersWithQa = CompositeDayFile.fillMissing(rastersWithQa,
+                                                         missing)
+
+            self._logger.info(str(sum(missing)) + ' missing input(s) in ' +
+                              self._myName())
 
         comp, qa, cloud = self._computeComposite(rastersWithQa)
+        self._outQa, self._outCloud = qa, cloud
 
-        np.save(self._getQaMaskName(), qa)
-        np.save(self._getCloudMaskName(), cloud)
+        # A read-only metrics folder (e.g. a map run) keeps the masks in memory.
+        try:
+            np.save(self._getQaMaskName(), qa)
+            np.save(self._getCloudMaskName(), cloud)
+
+        except OSError as e:
+            self._logger.warning('Composite masks not saved: ' + str(e))
 
         return comp
+
+    # ------------------------------------------------------------------------
+    # fillMissing
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def fillMissing(rastersWithQa: list, missing: list) -> list:
+        """A missing input day enters the composite as the substitute value,
+        10000, except where every present input of the composite is the
+        low-sun value, 16000 (polar night under LowSun le0): there it enters
+        as 16000.  Without this, tiles whose polar-night granules are missing
+        (every v01 tile in 2019) composite their winter periods lower than
+        tiles whose polar-night granules exist, which made a step in the bare
+        map at the v01 / v02 boundary.  The masks of the missing day are kept
+        (all bad).  Only called when some, but not all, inputs are missing.
+        """
+        present = [r for (r, _, _), m in zip(rastersWithQa, missing) if not m]
+        clamp = BandDayFile.ZENITH_CLAMP
+
+        fill = np.where(np.logical_and.reduce([r == clamp for r in present]),
+                        clamp,
+                        CompositeDayFile.SUBSTITUTE_PIXEL_VALUE). \
+            astype(present[0].dtype)
+
+        return [(fill, q, c) if m else (r, q, c)
+                for (r, q, c), m in zip(rastersWithQa, missing)]
+
+    # ------------------------------------------------------------------------
+    # getMasks
+    #
+    # The QA and cloud masks depend only on the day, not on the band, so
+    # State and SolarZenith are read and both masks built once per (product,
+    # tile, year, day) and reused by every band.  Only successful reads are
+    # cached (a RuntimeError still substitutes the day as before).  The cached
+    # arrays are read-only.  The BandDayFile's geotransform (that of the last
+    # subdataset read, SolarZenith) is cached and restored, as before.  The
+    # cache lives for the process, about 92 MB per day; one process per tile
+    # (as in the cloud-fallback metrics step) holds about one year of days.
+    # ------------------------------------------------------------------------
+    _maskCache = {}
+
+    def _getMasks(self, bdf: BandDayFile, year: int, day: int) -> tuple:
+
+        key = (self._productType.productType, self.tid, year, day)
+
+        if key not in CompositeDayFile._maskCache:
+
+            state = bdf.getState()  # uint16
+            solz = bdf.getSolz()
+
+            # Like pge61's qa and cloud masks, 0 is bad and 1 is good.
+            qa = self._productType.createQaMask(state,
+                                                solz,
+                                                BandDayFile.ZENITH_CUTOFF)
+
+            cloud = self._productType.createCloudMask( \
+                state,
+                solz,
+                BandDayFile.ZENITH_CUTOFF)
+
+            qa.setflags(write=False)
+            cloud.setflags(write=False)
+            CompositeDayFile._maskCache[key] = (qa, cloud, bdf._geoTransform)
+
+        qa, cloud, gt = CompositeDayFile._maskCache[key]
+        bdf._geoTransform = gt
+
+        return qa, cloud
 
     # ------------------------------------------------------------------------
     # computeComposite
@@ -279,10 +374,13 @@ class CompositeDayFile(DayFile):
         #
         # This uses the same computation as case 2, so there is no need to
         # compute anything.  The only thing that happens is that the cloud
-        # mask is created.  For the input cloud mask, 0 is bad and 1 is good.
-        # For the output cloud mask, 0 is good and 1 is bad.
+        # mask is created.  For the input cloud mask, 0 is bad and 1 is good
+        # (clear: cloud state 0 and solar zenith below the cutoff).  The output
+        # cloud flag is 1 when the composite fell back (case 2) and none of
+        # its input days was clear, as the C code's Cloud bit
+        # (MOD_PR44B1/make_metrics.c).  Missing days add nothing to cloudTotal.
         # ---
-        outCloud = np.where(cloudTotal == 3, 1, 0).astype(np.uint8)
+        outCloud = np.where(goodComp.mask & (cloudTotal == 0), 1, 0).astype(np.uint8)
 
         return comp, outQa, outCloud
 

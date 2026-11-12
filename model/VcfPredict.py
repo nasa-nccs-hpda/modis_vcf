@@ -1,41 +1,92 @@
+"""Prediction of the 7 map layers of a tile-year, the product's map step (MOD_PR44B3 in the C code).
 
+The tree and non-vegetated models (60-tree random forests or their CompactForest copies) are predicted on the tile's metrics, the
+members combined by MEDIAN and rounded half up.  Then, in order (docs/ALGORITHM.md section 7): the cloud-fallback tree blend on
+rows v06-v11 (CloudFallbackBlend), the sum cap, the v00 rule, the water / outside-projection codes from MOD44W, and the
+bare-priority rule (BarePriority).  Written: Percent_Tree_Cover, Percent_NonVegetated, Percent_NonTree_Vegetation, their two SD
+layers, Quality and Cloud, as the Collection 7 .h5 product file (Mod44bH5) and / or GeoTIFFs, plus <tile>-<year>-chain.json (blend
+and rule counts). Rule tiles (rows v15-v17) are written from MOD44W alone (RuleTile).
+"""
+
+
+from concurrent.futures import ThreadPoolExecutor
 import joblib
 import logging
+import os
 from pathlib import Path
 import pickle
 import sys
 
 import numpy as np
 import pandas as pd
-# from sklearn.ensemble import RandomForestRegressor
-from cuml.ensemble import RandomForestRegressor
+# The type hints below say RandomForestRegressor.  The product models are
+# scikit-learn RandomForestRegressor fits (view/fitAltModel.py) or their
+# CompactForest copies; BaggingRegressor models of the original code
+# predict through the same path.  The name is an alias for type hints only.
+from sklearn.ensemble import BaggingRegressor as RandomForestRegressor
 
 from osgeo import gdal
+from osgeo import gdal_array
+from osgeo import osr
 
+import json
+
+from modis_vcf.model import BarePriority
+from modis_vcf.model import CloudFallbackBlend
 from modis_vcf.model.BandDayFile import BandDayFile
+from modis_vcf.model.CompactForest import CompactForest
 from modis_vcf.model.Metrics import Metrics
+from modis_vcf.model import Mod44bH5
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
-from modis_water.model.Utils import Utils
- 
-MOD44_DIR = Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
-MOD44W_DIR = Path('/css/modis/Collection6.1/L3/MOD44W-LandWaterMask')
+from modis_vcf.model import RuleTile
+from modis_vcf.model.Settings import MOD44_DIR, MOD44W_DIR   # also imported from here by other modules
 
 
 # ----------------------------------------------------------------------------
 # VcfPredict
 # ----------------------------------------------------------------------------
 class VcfPredict(object):
-    
+    """The map step for tiles and years with one set of models (tree, non-vegetated, optional cloud-fallback tree model).  The
+    constructor loads the models; runTileForYear writes one tile-year.  forRuleTiles() makes an instance without models for rows
+    v15-v17.
+    """
     MASK_WATER = 1
     MASK_OUT_OF_PROJ = 250
     PRED_WATER = 200
     PRED_OUT_OF_PROJ = 250
+    PREDICT_CHUNK_ROWS = 1000000
+
+    # Output storage, as in the historical MOD44B: the three percent layers are uint8 (0-100, water
+    # 200, out of projection 250, fill 253) and the SD layers are uint16 holding SD x 100.
+    PCT_DATA_TYPE = gdal.GDT_Byte
+    PCT_NO_DATA = 253
+    SD_DATA_TYPE = gdal.GDT_UInt16
+
+    # The MODIS sinusoidal grid: a sphere of radius 6371007.181 m, 36 x 18 tiles of 1111950.5197665 m
+    # (4800 x 4800 pixels of 231.656 m at 250 m), upper left corner of h00v00 at (-20015109.354, 10007554.677).
+    MODIS_SINU = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs'
+    MODIS_TILE_SIZE = 1111950.5196666666
+    MODIS_GRID_ULX = -20015109.354
+    MODIS_GRID_ULY = 10007554.677
+
+    # How the ensemble members' predictions are combined into the value of a pixel.
+    # 'mean' is what predict() returns; 'mid20' drops the MID20_TRIM highest and lowest members
+    # (the middle 20 of 30) and averages the rest; 'median' is the members' median.
+    AGG_METHODS = ('mean', 'mid20', 'median')
+    MID20_TRIM = 5
+
+    # Tile rows (the v of hXXvYY) where land is set to tree cover 0, non-vegetated 100.
+    HIGH_LATITUDE_BARE_VTILES = (0,)
+
+    # Map outputs: 'h5' the Collection 7 product file (Mod44bH5, one per tile and year), 'geotiff' one GeoTIFF per
+    # layer, 'both'.  The values are the same in both.
+    MAP_FORMATS = ('h5', 'geotiff', 'both')
 
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
-    def __init__(self, 
+    def __init__(self,
                  treeCoverModelFile: Path,
                  treeCoverTopNFile: Path,
                  nonvegModelFile: Path,
@@ -44,20 +95,33 @@ class VcfPredict(object):
                  metricsDir: Path,
                  mod44Dir: Path = MOD44_DIR,
                  mod44wDir: Path = MOD44W_DIR,
-                 logger: logging.RootLogger = None):
-                 
+                 logger: logging.RootLogger = None,
+                 nJobs: int = 1,
+                 treeCoverAgg: str = 'mean',
+                 nonvegAgg: str = 'mean',
+                 writeSd: bool = True,
+                 cloudFallbackTreeFile: Path = None,
+                 cloudFallbackTreeTopNFile: Path = None,
+                 cloudFallbackMetricsDir: Path = None,
+                 countsDir: Path = None,
+                 cloudFallbackTreeAgg: str = 'median',
+                 barePriority: bool = True,
+                 mapFormat: str = 'h5',
+                 h5Overrides: dict = None):
+
         # Validate the output directory.
         if outDir is None or not outDir.exists() or not outDir.is_dir():
             raise RuntimeError('A valid output directory must be provided.')
-            
+
         self._outDir: Path = outDir
-        
+        self._setMapFormat(mapFormat, h5Overrides)
+        self._modelFiles: list = [f for f in (treeCoverModelFile, nonvegModelFile, cloudFallbackTreeFile) if f is not None]
+
         # Load the models.
         self._treeCoverRf: RandomForestRegressor = None
         self._treeCoverTopN: list = None
         
-        with open(treeCoverModelFile, 'rb') as f:
-            self._treeCoverRf: RandomForestRegressor = joblib.load(f)
+        self._treeCoverRf: RandomForestRegressor = VcfPredict._loadModel(treeCoverModelFile)
             
         with open(treeCoverTopNFile, 'rb') as f:
             self._treeCoverTopN = pickle.load(f)
@@ -65,12 +129,56 @@ class VcfPredict(object):
         self._nonvegRf: RandomForestRegressor = None
         self._nonvegTopN: list = None
         
-        with open(nonvegModelFile, 'rb') as f:
-            self._nonvegRf: RandomForestRegressor = joblib.load(f)
+        self._nonvegRf: RandomForestRegressor = VcfPredict._loadModel(nonvegModelFile)
             
         with open(nonvegModelTopNFile, 'rb') as f:
             self._nonvegTopN = pickle.load(f)
             
+        # Threads used by the models when predicting.
+        self._nJobs: int = nJobs
+        self._treeCoverRf.set_params(n_jobs=nJobs)
+        self._nonvegRf.set_params(n_jobs=nJobs)
+
+        # How each layer's members are combined, and whether to write the SD layers.
+        for model, agg in ((self._treeCoverRf, treeCoverAgg), (self._nonvegRf, nonvegAgg)):
+
+            if agg not in VcfPredict.AGG_METHODS:
+                raise ValueError('Unknown aggregation ' + str(agg) + '; use one of ' + str(VcfPredict.AGG_METHODS))
+
+            if agg != 'mean' and VcfPredict._members(model) is None:
+                raise ValueError(type(model).__name__ + ' has no ensemble members, so it only supports ' +
+                                 'aggregation "mean".')
+
+        self._treeCoverAgg: str = treeCoverAgg
+        self._nonvegAgg: str = nonvegAgg
+        self._writeSd: bool = writeSd
+
+        # ---
+        # Cloud-fallback tree model (CloudFallbackBlend): a tree model on the cloud-fallback metrics, blended
+        # into the tree layer on rows v06-v11 with the cloud counts in
+        # countsDir.  Without a cloud-fallback tree model the tree layer is the clear model's.
+        # ---
+        self._cloudFallbackTreeRf = None
+        self._cloudFallbackTreeTopN: list = None
+        self._cloudFallbackMetricsDir: Path = cloudFallbackMetricsDir
+        self._countsDir: Path = countsDir
+        self._cloudFallbackTreeAgg: str = cloudFallbackTreeAgg
+
+        if cloudFallbackTreeFile is not None:
+
+            if cloudFallbackTreeTopNFile is None or cloudFallbackMetricsDir is None or countsDir is None:
+                raise ValueError('The cloud-fallback tree blend needs the cloud-fallback tree model, its top-N file, the cloud-fallback metrics '
+                                 'directory and the cloud counts directory.')
+
+            self._cloudFallbackTreeRf = VcfPredict._loadModel(cloudFallbackTreeFile)
+            self._cloudFallbackTreeRf.set_params(n_jobs=nJobs)
+
+            with open(cloudFallbackTreeTopNFile, 'rb') as f:
+                self._cloudFallbackTreeTopN = pickle.load(f)
+
+        # The bare-priority rule (BarePriority.apply; BP10 in v1.4.0), the last step of the product since v1.4.0.
+        self._barePriority: bool = barePriority
+
         # Instantiate the product type for the metrics.
         self._productType = ProductTypeMod44(mod44Dir)
         self._metricsDir: Path = metricsDir
@@ -80,8 +188,45 @@ class VcfPredict(object):
         self._waterMasks = {}  # {tidyear: water mask}
         
         # Instantiate the logger.
+        self._logger: logging.RootLogger = VcfPredict._defaultLogger(logger)
+
+    # ------------------------------------------------------------------------
+    # forRuleTiles
+    # ------------------------------------------------------------------------
+    @classmethod
+    def forRuleTiles(cls,
+                     outDir: Path,
+                     mod44wDir: Path = MOD44W_DIR,
+                     logger: logging.RootLogger = None,
+                     writeSd: bool = True,
+                     mapFormat: str = 'h5',
+                     h5Overrides: dict = None) -> 'VcfPredict':
+        """A VcfPredict without models or metrics, for the rule tiles only (RuleTile: rows v15-v17)."""
+
+        if outDir is None or not outDir.exists() or not outDir.is_dir():
+            raise RuntimeError('A valid output directory must be provided.')
+
+        vcfp = cls.__new__(cls)
+        vcfp._outDir = outDir
+        vcfp._setMapFormat(mapFormat, h5Overrides)
+        vcfp._modelFiles = []
+        vcfp._productType = None
+        vcfp._treeCoverRf = None
+        vcfp._writeSd = writeSd
+        vcfp._productTypeM44W = ProductTypeMod44W(mod44wDir)
+        vcfp._waterMasks = {}
+        vcfp._logger = VcfPredict._defaultLogger(logger)
+
+        return vcfp
+
+    # ------------------------------------------------------------------------
+    # defaultLogger
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _defaultLogger(logger: logging.RootLogger = None) -> logging.RootLogger:
+
         if not logger:
-            
+
             logger = logging.getLogger()
             logger.setLevel(logging.INFO)
 
@@ -91,7 +236,7 @@ class VcfPredict(object):
                 ch.setLevel(logging.INFO)
                 logger.addHandler(ch)
 
-        self._logger: logging.RootLogger = logger
+        return logger
 
     # ------------------------------------------------------------------------
     # getMask
@@ -119,7 +264,8 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     # getMetrics
     # ------------------------------------------------------------------------
-    def _getMetrics(self, tid: str, year: int, rfNames: list) -> pd.DataFrame:
+    def _getMetrics(self, tid: str, year: int, rfNames: list, metricsDir: Path = None,
+                    lowSun: str = None) -> pd.DataFrame:
 
         names = rfNames
         
@@ -128,8 +274,9 @@ class VcfPredict(object):
         mInstance = Metrics(tid, 
                             year, 
                             self._productType, 
-                            self._metricsDir, 
-                            self._logger)
+                            metricsDir or self._metricsDir, 
+                            self._logger,
+                            lowSun=lowSun)
         
         metrics = pd.DataFrame()
         
@@ -138,6 +285,19 @@ class VcfPredict(object):
 
         return metrics
         
+    # ------------------------------------------------------------------------
+    # iterTable
+    #
+    # The predictors of rfNames as float32 table blocks (pixels x distinct
+    # names) of about PREDICT_CHUNK_ROWS rows (Metrics.iterTableFromRf).
+    # ------------------------------------------------------------------------
+    def _iterTable(self, tid: str, year: int, rfNames: list, metricsDir: Path = None, lowSun: str = None):
+
+        self._logger.info('Retrieving metrics (blocks): ' + str(rfNames))
+        mInstance = Metrics(tid, year, self._productType, metricsDir or self._metricsDir, self._logger, lowSun=lowSun)
+        lines = max(1, VcfPredict.PREDICT_CHUNK_ROWS // self._productType.COLS)
+        return mInstance.iterTableFromRf(rfNames, dtype=np.float32, linesPerRead=lines)
+
     # ------------------------------------------------------------------------
     # maskPrediction
     # ------------------------------------------------------------------------
@@ -161,70 +321,377 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     # runPrediction
     # ------------------------------------------------------------------------
-    def _runPrediction(self, 
-                       tid: str, 
-                       year: int, 
+    def _runPrediction(self,
+                       tid: str,
+                       year: int,
                        rf: RandomForestRegressor,
-                       topN: list) -> np.ndarray:
-        
-        X: pd.DataFrame = self._getMetrics(tid, year, topN)
-        # X = X.replace(-10001, 10001)
+                       topN: list,
+                       agg: str = 'mean',
+                       metricsDir: Path = None,
+                       lowSun: str = None) -> tuple:
+        """
+        Returns (prediction, sd).  prediction is the masked int16 layer; sd is the members' population SD stored
+        as round(100 * SD) (0 on water and out-of-projection), or None when the SD is switched off or the model
+        has no ensemble members.
+        """
+        # ---
+        # Ensemble models: one pass over the members gives the value (combined by agg) and the SD.
+        # The members' mean equals predict() exactly for Random Forest and BaggingRegressor
+        # (checked on full tiles), so 'mean' gives the same layer as the predict() path below.
+        # The tile is predicted a block of lines at a time (as the C code predicts pixel by pixel): each
+        # block's float32 predictor rows are read straight from the metric files (Metrics.iterTableFromRf),
+        # the same values as _getMetrics(...).to_numpy(dtype=np.float32), and every pixel's value and SD
+        # depend only on its own row, so the result does not depend on the block size.
+        # ---
+        if VcfPredict._members(rf) is not None and (self._writeSd or agg != 'mean'):
+
+            self._logger.info('Predicting with the ensemble members (' + agg + '), a block of lines at a time ...')
+
+            n = self._productType.ROWS * self._productType.COLS
+            value = np.empty(n, dtype=np.float64)
+            sd = np.empty(n, dtype=np.float64)
+
+            for r0, r1, X in self._iterTable(tid, year, topN, metricsDir, lowSun):
+                value[r0:r1], sd[r0:r1] = VcfPredict._memberPredict(rf, X, agg, self._nJobs)
+                del X
+
+            prediction = np.clip(VcfPredict._roundValue(value).reshape(self._productType.ROWS,
+                                                                       self._productType.COLS), 0, 100)
+
+            maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
+
+            sdRaster = None
+
+            if self._writeSd:
+
+                sdRaster = np.round(sd * 100).astype(np.int16).reshape(self._productType.ROWS,
+                                                                       self._productType.COLS)
+                mask = self._getMask(tid, year)
+                outside = (mask == VcfPredict.MASK_WATER) | (mask == VcfPredict.MASK_OUT_OF_PROJ)
+                sdRaster = np.where(outside, 0, sdRaster).astype(np.int16)
+
+            return maskedPred, sdRaster
+
+        X: pd.DataFrame = self._getMetrics(tid, year, topN, metricsDir, lowSun)
+
+        if self._writeSd:
+            self._logger.info(type(rf).__name__ + ' has no ensemble members: SD layer skipped.')
         
         self._logger.info('Predicting ...')
         
-        prediction: np.ndarray = rf.predict(X). \
-                                 to_numpy(). \
-                                 astype(np.int16). \
+        # .predict() returns a numpy ndarray.
+        # Predict in blocks of rows with threads, which bounds memory and uses every core.
+        with joblib.parallel_backend('threading', n_jobs=self._nJobs):
+            parts = [rf.predict(X.iloc[i:i + VcfPredict.PREDICT_CHUNK_ROWS])
+                     for i in range(0, len(X), VcfPredict.PREDICT_CHUNK_ROWS)]
+
+        prediction: np.ndarray = VcfPredict._roundValue(np.concatenate(parts)). \
                                  reshape(self._productType.ROWS,
                                          self._productType.COLS)
+        del X, parts
 
-        # prediction: np.ndarray = rf.predict(X). \
-        #                          astype(np.int16). \
-        #                          reshape(self._productType.ROWS,
-        #                                  self._productType.COLS)
+        # Clamp to the valid percentage range before applying the water/out-of-projection
+        # codes below (200 and 250 are legitimate values outside 0-100 and must not be
+        # clamped).  Random Forest/Bagging predictions are already bounded to the training
+        # range by construction (an average of decision-tree leaf means), so this never
+        # changes their output; it guards models that are not bounded this way.
+        prediction = np.clip(prediction, 0, 100)
 
         # Apply the water mask.
         maskedPred: np.ndarray = self._maskPrediction(tid, year, prediction)
-        
-        return maskedPred
-        
+
+        return maskedPred, None
+
+    # ------------------------------------------------------------------------
+    # vTile
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _hTile(tid: str) -> int:
+        """The tile column of a tile ID such as 'h16v00'."""
+        return int(tid[tid.index('h') + 1:tid.index('v')])
+
+    # ------------------------------------------------------------------------
+    # geoTransform
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _geoTransform(tid: str, shape: tuple) -> tuple:
+        """The GDAL geotransform of a tile of the MODIS sinusoidal grid with shape (rows, columns)."""
+        size = VcfPredict.MODIS_TILE_SIZE
+        ulx = VcfPredict.MODIS_GRID_ULX + VcfPredict._hTile(tid) * size
+        uly = VcfPredict.MODIS_GRID_ULY - VcfPredict._vTile(tid) * size
+        return (ulx, size / shape[1], 0.0, uly, 0.0, -size / shape[0])
+
+    # ------------------------------------------------------------------------
+    # vTile
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _vTile(tid: str) -> int:
+        """The tile row of a tile ID such as 'h16v00'."""
+        return int(tid[tid.index('v') + 1:])
+
+    # ------------------------------------------------------------------------
+    # roundValue
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _roundValue(value: np.ndarray) -> np.ndarray:
+        """
+        Round to the nearest integer, halves up, as the C code does (floor(prediction + 0.5), MOD44B3.c).
+        Truncating instead biased both layers down by about half a point.
+        """
+        return np.floor(value + 0.5).astype(np.int16)
+
+    # ------------------------------------------------------------------------
+    # loadModel
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _loadModel(modelFile: Path):
+        """
+        A joblib model file, or a CompactForest directory (the same trees in compact form, identical predictions).
+        A compact model is memory-mapped by default: map tasks on one node share its pages through the file cache,
+        and its pages are not private memory.  VCF_COMPACT_MMAP=0 reads it into memory instead.
+        """
+        if CompactForest.isCompact(modelFile):
+            return CompactForest.load(modelFile, mmap=os.environ.get('VCF_COMPACT_MMAP', '1') != '0')
+
+        with open(modelFile, 'rb') as f:
+            return joblib.load(f)
+
+    # ------------------------------------------------------------------------
+    # members
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _members(model) -> list:
+        """
+        The ensemble members as (estimator, feature indices or None), or None if the model has none.
+        Random Forest: estimators_.  BaggingRegressor: estimators_ with estimators_features_, because each
+        member sees only its own subset of the predictors.
+        """
+        ests = getattr(model, 'estimators_', None)
+
+        if not isinstance(ests, list) or not ests:
+            return None
+
+        feats = getattr(model, 'estimators_features_', None)
+
+        return list(zip(ests, feats if feats is not None else [None] * len(ests)))
+
+    # ------------------------------------------------------------------------
+    # combine
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _combine(P: np.ndarray, agg: str) -> np.ndarray:
+        """Combine the members' predictions P (members x pixels) per pixel."""
+        if agg == 'mean':
+            return P.mean(axis=0)
+
+        if agg == 'median':
+            return np.median(P, axis=0)
+
+        if agg == 'mid20':
+
+            k = VcfPredict.MID20_TRIM
+
+            if P.shape[0] <= 2 * k:
+                raise ValueError('mid20 needs more than ' + str(2 * k) + ' members; the model has ' +
+                                 str(P.shape[0]))
+
+            return np.sort(P, axis=0)[k:P.shape[0] - k].mean(axis=0)
+
+        raise ValueError('Unknown aggregation ' + str(agg))
+
+    # ------------------------------------------------------------------------
+    # memberPredict
+    # ------------------------------------------------------------------------
+    @staticmethod
+    def _memberPredict(model, X: np.ndarray, agg: str, nJobs: int = 1) -> tuple:
+        """
+        Predict every member on X in blocks of rows, each member clipped to 0-100 as the C code does for its
+        30 models (MOD44B3.c).  Returns (value, sd): value combines the members by agg, and sd is their
+        population SD (ddof = 0), without the C code's +0.5 offset.  The SD is the
+        spread of the members whichever way the value is combined.
+        """
+        members = VcfPredict._members(model)
+        value = np.empty(len(X), dtype=np.float64)
+        sd = np.empty(len(X), dtype=np.float64)
+        n = VcfPredict.PREDICT_CHUNK_ROWS
+
+        def predictMember(member, xc):
+            est, feats = member
+            return np.clip(est.predict(xc if feats is None else xc[:, feats]), 0, 100)
+
+        with ThreadPoolExecutor(nJobs) as ex:
+
+            for i in range(0, len(X), n):
+
+                xc = X[i:i + n]
+                P = np.vstack(list(ex.map(lambda m: predictMember(m, xc), members)))
+                value[i:i + n] = VcfPredict._combine(P, agg)
+                sd[i:i + n] = P.std(axis=0)
+                del P
+
+        return value, sd
+
     # ------------------------------------------------------------------------
     # runTileForYear
     # ------------------------------------------------------------------------
     def runTileForYear(self, tid: str, year: int) -> list[np.ndarray]:
-
+        """Predict, apply the rules to and write the 7 layers of one tile-year (rule tiles from MOD44W alone).  Returns
+        (tree, non-vegetated, non-tree vegetation) as written.
+        """
         self._logger.info('Running ' + tid + ' for ' + str(year))
-        
-        pctTc: np.ndarray = self._runPrediction(tid, 
-                                                year, 
-                                                self._treeCoverRf,
-                                                self._treeCoverTopN)
-                                                
-        self._write(tid, year, 'Percent_Tree_Cover', pctTc)     
 
-        pctNonveg: np.ndarray = self._runPrediction(tid, 
-                                                    year, 
-                                                    self._nonvegRf,
-                                                    self._nonvegTopN)
-                                                    
-        self._write(tid, year, 'Percent_NonVegetated', pctNonveg)     
+        if RuleTile.isRuleTile(tid):
+            return self._runRuleTile(tid, year)
+
+        if self._treeCoverRf is None:
+            raise ValueError(tid + ' is not a rule tile, and this VcfPredict has no models (forRuleTiles).')
+
+        pctTc, sdTc = self._runPrediction(tid,
+                                          year,
+                                          self._treeCoverRf,
+                                          self._treeCoverTopN,
+                                          self._treeCoverAgg)
+
+        pctNonvegRaw, sdNonveg = self._runPrediction(tid,
+                                                     year,
+                                                     self._nonvegRf,
+                                                     self._nonvegTopN,
+                                                     self._nonvegAgg)
 
         # ---
-        # If 100 - pctTc - pctNonVeg < 0, that the percentages add up to 
-        # over 100.  Clamp pctNonTreeVeg to 0 in that case.
+        # Tree cover, non-vegetated and non-tree vegetation must sum to exactly 100 on an
+        # ordinary pixel.  If tree cover and non-vegetated overshoot 100 together, reduce
+        # non-vegetated - never tree cover - down to what is left after tree cover, so
+        # non-tree vegetation lands on exactly 0 by arithmetic rather than a separate floor.
+        # Water (mask == MASK_WATER) and out-of-projection (mask == MASK_OUT_OF_PROJ) pixels
+        # are excluded from this reduction: they already carry 200/200 or 250/250 from
+        # _runPrediction's _maskPrediction call, and applying the reduction there would
+        # corrupt them (e.g. water: 100 - 200 = -100).
         # ---
-        zeros = np.zeros_like(pctTc)
-        pctNontreeVeg: np.ndarray = np.maximum(0, 100 - pctTc - pctNonveg)
+        mask: np.ndarray = self._getMask(tid, year)
+        okMask = (mask != VcfPredict.MASK_WATER) & (mask != VcfPredict.MASK_OUT_OF_PROJ)
+
+        # ---
+        # Cloud-fallback tree blend (CloudFallbackBlend.blend) on rows v06-v11 when a cloud-fallback tree model is given.  The
+        # cloud-fallback tree model reads its own (cloud-fallback, unsubstituted) metrics.  The tree SD
+        # layer stays the clear model's.  The sum cap below then uses the
+        # blended tree, as v1.4.0's blend_year.py --rawBare did.
+        # ---
+        chain = dict(tile=tid, year=year, blend=False, barePriority=None)
+
+        if self._cloudFallbackTreeRf is not None and CloudFallbackBlend.inScope(VcfPredict._vTile(tid)):
+
+            self._logger.info('Cloud-fallback tree blend: predicting the cloud-fallback tree model for ' + tid)
+
+            fallbackTree, _ = self._runPrediction(tid,
+                                             year,
+                                             self._cloudFallbackTreeRf,
+                                             self._cloudFallbackTreeTopN,
+                                             self._cloudFallbackTreeAgg,
+                                             metricsDir=self._cloudFallbackMetricsDir,
+                                             lowSun='off')
+
+            pctTc, _, stats = CloudFallbackBlend.blend(pctTc, fallbackTree, CloudFallbackBlend.loadCounts(self._countsDir, tid))
+            chain.update(blend=True, **stats)
+            del fallbackTree
+
+        pctNonveg: np.ndarray = np.where(okMask,
+                                         np.minimum(pctNonvegRaw, 100 - pctTc),
+                                         pctNonvegRaw)
+
+        # ---
+        # High-latitude rule: on v00 tiles (north of about 80 N) every land pixel is tree
+        # cover 0 and non-vegetated 100.  There are no trees there and very likely no
+        # vegetation, and two of the eight composite periods have no input at all, which
+        # leaves the models with spurious tree cover.  This is the C code's Greenland rule
+        # (MOD44B3.c), which covers all land on these tiles.  The SD layers keep the
+        # members' spread, as in the C code.
+        # ---
+        if VcfPredict._vTile(tid) in VcfPredict.HIGH_LATITUDE_BARE_VTILES:
+
+            self._logger.info('High-latitude rule: ' + tid + ' land set to tree 0, non-vegetated 100.')
+            pctTc = np.where(okMask, 0, pctTc).astype(pctTc.dtype)
+            pctNonveg = np.where(okMask, 100, pctNonveg).astype(pctNonveg.dtype)
+
+        pctNontreeVeg: np.ndarray = 100 - pctTc - pctNonveg
+        pctNontreeVeg = self._maskPrediction(tid, year, pctNontreeVeg)
+
+        # The bare-priority rule (BarePriority.apply) on the final layers, from the uncapped non-vegetated value.
+        if self._barePriority:
+
+            pctTc, pctNonveg, pctNontreeVeg, chain['barePriority'] = \
+                BarePriority.apply(pctTc, pctNonveg, pctNontreeVeg, pctNonvegRaw)
+
+        if chain['blend'] or self._barePriority:
+            (Path(self._outDir) / (tid + '-' + str(year) + '-chain.json')).write_text(json.dumps(chain))
+
+        self._write(tid, year, 'Percent_Tree_Cover', pctTc)
+        self._write(tid, year, 'Percent_NonVegetated', pctNonveg)
         self._write(tid, year, 'Percent_NonTree_Vegetation', pctNontreeVeg)
-        
+
+        # The SD layers describe the members' disagreement before the sum cap above, as in the C code.
+        if sdTc is not None:
+            self._write(tid, year, 'Percent_Tree_Cover_SD', sdTc, VcfPredict.SD_DATA_TYPE)
+
+        if sdNonveg is not None:
+            self._write(tid, year, 'Percent_NonVegetated_SD', sdNonveg, VcfPredict.SD_DATA_TYPE)
+
+        # ---
+        # Quality and Cloud, as in the historical MOD44B: one bit per composite
+        # period (period 1 in bit 0).  Quality: the period fell back to the mean
+        # of all its days; Cloud: it fell back and no day was clear.  0 on water
+        # and out-of-projection pixels.  No no-data value: every byte is a valid
+        # set of flags.
+        # ---
+        quality, cloud = Metrics(tid,
+                                 year,
+                                 self._productType,
+                                 self._metricsDir,
+                                 self._logger).getPeriodFlags()
+
+        self._write(tid, year, 'Quality', np.where(okMask, quality, 0), noData=False)
+        self._write(tid, year, 'Cloud', np.where(okMask, cloud, 0), noData=False)
+        self._writeH5(tid, year)
+
         return pctTc, pctNonveg, pctNontreeVeg
-        
+
+    # ------------------------------------------------------------------------
+    # runRuleTile
+    # ------------------------------------------------------------------------
+    def _runRuleTile(self, tid: str, year: int) -> list[np.ndarray]:
+        """The 7 layers of a rule tile (RuleTile) from MOD44W alone: no metrics, no models."""
+
+        self._logger.info('Rule tile: ' + tid + ' (no MOD44C): land set to tree 0, non-vegetated 100 from MOD44W.')
+
+        mask: np.ndarray = self._getMask(tid, year)
+        okMask = (mask != VcfPredict.MASK_WATER) & (mask != VcfPredict.MASK_OUT_OF_PROJ)
+        zero = np.zeros(mask.shape, dtype=np.int16)
+
+        pctTc = self._maskPrediction(tid, year, zero)
+        pctNonveg = self._maskPrediction(tid, year, zero + 100)
+        pctNontreeVeg = self._maskPrediction(tid, year, zero)
+
+        self._write(tid, year, 'Percent_Tree_Cover', pctTc)
+        self._write(tid, year, 'Percent_NonVegetated', pctNonveg)
+        self._write(tid, year, 'Percent_NonTree_Vegetation', pctNontreeVeg)
+
+        if self._writeSd:
+            self._write(tid, year, 'Percent_Tree_Cover_SD', zero, VcfPredict.SD_DATA_TYPE)
+            self._write(tid, year, 'Percent_NonVegetated_SD', zero, VcfPredict.SD_DATA_TYPE)
+
+        flags = np.where(okMask, RuleTile.ALL_PERIODS, 0)
+        self._write(tid, year, 'Quality', flags, noData=False)
+        self._write(tid, year, 'Cloud', flags, noData=False)
+        self._writeH5(tid, year)
+
+        return pctTc, pctNonveg, pctNontreeVeg
+
     # ------------------------------------------------------------------------
     # run
     # ------------------------------------------------------------------------
     def run(self, tids: list[str], years: list[int]) -> \
         list[list[np.ndarray]]:
-        
+        """runTileForYear for every tile and year; returns their results in that order."""
         results = [self.runTileForYear(t, y) for t in tids for y in years]
         return results
 
@@ -235,12 +702,118 @@ class VcfPredict(object):
                tid: str, 
                year: int, 
                outPrefix: str, 
-               raster: np.ndarray) -> Path:
+               raster: np.ndarray,
+               dataType: int = PCT_DATA_TYPE,
+               noData: bool = True) -> Path:
         
-        fName: Path = outPrefix + '-' + tid + '-' + str(year)
+        fName = outPrefix + '-' + tid + '-' + str(year)
+        outName = Path(self._outDir) / (fName + '.tif')
         
-        modSinu = '+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 ' + \
-                  '+datum=WGS84 +units=m +no_defs'
-        
-        Utils.writeRaster(self._outDir, raster, fName, projection=modSinu)
+        # Refuse values the storage type cannot hold rather than letting them wrap.
+        npType = gdal_array.GDALTypeCodeToNumericTypeCode(dataType)
+        info = np.iinfo(npType)
+
+        if raster.min() < info.min or raster.max() > info.max:
+
+            raise ValueError(fName + ': values ' + str(raster.min()) + '-' + str(raster.max()) +
+                             ' do not fit ' + gdal.GetDataTypeName(dataType))
+
+        # Kept for the C7 file, written once the tile's 7 layers are in (_writeH5).
+        if self._mapFormat in ('h5', 'both'):
+            self._h5Layers[outPrefix] = raster.astype(npType)
+
+        if self._mapFormat == 'h5':
+            return None
+
+        ds = gdal.GetDriverByName('GTiff').Create(str(outName),
+                                                  raster.shape[1],
+                                                  raster.shape[0],
+                                                  1,
+                                                  dataType,
+                                                  options=['COMPRESS=LZW'])
+        srs = osr.SpatialReference()
+        srs.ImportFromProj4(VcfPredict.MODIS_SINU)
+        ds.SetProjection(srs.ExportToWkt())
+        ds.SetGeoTransform(VcfPredict._geoTransform(tid, raster.shape))
+        band = ds.GetRasterBand(1)
+
+        if dataType == VcfPredict.PCT_DATA_TYPE and noData:
+            band.SetNoDataValue(VcfPredict.PCT_NO_DATA)
+
+        band.WriteArray(raster.astype(npType))
+        band = None
+        ds = None
+
+        return outName
+
+    # ------------------------------------------------------------------------
+    # setMapFormat
+    # ------------------------------------------------------------------------
+    def _setMapFormat(self, mapFormat: str, h5Overrides: dict = None) -> None:
+
+        if mapFormat not in VcfPredict.MAP_FORMATS:
+            raise ValueError('Unknown map format ' + str(mapFormat) + '; use one of ' + str(VcfPredict.MAP_FORMATS))
+
+        self._mapFormat: str = mapFormat
+        self._h5Overrides: dict = dict(h5Overrides or {})
+        self._h5Layers: dict = {}
+
+    # ------------------------------------------------------------------------
+    # h5Inputs
+    # ------------------------------------------------------------------------
+    def _h5Inputs(self, tid: str, year: int) -> tuple:
+        """
+        The InputDataProducts of the C7 file (the year's MOD44CQ, then MOD44CH composites, the model files and the
+        MOD44W mask, as the C code lists them) and the first MOD44CQ's G-ring and bounds (None on rule tiles).
+        """
+
+        cq, ch, geo = [], [], None
+
+        if self._productType is not None:
+
+            pt = self._productType
+            days = [(year, d) for d in pt.yearOneDays] + [(year + 1, d) for d in pt.yearTwoDays]
+
+            for prefix, out in ((ProductTypeMod44.CQ, cq), (ProductTypeMod44.CH, ch)):
+
+                for y, d in days:
+
+                    pattern = pt.productType + prefix + '.A%d%03d.%s.*' % (y, d, tid) + pt.fileSuffix
+                    found = sorted(set(pt.inputDir.joinpath(str(year)).glob(pattern)) |
+                                   set(pt.inputDir.joinpath(str(y)).glob(pattern)))
+                    out.extend(found[:1])
+
+            if cq:
+                geo = Mod44bH5.inputGeo(cq[0])
+
+        w = []
+
+        try:
+            w = [self._productTypeM44W.findFile(tid, year, 1, ProductTypeMod44W.WATER_MASK)]
+        except RuntimeError:
+            self._logger.warning('C7 file: no MOD44W file name found for ' + tid + ' ' + str(year))
+
+        return cq + ch + list(self._modelFiles) + w, geo
+
+    # ------------------------------------------------------------------------
+    # writeH5
+    # ------------------------------------------------------------------------
+    def _writeH5(self, tid: str, year: int) -> Path:
+        """The C7 product file (Mod44bH5) from the layers _write kept for this tile and year."""
+
+        if self._mapFormat not in ('h5', 'both'):
+            return None
+
+        layers, self._h5Layers = self._h5Layers, {}
+        missing = [f for f in Mod44bH5.FIELD_NAMES if f not in layers]
+
+        if missing:
+            self._logger.warning('C7 file ' + tid + ' ' + str(year) + ': ' + ', '.join(missing) +
+                                 ' not computed, written as fill.')
+
+        inputs, geo = self._h5Inputs(tid, year)
+        path = Mod44bH5.write(self._outDir, tid, year, layers, inputs, geo, self._h5Overrides)
+        self._logger.info('Wrote ' + str(path))
+
+        return path
         

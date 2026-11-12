@@ -1,0 +1,441 @@
+from pathlib import Path
+import shutil
+import tempfile
+import unittest
+
+import pytest
+
+import numpy as np
+
+from modis_vcf.model import Settings
+from modis_vcf.model.BandDayFile import BandDayFile
+from modis_vcf.model.CompositeDayFile import CompositeDayFile
+from modis_vcf.model.ProductType import ProductType
+from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
+
+
+# -----------------------------------------------------------------------------
+# class CompositeDayFileTestCase
+#
+# pytest tests/test_CompositeDayFile.py
+# pytest tests/test_CompositeDayFile.py::CompositeDayFileTestCase::testInit
+# -----------------------------------------------------------------------------
+@pytest.mark.integration
+@pytest.mark.skipif(Settings.MOD44_COLLECTION != '61', reason='reads Collection 6.1 .hdf inputs: set VCF_MOD44_COLLECTION=61')
+class CompositeDayFileTestCase(unittest.TestCase):
+
+    # -------------------------------------------------------------------------
+    # setUp
+    # -------------------------------------------------------------------------
+    def setUp(self):
+
+        self.h09v05 = 'h09v05'
+        self.year2019 = 2019
+        day = 65
+        bandName = ProductType.BAND1
+        
+        # MOD44
+        self._inDir44 = \
+            Path('/css/modis/Collection6.1/L3/MOD44B-VCF/dev')
+                
+        self.productTypeMod44 = ProductTypeMod44(self._inDir44)
+        
+        self._mod44OutDir = Path(tempfile.mkdtemp(prefix='vcf_test_'))  # removed after the test
+        self.addCleanup(shutil.rmtree, str(self._mod44OutDir), True)
+        self._mod44OutDir.mkdir(exist_ok=True)
+
+        self._dayDirMod44 = self._mod44OutDir / '1-Days'
+        self._compDirMod44 = self._mod44OutDir / '2-Composites'
+        self._dayDirMod44.mkdir(exist_ok=True)
+        self._compDirMod44.mkdir(exist_ok=True)
+
+        self.cdfMod44 = \
+            CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                              bandName,
+                                              self.h09v05, 
+                                              self.year2019, 
+                                              day, 
+                                              self._compDirMod44,
+                                              logger=None,
+                                              dayDir=self._dayDirMod44)
+                                              
+    # -------------------------------------------------------------------------
+    # testInit
+    # -------------------------------------------------------------------------
+    def testInit(self):
+        
+        CompositeDayFile()
+        
+    # -------------------------------------------------------------------------
+    # testInitFromParams
+    # -------------------------------------------------------------------------
+    def testInitFromParams(self):
+        
+        day = 65
+        bandName = ProductType.BAND1
+        
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                bandName,
+                                                self.h09v05, 
+                                                self.year2019, 
+                                                day, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44)
+
+        self.assertEqual(cdf.productType, self.productTypeMod44)
+        self.assertEqual(cdf.tid, self.h09v05)
+        self.assertEqual(cdf.year, self.year2019)
+        self.assertEqual(cdf.day, day)
+        self.assertEqual(cdf.bandName, bandName)
+        self.assertEqual(cdf._daysInComp, 48)
+        
+        outName: Path = self._compDirMod44 / \
+                        (self.productTypeMod44.productType +
+                         '-' +
+                         self.h09v05 +
+                         '-' +
+                         str(self.year2019) +
+                         str(day).zfill(3) +
+                         '-' +
+                         bandName +
+                         '.bin')
+
+        self.assertEqual(cdf.outName, outName)
+
+    # -------------------------------------------------------------------------
+    # testCopy
+    # -------------------------------------------------------------------------
+    def testCopy(self):
+        
+        day = 66
+        cdf = CompositeDayFile().copy(self.cdfMod44, self.year2019, day)
+        
+        self.assertEqual(cdf.productType.productType,
+                         self.productTypeMod44.productType)
+
+        self.assertEqual(cdf.tid, self.h09v05)
+        self.assertEqual(cdf.year, self.year2019)
+        self.assertEqual(cdf.day, day)
+        self.assertEqual(cdf.bandName, self.cdfMod44.bandName)
+
+        outName: Path = self._compDirMod44 / \
+                        (self.productTypeMod44.productType +
+                         '-' +
+                         self.h09v05 +
+                         '-' +
+                         str(self.year2019) +
+                         str(day).zfill(3) +
+                         '-' +
+                         self.cdfMod44.bandName +
+                         '.bin')
+
+        self.assertEqual(cdf.outName, outName)
+
+        cdf = CompositeDayFile().copy(cdf, cdf.year, cdf.day + 1)
+        self.assertEqual(cdf.tid, self.h09v05)
+        self.assertEqual(cdf.year, self.year2019)
+        self.assertEqual(cdf.day, day + 1)
+        self.assertEqual(cdf.bandName, self.cdfMod44.bandName)
+        
+    # -------------------------------------------------------------------------
+    # testBandName
+    # -------------------------------------------------------------------------
+    def testBandName(self):
+
+        self.assertEqual(self.cdfMod44.bandName, ProductType.BAND1)
+
+    # -------------------------------------------------------------------------
+    # testThreeDayComposites
+    # -------------------------------------------------------------------------
+    def testThreeDayComposites(self):
+
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                ProductType.BAND1,
+                                                self.h09v05, 
+                                                self.year2019, 
+                                                65, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44,
+                                                numDaysInComp=48)
+                                                
+        cdf.outName.unlink(missing_ok=True)
+        cdf.raster()
+
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                ProductType.BAND1,
+                                                self.h09v05, 
+                                                self.year2019, 
+                                                353, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44,
+                                                numDaysInComp=48)
+                                                
+        cdf.outName.unlink(missing_ok=True)
+        cdf.raster()
+
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                ProductType.BAND1,
+                                                self.h09v05, 
+                                                2020, 
+                                                33, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44,
+                                                numDaysInComp=48)
+                                                
+        cdf.outName.unlink(missing_ok=True)
+        cdf.raster()
+
+    # -------------------------------------------------------------------------
+    # testComputeComposites
+    # -------------------------------------------------------------------------
+    def testComputeComposites(self):
+
+        r1 = self.cdfMod44.raster()
+        cloudMask = self.cdfMod44.getCloudMask()
+        qaMask = self.cdfMod44.getQaMask()
+
+        self.assertEqual(type(r1), np.ndarray)
+        self.assertEqual(r1.dtype, np.int16)
+        self.assertEqual(r1.shape, (4800, 4800))
+
+        self.assertEqual(type(cloudMask), np.ndarray)
+        self.assertEqual(cloudMask.dtype, np.uint8)
+        self.assertEqual(cloudMask.shape, (4800, 4800))
+        self.assertGreaterEqual(cloudMask.min(), 0)
+        self.assertLessEqual(cloudMask.min(), 1)
+        self.assertGreaterEqual(cloudMask.max(), 0)
+        self.assertLessEqual(cloudMask.max(), 1)
+
+        self.assertEqual(type(qaMask), np.ndarray)
+        self.assertEqual(qaMask.dtype, np.uint8)
+        self.assertEqual(qaMask.shape, (4800, 4800))
+        self.assertGreaterEqual(qaMask.min(), 0)
+        self.assertLessEqual(qaMask.min(), 1)
+        self.assertGreaterEqual(qaMask.max(), 0)
+        self.assertLessEqual(qaMask.max(), 1)
+
+        r2 = np.fromfile(self.cdfMod44.outName, dtype=self.cdfMod44._dtype). \
+            reshape(4800, 4800)
+
+        self.assertEqual(type(r1), type(r2))
+        self.assertTrue(np.array_equal(r1, r2))
+
+        # h12v02 has many problem days.
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                ProductType.BAND1,
+                                                'h12v02', 
+                                                self.year2019, 
+                                                353, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44)
+        
+        r1 = cdf.raster()
+        cloudMask = cdf.getCloudMask()
+        qaMask = cdf.getQaMask()
+        
+        # Test a single-day composite.
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                ProductType.BAND5,
+                                                'h12v02', 
+                                                2020, 
+                                                49, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44)
+        
+        r1 = cdf.raster()
+        
+    # -------------------------------------------------------------------------
+    # testDay
+    # -------------------------------------------------------------------------
+    def testDay(self):
+
+        self.assertEqual(self.cdfMod44.day, 65)
+
+    # -------------------------------------------------------------------------
+    # testGetCloudMaskName
+    # -------------------------------------------------------------------------
+    def testGetCloudMaskName(self):
+        
+        on: Path = self.cdfMod44.outName
+        exp = on.parent / Path(on.stem + '-cloudfb.npy')
+        self.assertEqual(self.cdfMod44._getCloudMaskName(), exp)
+        
+    # -------------------------------------------------------------------------
+    # testGetCloudMask
+    # -------------------------------------------------------------------------
+    def testGetCloudMask(self):
+        
+        mask = self.cdfMod44.getCloudMask()
+        self.assertEqual(mask.dtype, np.uint8)
+        self.assertEqual(mask.shape, (4800, 4800))
+        
+    # -------------------------------------------------------------------------
+    # testGetQaMaskName
+    # -------------------------------------------------------------------------
+    def testGetQaMaskName(self):
+        
+        on: Path = self.cdfMod44.outName
+        exp = on.parent / Path(on.stem + '-qa.npy')
+        self.assertEqual(self.cdfMod44._getQaMaskName(), exp)
+        
+    # -------------------------------------------------------------------------
+    # testGetQaMask
+    # -------------------------------------------------------------------------
+    def testGetQaMask(self):
+        
+        mask = self.cdfMod44.getQaMask()
+        self.assertEqual(mask.dtype, np.uint8)
+        self.assertEqual(mask.shape, (4800, 4800))
+        
+    # -------------------------------------------------------------------------
+    # testProductType
+    # -------------------------------------------------------------------------
+    def testProductType(self):
+
+        self.assertEqual(self.cdfMod44.productType, self.productTypeMod44)
+
+    # -------------------------------------------------------------------------
+    # testTid
+    # -------------------------------------------------------------------------
+    def testTid(self):
+
+        self.assertEqual(self.cdfMod44.tid, self.h09v05)
+
+    # -------------------------------------------------------------------------
+    # testYear
+    # -------------------------------------------------------------------------
+    def testYear(self):
+
+        self.assertEqual(self.cdfMod44.year, self.year2019)
+
+    # -------------------------------------------------------------------------
+    # testMod44Ch (Band 3)
+    # -------------------------------------------------------------------------
+    def testMod44Ch(self):
+        
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                ProductType.BAND3,
+                                                self.h09v05, 
+                                                self.year2019, 
+                                                65, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44)
+                            
+        cdf.outName.unlink(missing_ok=True)                    
+        composite = cdf.raster()
+        self.assertEqual(composite.shape, (4800, 4800))
+        self.assertEqual(composite.dtype, np.int16)
+        
+        # Call it again to test Numpy fromfile.
+        composite2 = cdf.raster()
+        self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
+        self.assertEqual(composite2.shape, (4800, 4800))
+        self.assertEqual(composite2.dtype, np.int16)
+
+    # -------------------------------------------------------------------------
+    # testB31
+    # -------------------------------------------------------------------------
+    def testB31(self):
+
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                ProductType.BAND31,
+                                                self.h09v05, 
+                                                self.year2019, 
+                                                65, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44)
+                                                
+        cdf.outName.unlink(missing_ok=True)   
+
+        composite = cdf.raster()
+        self.assertEqual(composite.dtype, np.int16)
+        self.assertEqual(composite.shape, (4800, 4800))
+    
+        # Call it again to test Numpy fromfile.
+        composite2 = cdf.raster()
+        self.assertTrue(np.allclose(composite, composite2, equal_nan=True))
+        self.assertEqual(composite2.shape, (4800, 4800))
+        self.assertEqual(composite2.dtype, np.int16)
+
+    # -------------------------------------------------------------------------
+    # testGetDaysToFindMod44
+    # -------------------------------------------------------------------------
+    def testGetDaysToFindMod44(self):
+        
+        # First day
+        cdf = CompositeDayFile().initFromParams(self.productTypeMod44, 
+                                                ProductType.BAND5,
+                                                self.h09v05, 
+                                                self.year2019, 
+                                                65, 
+                                                self._compDirMod44,
+                                                logger=None,
+                                                dayDir=self._dayDirMod44)
+
+        expDays = [(2019, 65), (2019, 81), (2019, 97)]
+        self.assertEqual(cdf._getDaysToFind(), expDays)
+        
+        # Middle day
+        cdf = CompositeDayFile().copy(cdf, 2019, 225)
+        expDays = [(2019, 225), (2019, 241), (2019, 257)]
+        self.assertEqual(cdf._getDaysToFind(), expDays)
+        
+        # End of year 1
+        cdf = CompositeDayFile().copy(cdf, 2019, 353)
+        expDays = [(2019, 353), (2020, 1), (2020, 17)]
+        self.assertEqual(cdf._getDaysToFind(), expDays)
+
+        # Beginning of year 2
+        cdf = CompositeDayFile().copy(cdf, 2020, 17)
+        expDays = [(2020, 17), (2020, 33), (2020, 49)]
+        self.assertEqual(cdf._getDaysToFind(), expDays)
+        
+        # End of year 2
+        cdf = CompositeDayFile().copy(cdf, 2020, 49)
+        expDays = [(2020, 49)]
+        self.assertEqual(cdf._getDaysToFind(), expDays)
+
+# -----------------------------------------------------------------------------
+# class FillMissingTestCase
+#
+# No input files needed.
+# pytest tests/test_CompositeDayFile.py::FillMissingTestCase
+# -----------------------------------------------------------------------------
+class FillMissingTestCase(unittest.TestCase):
+
+    # -------------------------------------------------------------------------
+    # testFillMissing
+    # -------------------------------------------------------------------------
+    def testFillMissing(self):
+
+        clamp = BandDayFile.ZENITH_CLAMP
+        sub = CompositeDayFile.SUBSTITUTE_PIXEL_VALUE
+        a = np.array([[clamp, clamp], [500, clamp]], dtype=np.int16)
+        b = np.array([[clamp, 700], [clamp, clamp]], dtype=np.int16)
+        gone = np.full((2, 2), sub, dtype=np.int16)
+        q = np.ones((2, 2), dtype=np.int16)
+        z = np.zeros((2, 2), dtype=np.int16)
+
+        out = CompositeDayFile.fillMissing([(a, q, q), (gone, z, z), (b, q, q)],
+                                           [False, True, False])
+
+        # Present inputs are unchanged.
+        self.assertIs(out[0][0], a)
+        self.assertIs(out[2][0], b)
+
+        # The missing input is 16000 only where every present input is.
+        expected = np.array([[clamp, sub], [sub, clamp]], dtype=np.int16)
+        self.assertTrue(np.array_equal(out[1][0], expected))
+        self.assertEqual(out[1][0].dtype, np.int16)
+
+        # Its masks stay all bad.
+        self.assertIs(out[1][1], z)
+        self.assertIs(out[1][2], z)
