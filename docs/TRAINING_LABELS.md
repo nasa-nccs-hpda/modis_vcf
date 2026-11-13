@@ -1,6 +1,8 @@
 # Training labels (set 7.0.1, modis_vcf v1.7.0 and later)
 
 The labels are delivered separately from the code, as `VCF_training_labels_7.0.1.tar.gz` (83 MB, rebuilt for v1.7.0 on 2026-10-24 before any delivery; `.sha256` next to it). The archive
+and its `.sha256` and `MANIFEST.csv` are attached to the [v1.9.0 release](https://github.com/nasa-nccs-hpda/modis_vcf/releases/tag/v1.9.0) (download, then
+`sha256sum -c VCF_training_labels_7.0.1.tar.gz.sha256`, then `tar xzf VCF_training_labels_7.0.1.tar.gz`). The archive
 has its own `README.md` and a `MANIFEST.csv` (every file's name, original name, sha256, size and number of labelled pixels).
 
 ## Contents
