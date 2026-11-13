@@ -15,7 +15,11 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### Download location of the labels and the pooled bare model (docs only, 2026-11-12; hash filled in by the next commit)
+### DOI for v1.9.0 (docs only, 2026-11-13; hash filled in by the next commit)
+
+**No code or value change.** The v1.9.0 tag is archived on Zenodo, DOI [10.5281/zenodo.24174799](https://doi.org/10.5281/zenodo.24174799). README shows the DOI badge and a "Citing" section.
+
+### Download location of the labels and the pooled bare model (docs only, 2026-11-12, `8f8b230`)
 
 **No code or value change.** The label archive (`VCF_training_labels_7.0.1.tar.gz`, with its `.sha256` and `MANIFEST.csv`) and the
 pooled bare model are now attached to the v1.9.0 GitHub release, so the code can be run without access to the development system.

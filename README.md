@@ -1,5 +1,7 @@
 # MODIS Vegetation Continuous Fields (modis_vcf)
 
+[![DOI](https://zenodo.org/badge/710328106.svg)](https://doi.org/10.5281/zenodo.24174799)
+
 Python code for the MODIS Vegetation Continuous Fields product (MOD44B, Terra): yearly percent tree cover, percent non-vegetated
 (bare) and percent non-tree vegetation for every MODIS land tile on the 250 m sinusoidal grid, with SD, Quality and Cloud layers,
 written as one Collection 7 HDF5 file per tile and year (`docs/RUNNING.md`). It
@@ -46,6 +48,11 @@ export VCF_MOD44_DIR=<MOD44C folder> VCF_MOD44W_DIR=<MOD44W folder>
 python -m pytest                                               # unit tests, about a minute (docs/BUILD.md)
 python -m modis_vcf.view.runYear run --spec spec.json          # docs/RUNNING.md
 ```
+
+## Citing
+
+Version v1.9.0 is archived on Zenodo with the DOI [10.5281/zenodo.24174799](https://doi.org/10.5281/zenodo.24174799).
+Please cite that DOI when you use this code; the Zenodo record gives the citation in the usual formats.
 
 ## Contributors
 
