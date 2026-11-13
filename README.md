@@ -9,6 +9,11 @@ Version: **v1.9.0** (see `CHANGELOG.md`). It reads the **Collection 7 MOD44CH / 
 The tree cover models are fitted every year. Non-vegetated uses one delivered model for every year, the **pooled bare model**
 (2000-2023), which comes as a separate archive with its checksums ([docs/RUNNING.md](docs/RUNNING.md)).
 
+**Files needed to run, not in git:** the training labels and the pooled bare model are attached to the
+[v1.9.0 release](https://github.com/nasa-nccs-hpda/modis_vcf/releases/tag/v1.9.0) (`VCF_training_labels_7.0.1.tar.gz`, 83 MB; `pctbare_pooled_2000-2023_v1.9.0.tar.gz`, 1.8 GB;
+each with a `.sha256`). The tree labels are needed every year (tree cover is fitted each year); the model is needed for the
+non-vegetated layer. How to check and unpack them: [docs/RUNNING.md](docs/RUNNING.md) and [docs/TRAINING_LABELS.md](docs/TRAINING_LABELS.md).
+
 ## Documentation
 
 | Document | For |
