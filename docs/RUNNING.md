@@ -166,10 +166,25 @@ Spec (all paths absolute):
 ## The pooled bare model (a ready-made model)
 
 The product's non-vegetated layer uses one model for every year, the pooled bare model (2000-2023; how it was made: ALGORITHM.md,
-section 6). It is delivered separately from the code, as `pctbare_pooled_2000-2023_v1.9.0.tar` (5.1 GB; SHA-256
-`695b3e95759d017b8c4c2797f1d75d6739e396b2267856de3af87f58daef601c`, also in the `.sha256` file next to it). The archive holds one
+section 6). It is delivered separately from the code, attached to the [v1.9.0 release](https://github.com/nasa-nccs-hpda/modis_vcf/releases/tag/v1.9.0) as
+`pctbare_pooled_2000-2023_v1.9.0.tar.gz` (1.8 GB; SHA-256 `1b100aacf149bf9b922b50efe79162a15bf574ca5f46652f0c66f3e2c1064d98`,
+in `pctbare_pooled_2000-2023_v1.9.0.tar.gz.sha256`). Unzipped it is `pctbare_pooled_2000-2023_v1.9.0.tar` (5.1 GB; SHA-256
+`695b3e95759d017b8c4c2797f1d75d6739e396b2267856de3af87f58daef601c`, in `pctbare_pooled_2000-2023_v1.9.0.tar.sha256`). The archive holds one
 folder, `pctbare_pooled_2000-2023/`, with the compact forest (`pctbare_pooled_2000-2023.cf/`), its top-N file and a SHA-256 file of
-the 7 model files. Check the archive, unpack it once, and give its files in every year's spec, in place of the bare model's fit:
+the 7 model files. Download, check and unpack it once:
+
+```bash
+for f in pctbare_pooled_2000-2023_v1.9.0.tar.gz pctbare_pooled_2000-2023_v1.9.0.tar.gz.sha256 pctbare_pooled_2000-2023_v1.9.0.tar.sha256; do
+  curl -LO https://github.com/nasa-nccs-hpda/modis_vcf/releases/download/v1.9.0/$f
+done
+sha256sum -c pctbare_pooled_2000-2023_v1.9.0.tar.gz.sha256
+gunzip pctbare_pooled_2000-2023_v1.9.0.tar.gz
+sha256sum -c pctbare_pooled_2000-2023_v1.9.0.tar.sha256
+tar xf pctbare_pooled_2000-2023_v1.9.0.tar
+(cd pctbare_pooled_2000-2023 && sha256sum -c pctbare_pooled_2000-2023.sha256)
+```
+
+Then give its files in every year's spec, in place of the bare model's fit:
 
 ```json
   "bare": {"trainingType": "pctbare",

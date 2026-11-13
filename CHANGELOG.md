@@ -13,6 +13,22 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## Unreleased
+
+### DOI for v1.9.0 (docs only, 2026-11-13; hash filled in by the next commit)
+
+**No code or value change.** The v1.9.0 tag is archived on Zenodo, DOI [10.5281/zenodo.24174799](https://doi.org/10.5281/zenodo.24174799). README shows the DOI badge and a "Citing" section.
+
+### Download location of the labels and the pooled bare model (docs only, 2026-11-12, `8f8b230`)
+
+**No code or value change.** The label archive (`VCF_training_labels_7.0.1.tar.gz`, with its `.sha256` and `MANIFEST.csv`) and the
+pooled bare model are now attached to the v1.9.0 GitHub release, so the code can be run without access to the development system.
+The model is delivered gzipped, `pctbare_pooled_2000-2023_v1.9.0.tar.gz` (1.8 GB, under GitHub's 2 GiB file limit; SHA-256
+`1b100aac...4d98`); it unzips to the unchanged v1.9.0 archive (SHA-256 `695b3e95...f601c`, checked). README, RUNNING (download,
+check and unpack steps) and TRAINING_LABELS point to the release.
+
+---
+
 ## v1.9.0 (tag `v1.9.0`, 2026-11-11): the pooled bare model, a code review, unit tests
 
 **Model change (non-vegetated only); the code is exact.** The non-vegetated layer uses one delivered model for every year, the
