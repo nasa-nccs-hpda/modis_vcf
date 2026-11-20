@@ -1,4 +1,4 @@
-# Building the environment (modis_vcf v2.0.0)
+# Building the environment (modis_vcf v2.0.1)
 
 The code is pure Python. It needs no container, no GPU and no other repository.
 

@@ -1,4 +1,4 @@
-# How the MODIS VCF product is made (modis_vcf v2.0.0)
+# How the MODIS VCF product is made (modis_vcf v2.0.1)
 
 This describes what the code computes, in the order it runs, for a reader who knows remote sensing but not this algorithm. File and
 function names point to where each step lives. How to run each step is in [RUNNING.md](RUNNING.md); the training labels are in

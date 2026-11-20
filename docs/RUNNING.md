@@ -1,4 +1,4 @@
-# Running a year (modis_vcf v2.0.0: v1.9.0 plus composites from C7 dailies)
+# Running a year (modis_vcf v2.0.1: v1.9.0 plus composites from C7 dailies)
 
 One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 day 065 to 2020 day 049) goes through five steps:
 
@@ -340,7 +340,7 @@ above. Downloading one global sensor-year from LAADS took 1 to 3 days at the rat
 - **`"input": "mod44c"`** keeps the v1.9.0 product from MOD44CH / MOD44CQ unchanged (proven byte for byte).
 - **MCD44B metadata is provisional:** LongName, platform "Terra, Aqua", grid `MCD44B_250m_GRID` and an empty DOI, until MODAPS
   supplies the MCD44B MCF.
-- **Version:** the files write PGEVersion / LocalVersionID 2.0.0. InputDataProducts lists one entry per daily product (file count,
+- **Version:** the files write PGEVersion / LocalVersionID 2.0.1 (2.0.0 for v2.0.0). InputDataProducts lists one entry per daily product (file count,
   first and last file name).
 - **Missing days** on LAADS are left out of the composites; they are not failures. A year with no Aqua dailies gives MOD44B with a
   warning even when `"aquaFill"` is on.

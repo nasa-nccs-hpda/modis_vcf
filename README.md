@@ -7,7 +7,7 @@ cover, percent non-vegetated (bare) and percent non-tree vegetation for every MO
 Quality and Cloud layers, written as one Collection 7 HDF5 file per tile and year (`docs/RUNNING.md`). It replaces the operational
 C code (PGE61).
 
-Version: **v2.0.0** (see `CHANGELOG.md`). v2.0.0 adds a second input path. Each year's spec says which one it uses:
+Version: **v2.0.1** (see `CHANGELOG.md`). v2.0.0 added a second input path; v2.0.1 makes sure a dailies run never reads MOD44C. Each year's spec says which one it uses:
 - **`"input": "dailies"`:** the 8 composites of a year are built by this code from the **Collection 7 daily surface reflectance**
   (MOD09GA + MOD09GQ + MODTBGA, first layer), with stricter QA and a ranked fallback for cloudy pixels
   ([docs/ALGORITHM.md](docs/ALGORITHM.md), section 4a). Optional **Aqua fill** (`"aquaFill": true`, off by default) uses Aqua good

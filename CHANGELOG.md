@@ -13,7 +13,7 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
-## v2.0.1 (not tagged yet; branch `mcarrol2/v2.0.0`, 2026-11-19): dailies runs never read MOD44C
+## v2.0.1 (tag `v2.0.1`, 2026-11-19, branch `mcarrol2/v2.0.0`): dailies runs never read MOD44C
 
 **Values exact.** With `"input": "dailies"`, v2.0.0 still opened the MOD44C product type in the metrics and map
 steps, so `VCF_MOD44_DIR` had to be set to an existing folder. Worse, if a composite or metric input was missing from the metrics
@@ -26,6 +26,8 @@ only a warning, because a missing granule is a `RuntimeError` that the MOD44C pa
   `view/makeMetrics.py` take `--input {mod44c,dailies}` (default `mod44c`, unchanged).
 - `VCF_MOD44_DIR` is no longer needed for dailies runs; it stays required for `"input": "mod44c"`.
 - Tests: `tests/test_DailiesNoMod44c.py` (5 tests). 97 passed.
+- **Version in the files:** PGEVersion / LocalVersionID and the composites' `composites.json` code tag say 2.0.1 (lead 2026-11-19).
+  Metadata only; no value changes.
 - Evidence: `FullRuns/AT_v201check_20261119` (2026-11-19, 4 / 4 PASS): h09v05 dailies with `VCF_MOD44_DIR` **unset**: composites = B2
   byte for byte (G1b), maps = B2 maps and = the v2.0.0 gate maps by value (G4b, G4c); h09v05 `"input": "mod44c"` maps = v1.9.0 (G3).
 

@@ -32,7 +32,7 @@ from modis_vcf.model import AquaFill, DailiesComposite as DC
 from modis_vcf.model import Sensor as S
 
 SOURCE = 'composites.json'
-CODE = 'modis_vcf 2.0.0'
+CODE = 'modis_vcf 2.0.1'
 
 
 def source(tileYearRoot) -> dict:

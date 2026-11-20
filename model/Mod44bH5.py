@@ -30,7 +30,7 @@ import numpy as np
 
 from modis_vcf.model.Settings import OUTPUT_COLLECTION
 
-CODE_VERSION = '2.0.0'
+CODE_VERSION = '2.0.1'
 
 # Collection number in the file name and GranuleID: 071 by default, so this code's files are not confused with the MODAPS
 # Collection 7 MOD44B (007); VCF_OUTPUT_COLLECTION sets another (e.g. 007 for an operational MODAPS run).  VersionID and
