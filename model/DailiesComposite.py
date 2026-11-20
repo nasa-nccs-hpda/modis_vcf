@@ -22,6 +22,11 @@ Fallback (no good day), first class with any day wins (fbclass diag 1-5):
   "Best" = snow-free first, then lowest view zenith; means use the days with the best day's snow status, truncated to int16.
 QA flag (-qa.npy) = no good day; Cloud flag (-cloudfb.npy) = no good day and no day with cloud state 00 under the sun limit.
 
+Keys mode (v2.0.2, pooled bare model from dailies; lead 2026-11-19): composite(keys=...) builds the composites only at the given
+pixels (flat indices row * 4800 + col, e.g. the label pixels of a training manifest).  Each day is read whole, as in full mode,
+then cut to the keys before the per-pixel work, so the values at the keys equal full mode's; the outputs are full-tile files with
+FILL (bands), 0 (qa / cloudfb) and -1 (fbclass) elsewhere, so the metrics step runs unchanged.  Not with otherOrbit or diag.
+
 Options (CompositeOptions), all off or at the B2 value by default; each reproduces its experiment switch:
   polarFill  (B2: on)   C1 polar-night fill 16000; off = B1m3 (10000)
   otherOrbit (off)      C2: a good observation from another orbit before F1 (Terra only; parked 2026-11-16)
@@ -139,8 +144,9 @@ class Pick1km:
         return np.where(self.fill | self.bad, fill, v).astype(layer1.dtype)
 
 
-def readDay(root: str, tile: str, day: datetime.date, sensor: Sensor) -> tuple:
-    """(fields on the 250 m grid, {product: file}); fields is None when a file is missing."""
+def readDay(root: str, tile: str, day: datetime.date, sensor: Sensor, keys: np.ndarray = None) -> tuple:
+    """(fields on the 250 m grid, {product: file}); fields is None when a file is missing.  keys (flat 250 m indices):
+    each field cut to those pixels (1-D), after the whole day is read."""
     fs = {p: findDaily(root, p, tile, day, sensor.collection) for p in sensor.products}
 
     if None in fs.values():
@@ -173,6 +179,9 @@ def readDay(root: str, tile: str, day: datetime.date, sensor: Sensor) -> tuple:
 
     for h in (ga, gq, tb):
         h.close()
+
+    if keys is not None:
+        d = {k: v.ravel()[keys] for k, v in d.items()}
 
     return d, fs
 
@@ -219,9 +228,9 @@ def masks(d: dict, sensor: Sensor, rules: str = 'b1', f3guard: bool = True) -> d
 
 class Best3:
     """Per pixel, the 3 days with the smallest key (uint32), with their band values."""
-    def __init__(self):
-        self.k = np.full((3, N, N), BIG, np.uint32)
-        self.v = np.zeros((3, NB + NX, N, N), np.int16)
+    def __init__(self, shape=(N, N)):
+        self.k = np.full((3,) + tuple(shape), BIG, np.uint32)
+        self.v = np.zeros((3, NB + NX) + tuple(shape), np.int16)
 
     def add(self, sel, key, vals):
         key = np.where(sel, key, BIG).astype(np.uint32)
@@ -408,10 +417,11 @@ def isDone(out: str, tile: str, period: str) -> bool:
 
 
 def composite(tile: str, period: str, root: str, out: str, sensor: Sensor = TERRA,
-              options: CompositeOptions = CompositeOptions(), diag: bool = False) -> dict:
+              options: CompositeOptions = CompositeOptions(), diag: bool = False, keys: np.ndarray = None) -> dict:
     """Build one period's composites (8 bands, flags) into out; returns the period summary (diag/summary.json).
     diag: also write the per-pixel diagnostics (about 0.5 GB per period); off by default (lead 2026-11-19).  Always written:
-    fbclass and, for Aqua, b6_n (the Aqua fill needs them) and summary.json.  The composites are the same either way."""
+    fbclass and, for Aqua, b6_n (the Aqua fill needs them) and summary.json.  The composites are the same either way.
+    keys: keys mode (module docstring)."""
     o = options
     rules, f3, f3guard, polarfill, otherorbit, f2rank = o.rules, o.f3, o.f3Guard, o.polarFill, o.otherOrbit, o.f2Rank
     b1 = rules == 'b1'
@@ -421,18 +431,29 @@ def composite(tile: str, period: str, root: str, out: str, sensor: Sensor = TERR
     if otherorbit and (aqua or not b1):
         raise ValueError('otherOrbit (C2) is defined for Terra with the b1 rules only')
 
-    if aqua:
-        b6sum = np.zeros((4, N, N), np.int32)
-        b6cnt = np.zeros((4, N, N), np.int16)
+    if keys is not None:
+        keys = np.asarray(keys, np.int64)
 
-    sums = np.zeros((4, NB, N, N), np.int32)
-    cnt = np.zeros((4, N, N), np.int16)
-    fsum = np.zeros((NB, N, N), np.int32)
-    fcnt = np.zeros((NB, N, N), np.int16)
-    anyclear = np.zeros((N, N), bool)
-    npres = np.zeros((N, N), np.int16)
-    zs = np.zeros((4, N, N), np.float32)
-    vs = np.zeros((4, N, N), np.float32)
+        if otherorbit or diag:
+            raise ValueError('keys mode works without otherOrbit and without diag')
+
+        if keys.ndim != 1 or not len(keys) or keys.min() < 0 or keys.max() >= N * N or (np.diff(keys) <= 0).any():
+            raise ValueError('keys must be sorted, unique flat indices in [0, %d)' % (N * N))
+
+    S = (len(keys),) if keys is not None else (N, N)
+
+    if aqua:
+        b6sum = np.zeros((4,) + S, np.int32)
+        b6cnt = np.zeros((4,) + S, np.int16)
+
+    sums = np.zeros((4, NB) + S, np.int32)
+    cnt = np.zeros((4,) + S, np.int16)
+    fsum = np.zeros((NB,) + S, np.int32)
+    fcnt = np.zeros((NB,) + S, np.int16)
+    anyclear = np.zeros(S, bool)
+    npres = np.zeros(S, np.int16)
+    zs = np.zeros((4,) + S, np.float32)
+    vs = np.zeros((4,) + S, np.float32)
 
     if otherorbit:
         osums = np.zeros((4, NB, N, N), np.int32)
@@ -440,14 +461,14 @@ def composite(tile: str, period: str, root: str, out: str, sensor: Sensor = TERR
         ozs = np.zeros((4, N, N), np.float32)
         ovs = np.zeros((4, N, N), np.float32)
 
-    dg = {k: np.zeros((N, N), np.int16) for k in DIAG_COUNTS}
-    F1, F2, F3 = (Best3(), Best3(), Best3()) if b1 else (None, None, None)
+    dg = {k: np.zeros(S, np.int16) for k in DIAG_COUNTS}
+    F1, F2, F3 = (Best3(S), Best3(S), Best3(S)) if b1 else (None, None, None)
     log, inputs = [], []
     T = dict(read=0.0, accumulate=0.0, other=0.0, write=0.0)
 
     for day in daysOf(period):
         t = time.time()
-        d, fs = readDay(root, tile, day, sensor)
+        d, fs = readDay(root, tile, day, sensor, keys)
         T['read'] += time.time() - t
         t = time.time()
 
@@ -490,7 +511,7 @@ def composite(tile: str, period: str, root: str, out: str, sensor: Sensor = TERR
 
         if b1:
             yd = np.int16(int(day.strftime('%y%j')))
-            vals = np.concatenate([np.stack([d[b] for b in BANDS]).astype(np.int16), np.full((1, N, N), yd, np.int16),
+            vals = np.concatenate([np.stack([d[b] for b in BANDS]).astype(np.int16), np.full((1,) + S, yd, np.int16),
                                    np.stack([d['solz'], d['vz']]).astype(np.int16)])
             sn = m['snow'].astype(np.uint32)
             vzk = np.clip(np.rint(m['vz']), 0, 255).astype(np.uint32)
@@ -530,7 +551,7 @@ def composite(tile: str, period: str, root: str, out: str, sensor: Sensor = TERR
             T['other'] += time.time() - t
 
     t = time.time()
-    first = np.full((N, N), -1, np.int8)
+    first = np.full(S, -1, np.int8)
 
     for g in (3, 2, 1, 0):
         first = np.where(cnt[g] > 0, g, first)
@@ -562,7 +583,7 @@ def composite(tile: str, period: str, root: str, out: str, sensor: Sensor = TERR
     os.makedirs(out + '/diag', exist_ok=True)
     gi = np.clip(first, 0, 3).astype(np.intp)
     c = np.take_along_axis(cnt, gi[None], 0)[0].astype(np.float64)
-    globe = onGlobe(tile) if polarfill else None
+    globe = (onGlobe(tile) if keys is None else onGlobe(tile).ravel()[keys]) if polarfill else None
     fbq = fb & (cls != 6)                                   # class 6 = good observations: qa / cloudfb 0
     fclasses = ((1, F1, 8, 3), (2, F2, 8, 3), (3, F3, 16, 3 if f3 == 'mean3' else 1)) if b1 else ()
 
@@ -594,12 +615,12 @@ def composite(tile: str, period: str, root: str, out: str, sensor: Sensor = TERR
             b6n = np.where(cls == 4, fcnt[i], b6n).astype(np.int16)
 
         comp = np.where(fb, fall, good).astype(np.int16)
-        comp.tofile(compositeName(out, tile, period, b))
-        np.save(compositeName(out, tile, period, b, '-qa.npy'), fbq.astype(np.uint8))
-        np.save(compositeName(out, tile, period, b, '-cloudfb.npy'), (fbq & ~anyclear).astype(np.uint8))
+        _full(comp, keys, FILL).tofile(compositeName(out, tile, period, b))
+        np.save(compositeName(out, tile, period, b, '-qa.npy'), _full(fbq.astype(np.uint8), keys, 0))
+        np.save(compositeName(out, tile, period, b, '-cloudfb.npy'), _full((fbq & ~anyclear).astype(np.uint8), keys, 0))
 
     dn = lambda k: diagName(out, tile, period, k)
-    sv = lambda k, v: np.save(dn(k), v) if diag or k in ESSENTIAL_DIAG else None
+    sv = lambda k, v: np.save(dn(k), _full(v, keys, -1 if k == 'fbclass' else 0)) if diag or k in ESSENTIAL_DIAG else None
     sv('group', (first + 1).astype(np.int8))
     sv('fbclass', cls)
     sv('gooddays', cnt.sum(0).astype(np.int16))
@@ -634,9 +655,19 @@ def composite(tile: str, period: str, root: str, out: str, sensor: Sensor = TERR
                 cloudfb_share=float((fbq & ~anyclear).mean()), group_share=[float((first == g).mean()) for g in range(4)],
                 mismatch_pixel_days=int(dg['mismatch'].sum()), present_pixel_days=int(npres.sum()),
                 b31_over_pixel_days=int(dg['b31_over'].sum()), qa_not_layer1_pixel_days=int(dg['qa_not_layer1'].sum()),
-                inputs=inputs, diag=diag, seconds=T)
+                inputs=inputs, diag=diag, keys=None if keys is None else int(len(keys)), seconds=T)
     _writeJson(dn('summary.json'), summ)
     return summ
+
+
+def _full(a, keys, fill):
+    """a on the full tile: a itself in full mode; in keys mode a (N, N) array of fill with a's values at the keys."""
+    if keys is None:
+        return a
+
+    f = np.full(N * N, fill, a.dtype)
+    f[keys] = a
+    return f.reshape(N, N)
 
 
 def _saveFallbackDiag(dn, cls, fclasses, f2rank):

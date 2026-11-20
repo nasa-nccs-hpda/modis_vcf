@@ -16,6 +16,10 @@ root.  A period without Aqua dailies for the tile is the Terra composite (no fil
 per processing year (aquaAvailable; lead 2026-11-19: no Aqua dailies for the year -> MOD44B with a warning; Aqua dailies for
 the year -> every tile MCD44B, also where Aqua fills nothing).
 
+Keys mode (v2.0.2; spec "compositeKeys" = a training manifest): the composites are built only at the tile's label pixels
+(keysFromManifest; DailiesComposite keys mode), for training splits only (no maps).  composites.json records the manifest, the
+number of keys and their checksum, so a root is never reused with other keys.  Terra only (no Aqua fill).
+
 Each period is a separate process (about 20 minutes and 23 GB per period and sensor on 2019 tiles); completed periods
 (diag summary.json) are not redone.
 """
@@ -66,23 +70,54 @@ def aquaAvailable(dailiesDir: str, year: int) -> bool:
     return False
 
 
+def keysFromManifest(manifest, tile: str):
+    """The tile's label pixels in a training manifest (.parq; columns tid-year, x = row, y = column), as sorted unique flat
+    indices x * 4800 + y, whatever the manifest's year."""
+    import numpy as np
+    import pyarrow.parquet as pq
+
+    t = pq.read_table(str(manifest), columns=['tid-year', 'x', 'y']).to_pandas()
+    t = t[t['tid-year'].str.startswith(tile + '-')]
+    return np.unique(t['x'].to_numpy(np.int64) * DC.N + t['y'].to_numpy(np.int64))
+
+
+def keysInfo(manifest, keys) -> dict:
+    """What composites.json records about the keys: the manifest, their number and a checksum."""
+    import hashlib
+    import numpy as np
+
+    return dict(manifest=str(manifest), n=int(len(keys)),
+                sha256=hashlib.sha256(np.ascontiguousarray(keys, np.int64).tobytes()).hexdigest())
+
+
 def _one(args):
     """One sensor-period composite in a worker process."""
-    tile, period, dailiesDir, out, sensorName, options, diag = args
+    tile, period, dailiesDir, out, sensorName, options, diag, keys = args
     if not DC.isDone(out, tile, period):
-        DC.composite(tile, period, dailiesDir, out, S.get(sensorName), DC.CompositeOptions(**options), diag)
+        DC.composite(tile, period, dailiesDir, out, S.get(sensorName), DC.CompositeOptions(**options), diag, keys)
     return sensorName, period
 
 
 def buildTile(tile: str, year: int, dailiesDir: str, tileYearRoot, workRoot=None, aquaFill: bool = False,
               options: DC.CompositeOptions = DC.CompositeOptions(), workers: int = 4,
-              logger: logging.Logger = None, diag: bool = False) -> dict:
+              logger: logging.Logger = None, diag: bool = False, keysManifest=None) -> dict:
     """Composite the tile's 8 periods (module docstring) and return composites.json's content.  diag: write the full
-    per-pixel diagnostics (off by default, lead 2026-11-19; about 7 GB per tile with Aqua fill)."""
+    per-pixel diagnostics (off by default, lead 2026-11-19; about 7 GB per tile with Aqua fill).  keysManifest: keys mode
+    at the tile's label pixels of that training manifest (Terra only, no diag)."""
     log = logger or logging.getLogger(__name__)
     root = Path(tileYearRoot)
+    keys = None
+
+    if keysManifest is not None:
+        if aquaFill or diag:
+            raise ValueError('keys mode (compositeKeys) works for Terra only, without Aqua fill and without diag.')
+        keys = keysFromManifest(keysManifest, tile)
+        if not len(keys):
+            raise ValueError('%s has no label pixels of %s.' % (keysManifest, tile))
+
     want = dict(input='dailies', product='MCD44B' if aquaFill else 'MOD44B',
-                sensors=['terra', 'aqua'] if aquaFill else ['terra'], aquaFill=aquaFill, options=asdict(options))
+                sensors=['terra', 'aqua'] if aquaFill else ['terra'], aquaFill=aquaFill, options=asdict(options),
+                keys=None if keys is None else keysInfo(keysManifest, keys))
     have = source(root)
 
     if have is not None:
@@ -104,11 +139,12 @@ def buildTile(tile: str, year: int, dailiesDir: str, tileYearRoot, workRoot=None
         dirs = {'terra': str(root)}
         aqua = {p: False for p in ps}
 
-    jobs = [(tile, p, dailiesDir, dirs['terra'], 'terra', asdict(options), diag) for p in ps] + \
-           [(tile, p, dailiesDir, dirs['aqua'], 'aqua', asdict(options), diag) for p in ps if aqua[p]]
+    jobs = [(tile, p, dailiesDir, dirs['terra'], 'terra', asdict(options), diag, keys) for p in ps] + \
+           [(tile, p, dailiesDir, dirs['aqua'], 'aqua', asdict(options), diag, None) for p in ps if aqua[p]]
     jobs = [j for j in jobs if not DC.isDone(j[3], tile, j[1])]
-    log.info('Compositing %s %d from dailies: %d sensor-periods to build, %d workers%s.' %
-             (tile, year, len(jobs), workers, ', Aqua fill' if aquaFill else ''))
+    log.info('Compositing %s %d from dailies: %d sensor-periods to build, %d workers%s%s.' %
+             (tile, year, len(jobs), workers, ', Aqua fill' if aquaFill else '',
+              '' if keys is None else ', keys mode (%d pixels)' % len(keys)))
 
     if aquaFill and not all(aqua.values()):
         log.warning('%s %d: no Aqua dailies in period(s) %s; those periods are Terra only.' %

@@ -38,6 +38,9 @@ Spec (JSON):
                                               run is Terra only (MOD44B) and says so in its log.  Default false (MOD44B).
   compositeOptions (optional, dailies only)   switches of DailiesComposite.CompositeOptions (defaults = B2)
   compositeDiag (optional, dailies only)      true: also write the compositor's per-pixel diagnostics (default false)
+  compositeKeys (optional, dailies only)      a training manifest (.parq): composites only at each tile's label pixels
+                                              (keys mode, v2.0.2), for splits only: every fitted model must be splitOnly and
+                                              there are no mapTiles; Terra only (no aquaFill, no compositeDiag)
   models.tree, models.bare                    either {manifest, predictors, trainingType, fit {...}} (fitted in the run;
                                               "splitOnly": true builds the split without a fit, and then no mapTiles are
                                               allowed) or {trainingType, fixed: {model, topN, sha256}} (ready-made; the
@@ -206,12 +209,12 @@ class YearRun(object):
             raise ValueError('The spec has no valid "input" (found %r): add "input": "dailies" (with "dailiesDir") or '
                              '"input": "mod44c" (composites from MOD44C, as in v1.9.0).' % (self.input,))
 
-        dailyOnly = [k for k in ('dailiesDir', 'aquaFill', 'compositeOptions', 'compositeDiag') if k in self.spec]
+        dailyOnly = [k for k in ('dailiesDir', 'aquaFill', 'compositeOptions', 'compositeDiag', 'compositeKeys') if k in self.spec]
 
         if self.input == 'mod44c':
             if dailyOnly:
                 raise ValueError('Spec settings %s apply to "input": "dailies" only.' % ', '.join(dailyOnly))
-            self.dailiesDir, self.aquaFill, self.compositeOptions = None, False, None
+            self.dailiesDir, self.aquaFill, self.compositeOptions, self.compositeKeys = None, False, None, None
             return
 
         if self.cloudFallbackTree:
@@ -231,6 +234,19 @@ class YearRun(object):
                                 '(MOD44B).' % (self.dailiesDir, self.year))
             self.aquaFill = False
 
+        self.compositeKeys = self.spec.get('compositeKeys')
+
+        if self.compositeKeys is not None:
+            if not Path(self.compositeKeys).is_file():
+                raise ValueError('"compositeKeys" must be an existing training manifest (found %r).' % (self.compositeKeys,))
+            if self.spec.get('aquaFill') or self.spec.get('compositeDiag'):
+                raise ValueError('"compositeKeys" (keys mode) works without aquaFill and without compositeDiag.')
+            if self.spec.get('mapTiles'):
+                raise ValueError('"compositeKeys" builds composites at label pixels only: give no mapTiles.')
+            notSplitOnly = [m for m in ('tree', 'bare') if m in self.models and 'fixed' not in self.models[m] and not self.models[m].get('splitOnly')]
+            if notSplitOnly:
+                raise ValueError('"compositeKeys" is for splits only: set "splitOnly": true for %s.' % ', '.join(notSplitOnly))
+
     def _tileYearRoot(self, tile: str) -> Path:
         return self.metricsRoot / tile / str(self.year)
 
@@ -246,7 +262,7 @@ class YearRun(object):
                                         workRoot=self.root / 'Python' / 'composites', aquaFill=self.aquaFill,
                                         options=self.compositeOptions,
                                         workers=int(self.spec.get('workers', {}).get('composite', 4)), logger=self.logger,
-                                        diag=bool(self.spec.get('compositeDiag', False)))
+                                        diag=bool(self.spec.get('compositeDiag', False)), keysManifest=self.compositeKeys)
 
     # ------------------------------------------------------------------------
     # manifest tiles

@@ -5,10 +5,13 @@ Usage:
 
   # the 8 periods of tiles, ready for the metrics step (model/TileComposites.py)
   python -m modis_vcf.view.makeComposites tile -o <metrics dir> -y 2019 -t h09v05 h12v09 --dailiesDir <dir> \
-      [--aquaFill --work <dir>] [--workers 4] [--option polarFill=false ...]
+      [--aquaFill --work <dir>] [--workers 4] [--option polarFill=false ...] [--keys <training manifest .parq>]
 
   # one sensor and period (model/DailiesComposite.py): <out>/2-Composites and <out>/diag
   python -m modis_vcf.view.makeComposites period h09v05 2019161 --dailiesDir <dir> --out <dir> [--sensor aqua] [--option ...]
+      [--keys <training manifest .parq>]
+
+--keys (v2.0.2): keys mode, composites only at the tile's label pixels of the manifest (Terra, no --aquaFill / --diag).
 
   # Aqua fill of one period from finished Terra and Aqua period outputs (model/AquaFill.py)
   python -m modis_vcf.view.makeComposites merge h09v05 2019161 --terra <dir> --aqua <dir> --out <dir> [--b6rule b]
@@ -62,6 +65,7 @@ def main():
     t.add_argument('--workers', type=int, default=4, help='sensor-periods built at once (about 23 GB each)')
     t.add_argument('--option', action='append', default=[])
     t.add_argument('--diag', action='store_true', help='also write the per-pixel diagnostics (off by default)')
+    t.add_argument('--keys', type=Path, help='keys mode: composites only at the label pixels of this training manifest')
 
     p = sub.add_parser('period', help='one sensor and period')
     p.add_argument('tile')
@@ -71,6 +75,7 @@ def main():
     p.add_argument('--sensor', default='terra', choices=sorted(Sensor.SENSORS))
     p.add_argument('--option', action='append', default=[])
     p.add_argument('--diag', action='store_true', help='also write the per-pixel diagnostics (off by default)')
+    p.add_argument('--keys', type=Path, help='keys mode: composites only at the label pixels of this training manifest')
 
     m = sub.add_parser('merge', help='Aqua fill of one period')
     m.add_argument('tile')
@@ -90,10 +95,11 @@ def main():
             a.aquaFill = False
         for tile in a.t:
             s = TileComposites.buildTile(tile, a.y, a.dailiesDir, a.o / tile / str(a.y), a.work, a.aquaFill,
-                                         _options(a.option), a.workers, diag=a.diag)
+                                         _options(a.option), a.workers, diag=a.diag, keysManifest=a.keys)
             print(tile, s['product'], flush=True)
     elif a.cmd == 'period':
-        s = DC.composite(a.tile, a.period, a.dailiesDir, a.out, Sensor.get(a.sensor), _options(a.option), a.diag)
+        keys = TileComposites.keysFromManifest(a.keys, a.tile) if a.keys else None
+        s = DC.composite(a.tile, a.period, a.dailiesDir, a.out, Sensor.get(a.sensor), _options(a.option), a.diag, keys)
         print(json.dumps({k: v for k, v in s.items() if k != 'inputs'}), flush=True)
     else:
         s = AquaFill.merge(a.tile, a.period, a.terra, a.aqua, a.out, a.b6rule, a.diag)

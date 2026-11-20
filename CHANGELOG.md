@@ -13,6 +13,23 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## Unreleased (v2.0.2, branch `mcarrol2/v2.0.0`): keys mode for training composites
+
+**No change to products** (keys mode is off unless asked for). For the pooled bare model from dailies (lead 2026-11-19), the
+compositor can build its composites only at the label pixels of a training manifest:
+- `DailiesComposite.composite(keys=...)`: each day is read whole, then cut to the keys before the per-pixel work; the outputs are
+  full-tile files with fill elsewhere (bands FILL, qa / cloudfb 0, fbclass -1), so the metrics step is unchanged. Not with otherOrbit
+  or diag.
+- `TileComposites.buildTile(keysManifest=...)`, `keysFromManifest`, `keysInfo` (recorded in composites.json); year spec
+  `"compositeKeys"` (splits only: no mapTiles, every fitted model `splitOnly`, Terra only); `makeComposites --keys`.
+- Tests: `tests/test_DailiesKeys.py` (8 tests: keys mode = full mode at the keys on synthetic days, four option sets). 105 passed.
+- Evidence on real data: `FullRuns/AT_pooledbare_dailies_20261119/gates` (2026-11-19, 4 / 4 PASS, `VCF_MOD44_DIR` unset): 2019 h16v02
+  (10,000 keys) and h20v06 (170,067 keys): G0 composites = the B2 composites at every key (8 bands x 8 periods, qa, cloudfb,
+  fbclass), fill elsewhere; G1 the 21 bare predictors at the B2 bare split's keys = its xTrain / xTest rows (h16v02 8,014 / 1,986,
+  h20v06 136,045 / 34,022). Per-pixel work per period 0-5 s (full mode about 15 min); a period is now read-bound, 4-9 min.
+
+---
+
 ## v2.0.1 (tag `v2.0.1`, 2026-11-19, branch `mcarrol2/v2.0.0`): dailies runs never read MOD44C
 
 **Values exact.** With `"input": "dailies"`, v2.0.0 still opened the MOD44C product type in the metrics and map

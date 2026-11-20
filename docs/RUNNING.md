@@ -196,6 +196,10 @@ computes the metrics as before.
   in the log.
 - `cleanup: after_map` also deletes the tile's Terra and Aqua composites.
 
+**Keys mode (v2.0.2, training splits only):** `"compositeKeys": "<training manifest .parq>"` builds each tile's composites only
+at its label pixels (about 50 times less per-pixel work and memory); the values there equal full mode. Only for split-only years
+(no mapTiles, every fitted model `"splitOnly": true`), Terra only.
+
 **Without the year driver:** `python -m modis_vcf.view.makeComposites tile -o <metrics root> -y 2019 -t h12v09 --dailiesDir <dir>
 [--aquaFill --work <dir>]`, then `makeMetrics --input dailies` / `vcfPredict --input dailies` on that metrics root as usual (`--help` for single periods and merges).
 
