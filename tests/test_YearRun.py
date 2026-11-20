@@ -37,7 +37,7 @@ def spec(tmp_path, monkeypatch):
         (w / ('MOD44W.A2019001.%s.061.2020001.hdf' % t)).write_bytes(b'')
     monkeypatch.setattr(Settings, 'MOD44W_DIR', tmp_path / 'mod44w')
     fit = {'nEstimators': 60, 'maxFeatures': 'sqrt', 'nJobs': 12, 'randomState': 0, 'minSamplesLeaf': 1}
-    s = {'year': 2019, 'runRoot': str(tmp_path / 'run'), 'lowSun': 'le0', 'mapFormat': 'h5',
+    s = {'year': 2019, 'runRoot': str(tmp_path / 'run'), 'input': 'mod44c', 'lowSun': 'le0', 'mapFormat': 'h5',
          'models': {'tree': {'manifest': _manifest(tmp_path, 'tree', ['h12v02']), 'predictors': 'p_tree.txt',
                              'trainingType': 'pcttree', 'fit': fit},
                     'bare': {'trainingType': 'pctbare', 'fixed': _model(tmp_path, 'pooled')}},
@@ -104,3 +104,44 @@ def test_old_keys_refused(spec):
     s['partner'] = s.pop('cloudFallbackTree')
     with pytest.raises(ValueError, match='cloudFallbackTree'):
         _yr(d, s)
+
+
+# ---------------------------------------------------------------------------- v2.0.0 input settings
+def test_input_required(spec):
+    d, s = spec
+    s.pop('input')
+    with pytest.raises(ValueError, match='"input"'):
+        _yr(d, s)
+
+
+def test_dailies_settings(spec):
+    d, s = spec
+    s['input'] = 'dailies'
+    with pytest.raises(ValueError, match='cloudFallbackTree'):              # the blend is MOD44C only (lead 2026-11-19)
+        _yr(d, s)
+    s.pop('cloudFallbackTree')
+    s['mapTiles'] = ['h12v02', 'h17v15']
+    with pytest.raises(ValueError, match='dailiesDir'):
+        _yr(d, s)
+    s['dailiesDir'] = str(d)
+    s['aquaFill'] = True                                                    # no Aqua dailies under d: Terra only
+    y = _yr(d, s)
+    assert y.input == 'dailies' and y.aquaFill is False
+    for t in ('map:h12v02', 'map:h17v15'):                                  # every map task names the product
+        c = y._commands(t)[0]
+        assert c[c.index('--product') + 1] == 'MOD44B'
+    a = d / 'MYD09GA' / '2019'
+    a.mkdir(parents=True)
+    (a / 'MYD09GA.A2019200.h12v02.007.x.h5').write_bytes(b'')
+    y = _yr(d, s, 'spec2.json')
+    c = y._commands('map:h17v15')[0]
+    assert y.aquaFill is True and c[c.index('--product') + 1] == 'MCD44B'   # rule tiles too (one product per run)
+
+
+def test_mod44c_refuses_dailies_settings(spec):
+    d, s = spec
+    s['aquaFill'] = True
+    with pytest.raises(ValueError, match='dailies'):
+        _yr(d, s)
+    s.pop('aquaFill')
+    assert '--product' not in _yr(d, s, 'spec2.json')._commands('map:h12v02')[0]   # MOD44C: as v1.9.0

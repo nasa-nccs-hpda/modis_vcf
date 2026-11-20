@@ -22,6 +22,7 @@ from osgeo.osr import SpatialReference
 from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompositeDayFile import CompositeDayFile
 from modis_vcf.model import LowSun
+from modis_vcf.model import TileComposites
 from modis_vcf.model.ProductType import ProductType
 
 
@@ -84,6 +85,8 @@ class Metrics(object):
     # day under the zenith cutoff (0 < solz < 65).  Polar-night periods
     # otherwise reach the models unfiltered and give spurious tree cover.
     # Iceland (h17v02) is excluded: the fix did not lower its MAE against C6.
+    # Not applied to composites from dailies (TileComposites): their sun limit
+    # (solz < 72) and polar-night fill replace it (lead 2026-11-15).
     # ---
     ZENITH_ONLY_NDVI_TILES = ('h15v02', 'h16v00', 'h16v01', 'h16v02',
                               'h17v00', 'h17v01')
@@ -278,6 +281,14 @@ class Metrics(object):
                                    self._productType.ROWS, 
                                    self._productType.COLS), np.nan)
         
+        # A root of composites from dailies must never be completed from MOD44C.
+        if TileComposites.isDailies(self._outDir):
+            gone = [str(y) + str(d).zfill(3) for y, d in self._daysSought
+                    if not (self._compDir / ('MOD44-%s-%d%03d-%s.bin' % (self._tid, y, d, bandName))).exists()]
+            if gone:
+                raise RuntimeError(str(self._outDir) + ' holds composites from dailies but ' + bandName +
+                                   ' is missing for ' + ', '.join(gone) + ': rebuild the tile (TileComposites).')
+
         self._buildCompositesInParallel(bandName)
 
         xref = {}  # yyyydd: index into cube
@@ -701,7 +712,7 @@ class Metrics(object):
         
         ndviCube = ndviRaw * 1000
 
-        if self._tid in Metrics.ZENITH_ONLY_NDVI_TILES:
+        if self._tid in Metrics.ZENITH_ONLY_NDVI_TILES and not TileComposites.isDailies(self._outDir):
             ndviCube = self._applyZenithOnlyNdvi(ndviCube)
 
         # Write NDVI.

@@ -12,6 +12,10 @@ composite workers are spawned processes.  These variables are internal:
 configure() sets them (the entry points call it with --lowSun, le0 when
 not given), and values set by hand are replaced.
 
+Not used for composites built from C7 dailies (TileComposites, v2.0.0):
+the compositor applies its own clamp (solz >= 72 or <= 0), and guard()
+returns without stamping such roots.
+
 Cache guard: dailies in 1-Days are cached and reused whatever the current
 mode, which is how 34 v1.4.0 tiles kept unsubstituted inputs.  guard()
 stamps each tile-year root with lowsun.json; a root without a stamp is
@@ -136,6 +140,13 @@ def guard(metrics, mode: str = None) -> None:
 
     root = metrics._outDir
     key = str(root)
+
+    # Composites from dailies (TileComposites) apply their own low-sun clamp and have no cached MOD44C dailies to check.
+    from modis_vcf.model import TileComposites
+
+    if TileComposites.isDailies(root):
+        return
+
     t, le0 = settings()
     tid = metrics._tid
     effective = modeName(t, le0) if appliesTo(tid) else 'off'

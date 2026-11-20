@@ -142,6 +142,13 @@ def main():
                         help='Map output: h5 = one Collection 7 MOD44B file per tile and year (default), '
                              'geotiff = one GeoTIFF per layer, both.')
 
+    parser.add_argument('--product',
+                        choices=['MOD44B', 'MCD44B'],
+                        default=None,
+                        help='The product name (v2.0.0). Default: from the tile\'s composites (composites.json: MCD44B '
+                             'when Aqua filled them), MOD44B for MOD44C metrics and rule tiles. When given it must agree '
+                             'with the composites; rule tiles take it as given (year runs pass it for every tile).')
+
     parser.add_argument('--h5Attr',
                         action='append',
                         default=[],
@@ -168,7 +175,7 @@ def main():
 
     if ruleTids:
         VcfPredict.forRuleTiles(args.o, writeSd=not args.noSd, mapFormat=args.format,
-                                h5Overrides=h5Overrides).run(tids=ruleTids, years=[args.y])
+                                h5Overrides=h5Overrides, product=args.product).run(tids=ruleTids, years=[args.y])
 
     if not tids:
         return 0
@@ -197,7 +204,8 @@ def main():
                       countsDir=args.counts,
                       barePriority=not args.noBarePriority,
                       mapFormat=args.format,
-                      h5Overrides=h5Overrides)
+                      h5Overrides=h5Overrides,
+                      product=args.product)
 
     vcfp.run(tids=tids, years=[args.y])
 

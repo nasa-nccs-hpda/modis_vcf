@@ -1,4 +1,4 @@
-# Running a year (modis_vcf v1.9.0)
+# Running a year (modis_vcf v2.0.0, in development; v1.9.0 plus composites from dailies)
 
 One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 day 065 to 2020 day 049) goes through five steps:
 
@@ -162,6 +162,40 @@ Spec (all paths absolute):
 - `cleanup: after_map` deletes a tile's composites and metrics once its map and the splits that read it are done (a year writes about
   8-9 TB otherwise). `keepTiles` keeps chosen tiles.
 - Per-task time, CPU, peak memory and bytes: `timing/tasks.csv`.
+
+### v2.0.0: the input setting, composites from C7 dailies, Aqua fill (MCD44B)
+
+Since v2.0.0 every spec must say where its composites come from. A spec without `"input"` stops with an error.
+
+```json
+ "input": "dailies",                                  (or "mod44c": MOD44C composites, exactly as v1.9.0)
+ "dailiesDir": "/data/modis/C7_dailies",              <dailiesDir>/<PRODUCT>/<calendar year>/<PRODUCT>.A<yyyyddd>.<tile>.007.*.h5
+ "aquaFill": false,                                   true: MCD44B (below); default false: MOD44B
+ "compositeOptions": {},                              switches of DailiesComposite.CompositeOptions; defaults = B2 (leave empty)
+ "workers": {"metrics": 8, "split": 6, "mapJobs": 8, "composite": 4}
+```
+
+**What `"input": "dailies"` does.** Each `metrics:<tile>` task first builds the tile's 8 composites from the dailies
+(`model/TileComposites.py`) into `<runRoot>/Python/metrics/<tile>/<year>/2-Composites`, writes `composites.json` there, and then
+computes the metrics as before.
+- **Inputs:** MOD09GA, MOD09GQ and MODTBGA for the 365 days of the processing year (DOY 065 to DOY 064 of the next year).
+- **Cost:** one composite period takes about 20 minutes and 23 GB per sensor. `workers.composite` periods are built at once, so
+  `memGB.metrics` must cover `workers.composite` x 23 GB.
+- **Settings that do not apply:** `cloudFallbackTree` is not allowed with dailies. `lowSun` and `lowSunCheck` do not affect the
+  dailies composites, which clamp low sun themselves.
+
+**`"aquaFill": true`.** The dailies folder must also hold MYD09GA, MYD09GQ and MYDTBGA.
+- Terra and Aqua are composited separately into `<runRoot>/Python/composites/{terra,aqua}/<tile>/<year>`. Aqua good days then fill
+  the Terra pixels with no good day.
+- Every map of the run is **MCD44B** (`MCD44B.A<yyyy>065.<tile>.<collection>.<production>.h5`, grid `MCD44B_250m_GRID`). It has
+  the extra layer `Aqua_Fill`: uint8, one bit per period, set where the pixel-period came from Aqua. The root attribute
+  `AquaFillPercentLand` gives the % of land filled per period.
+- If the dailies folder has no Aqua files for the year (Aqua starts on 4 July 2002), the run is Terra only and MOD44B, with a warning
+  in the log.
+- `cleanup: after_map` also deletes the tile's Terra and Aqua composites.
+
+**Without the year driver:** `python -m modis_vcf.view.makeComposites tile -o <metrics root> -y 2019 -t h12v09 --dailiesDir <dir>
+[--aquaFill --work <dir>]`, then `makeMetrics` / `vcfPredict` on that metrics root as usual (`--help` for single periods and merges).
 
 ## The pooled bare model (a ready-made model)
 

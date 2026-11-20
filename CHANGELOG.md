@@ -13,6 +13,44 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## v2.0.0 (not tagged; in development on branch `mcarrol2/v2.0.0`, 2026-11-19): composites from C7 dailies, optional Aqua fill (MCD44B)
+
+**Input change; product values change by design.** A separate delivery from v1.9.0 (lead 2026-11-19); v1.9.0 is unchanged.
+
+- **Composites from dailies (default input).** The metrics step can build its 8 composites from the C7 daily surface reflectance
+  (MOD09GA + MOD09GQ + MODTBGA, first layer) instead of reading MOD44C, with the Aqua-Terra Experiment's **B2** rules
+  (`model/DailiesComposite.py`, `model/TileComposites.py`; command line `view/makeComposites.py`):
+  - good days: B1 tests, with sun limit 72;
+  - fallback: least-bad days, F1 to F4, with the v1.9.0 NDVI / NIR guard on F3;
+  - polar night: filled with 16000.
+
+  The year spec must now say `"input": "dailies"` (with `"dailiesDir"`) or `"input": "mod44c"`, and a spec without it stops
+  (lead 2026-11-19). `"input": "mod44c"` is v1.9.0's path unchanged.
+- **Aqua fill (option, off by default; spec `"aquaFill": true`).** Aqua good days (MYD09GA / GQ / MYDTBGA) fill Terra pixels with no
+  good day in a period (`model/AquaFill.py`; no offset adjustment; only where Aqua Band 6 is valid).
+  - The products are then **MCD44B**: file name, grid `MCD44B_250m_GRID`, root metadata, and an eighth layer `Aqua_Fill` (one bit
+    per period) with the attribute `AquaFillPercentLand`.
+  - Every tile of such a run is MCD44B. If there are no Aqua dailies for the year, the run is Terra only (MOD44B) with a warning.
+  - The MCD44B names are provisional until MODAPS supplies the MCD44B MCF; there is no DOI yet.
+- **Diagnostics optional** (spec `"compositeDiag"`, `makeComposites --diag`; off by default, lead 2026-11-19): only fbclass, Aqua
+  b6_n, the merge's fill_src and summary.json are written unless asked (the full set is about 7 GB per Aqua-fill tile).
+- **Version in the files:** PGEVersion / LocalVersionID now say 2.0.0 (v1.9.0 still wrote 1.7.1). InputDataProducts of a dailies
+  map lists one entry per daily product (file count, first and last file name).
+- **Sensors are descriptions** (`model/Sensor.py`: Terra, Aqua), so another sensor (e.g. VIIRS) can be added without changing the
+  compositing rules.
+- **Composite options**, all off by default (`CompositeOptions`): C2 other orbit, C3 F2 aerosol-first, F3 single day, no F3 guard,
+  B0 rules, no polar fill. Each reproduces its experiment switch.
+- **Rules that apply only to MOD44C** are left out for dailies composites: zenith-only NDVI on the Greenland tiles and the low-sun
+  cache guard (the compositor clamps low sun itself). The cloud-fallback tree blend is allowed only with `"input": "mod44c"`.
+- **Models:** the tree model is fitted every year, as in v1.9.0: on Terra composites for MOD44B and on Aqua-fill composites for
+  MCD44B. Non-vegetated uses the v1.9.0 pooled bare model until a pooled model from dailies is fitted.
+- **Evidence:** exactness gates against the Aqua-Terra Experiment runs, `FullRuns/AT_v200gates2_20261119` (2026-11-19, 38 / 38 PASS):
+  Terra composites = B2 and Aqua-fill composites + diagnostics = the Aqua fill run, byte for byte on the 7 standard tiles; maps equal
+  the runs' maps; `"input": "mod44c"` = v1.9.0 byte for byte (h09v05, h12v09); each composite option reproduces its experiment
+  switch. The no-Aqua fallback is covered by a synthetic unit test. Unit tests: 92 passed.
+
+---
+
 ## v1.9.0 (tag `v1.9.0`, 2026-11-11): the pooled bare model, a code review, unit tests
 
 **Model change (non-vegetated only); the code is exact.** The non-vegetated layer uses one delivered model for every year, the

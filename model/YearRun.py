@@ -28,22 +28,33 @@ bytes are sampled every 5 s, so very short processes may be undercounted.
 
 Spec (JSON):
   year, runRoot, lowSun                       the processing year, the run folder, the low-sun mode (le0)
+  input (required since v2.0.0)               "dailies": the metrics task first builds the tile's composites from the C7
+                                              dailies (model/TileComposites.py, B2 rules); "mod44c": composites from MOD44C,
+                                              as in v1.9.0.  A spec without "input" stops with an error.
+  dailiesDir (input dailies)                  <dailiesDir>/<PRODUCT>/<year>/ (MOD09GA, MOD09GQ, MODTBGA; with aquaFill also
+                                              MYD09GA, MYD09GQ, MYDTBGA)
+  aquaFill (optional, dailies only)           true: Aqua good days fill Terra pixels with no good day; the products are
+                                              MCD44B with the Aqua_Fill layer.  If there are no Aqua dailies for the year the
+                                              run is Terra only (MOD44B) and says so in its log.  Default false (MOD44B).
+  compositeOptions (optional, dailies only)   switches of DailiesComposite.CompositeOptions (defaults = B2)
+  compositeDiag (optional, dailies only)      true: also write the compositor's per-pixel diagnostics (default false)
   models.tree, models.bare                    either {manifest, predictors, trainingType, fit {...}} (fitted in the run;
                                               "splitOnly": true builds the split without a fit, and then no mapTiles are
                                               allowed) or {trainingType, fixed: {model, topN, sha256}} (ready-made; the
                                               optional sha256 file is checked before the first task)
-  cloudFallbackTree (optional)                {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
+  cloudFallbackTree (optional, mod44c only)   {tiles, manifest, predictors, trainingType, fit} (fitted in the run),
                                               {tiles, fixed: {model, topN}} (ready-made), or {tiles, model, topN,
                                               metricsDir, counts} (borrowed from another run: no composites built here)
   mapTiles                                    the tiles to map
   metricsTiles (optional)                     default: the manifests' tiles and the map tiles
-  workers {metrics, split, mapJobs, cloudFallback}, fitHosts, slots {host prefix: n}, memGB {task type: GB}
+  workers {metrics, split, mapJobs, cloudFallback, composite}, fitHosts, slots {host prefix: n}, memGB {task type: GB}
   cleanup (optional) {mode: after_map (default) | off, keepTiles: [...]}, maxBacklog (optional)
   writeDailiesTiles (optional)                tiles whose daily inputs are also written to 1-Days (none by default)
   mapFormat (optional), h5Attrs (optional)    the map output format (h5 by default) and extra .h5 root attributes
 
 Clean-up: once every task that reads a tile's metrics is done (its map, and the splits of the manifests
-it is in), that tile's 1-Days, 2-Composites and 3-Metrics are deleted, unless the tile is in keepTiles.
+it is in), that tile's 1-Days, 2-Composites and 3-Metrics are deleted (with dailies input also its diag and the tile's Terra and
+Aqua composites under Python/composites; composites.json stays), unless the tile is in keepTiles.
 A tile whose map failed is kept.  Only real folders inside the run's metrics root are deleted (a
 symbolic link or a path outside runRoot is refused); the low-sun stamp and counts stay.  Each deletion
 is logged to status/cleanup.log with the GB freed.  The metrics of training tiles are claimed first, and
@@ -176,9 +187,66 @@ class YearRun(object):
             raise ValueError('cleanup mode must be after_map or off')
 
         self.keepTiles = set(cleanup.get('keepTiles', []))
+        self._inputSettings()
         self.maxBacklog = self.spec.get('maxBacklog')
         self.tasks, self.deps, self.kind = self._taskList()
         self._cleaned = set()
+
+    # ------------------------------------------------------------------------
+    # input (v2.0.0)
+    # ------------------------------------------------------------------------
+    def _inputSettings(self) -> None:
+        """Check the spec's input settings; set input, dailiesDir, aquaFill (as used, after the Aqua check), compositeOptions."""
+
+        from modis_vcf.model import DailiesComposite, TileComposites
+
+        self.input = self.spec.get('input')
+
+        if self.input not in ('dailies', 'mod44c'):
+            raise ValueError('The spec has no valid "input" (found %r): add "input": "dailies" (with "dailiesDir") or '
+                             '"input": "mod44c" (composites from MOD44C, as in v1.9.0).' % (self.input,))
+
+        dailyOnly = [k for k in ('dailiesDir', 'aquaFill', 'compositeOptions', 'compositeDiag') if k in self.spec]
+
+        if self.input == 'mod44c':
+            if dailyOnly:
+                raise ValueError('Spec settings %s apply to "input": "dailies" only.' % ', '.join(dailyOnly))
+            self.dailiesDir, self.aquaFill, self.compositeOptions = None, False, None
+            return
+
+        if self.cloudFallbackTree:
+            raise ValueError('The cloud-fallback tree blend ("cloudFallbackTree") is built from MOD44C composites: use it '
+                             'with "input": "mod44c" only (lead 2026-11-19).')
+
+        if not self.spec.get('dailiesDir') or not Path(self.spec['dailiesDir']).is_dir():
+            raise ValueError('"input": "dailies" needs "dailiesDir", an existing folder (found %r).' %
+                             (self.spec.get('dailiesDir'),))
+
+        self.dailiesDir = self.spec['dailiesDir']
+        self.compositeOptions = DailiesComposite.CompositeOptions(**self.spec.get('compositeOptions', {}))
+        self.aquaFill = bool(self.spec.get('aquaFill', False))
+
+        if self.aquaFill and not TileComposites.aquaAvailable(self.dailiesDir, self.year):
+            self.logger.warning('aquaFill is on, but %s has no Aqua dailies for processing year %d: the run is Terra only '
+                                '(MOD44B).' % (self.dailiesDir, self.year))
+            self.aquaFill = False
+
+    def _tileYearRoot(self, tile: str) -> Path:
+        return self.metricsRoot / tile / str(self.year)
+
+    def buildComposites(self, tile: str) -> dict:
+        """The tile's composites from dailies (TileComposites.buildTile) into the metrics root; None for MOD44C input."""
+
+        if self.input != 'dailies':
+            return None
+
+        from modis_vcf.model import TileComposites
+
+        return TileComposites.buildTile(tile, self.year, self.dailiesDir, self._tileYearRoot(tile),
+                                        workRoot=self.root / 'Python' / 'composites', aquaFill=self.aquaFill,
+                                        options=self.compositeOptions,
+                                        workers=int(self.spec.get('workers', {}).get('composite', 4)), logger=self.logger,
+                                        diag=bool(self.spec.get('compositeDiag', False)))
 
     # ------------------------------------------------------------------------
     # manifest tiles
@@ -368,6 +436,7 @@ class YearRun(object):
 
         # Map output (VcfPredict.MAP_FORMATS): the C7 file by default; analysis runs set "mapFormat": "both".
         mf = ['--format', self.spec.get('mapFormat', 'h5')] + \
+            (['--product', 'MCD44B' if self.aquaFill else 'MOD44B'] if self.input == 'dailies' else []) + \
             [a for k, v in sorted(self.spec.get('h5Attrs', {}).items()) for a in ('--h5Attr', '%s=%s' % (k, v))]
 
         if kind == 'map' and arg in self.ruleTiles:
@@ -418,6 +487,7 @@ class YearRun(object):
         from modis_vcf.model.VcfPredict import MOD44_DIR
 
         LowSun.configure(self.spec.get('lowSun', 'le0'))
+        self.buildComposites(tile)
         # Dailies stay in memory unless the tile is listed for diagnostics (the composite workers inherit this).
         BandDayFile.setWriteDailies(tile in self.spec.get('writeDailiesTiles', []))
         names = []
@@ -632,13 +702,18 @@ class YearRun(object):
 
             freed, gone = 0, []
 
+            work = self.root / 'Python' / 'composites'
+
             for base, name in [(b, n) for b in (self.metricsRoot, self.cloudFallbackRoot)
-                               for n in ('1-Days', '2-Composites', '3-Metrics')]:
+                               for n in ('1-Days', '2-Composites', '3-Metrics', 'diag')] + \
+                    [(work / s, n) for s in ('terra', 'aqua') for n in ('2-Composites', 'diag')]:
 
                 d = base / tile / str(self.year) / name
 
                 if base == self.cloudFallbackRoot:
                     name = 'cloudfallback/' + name
+                elif base.parent == work:
+                    name = 'composites/' + base.name + '/' + name
 
                 if not d.exists() and not d.is_symlink():
                     continue
@@ -770,7 +845,7 @@ class YearRun(object):
                     tile = t.split(':')[1]
                     maps = self.root / 'out' / 'maps'
                     for f in list(maps.glob('*-' + tile + '-%d*' % self.year)) + \
-                            list(maps.glob('MOD44B.A%d065.%s.*.h5*' % (self.year, tile))):
+                            list(maps.glob('M[OC]D44B.A%d065.%s.*.h5*' % (self.year, tile))):
                         shutil.move(str(f), str(aside / f.name))
                     running.append(self._start(t, 2))
                     continue

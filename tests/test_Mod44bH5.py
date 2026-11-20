@@ -53,3 +53,26 @@ def test_attributes(written):
 def test_refuses_values_out_of_range(tmp_path):
     with pytest.raises(ValueError):
         H.write(tmp_path, 'h12v02', 2019, {'Percent_Tree_Cover': np.full((N, N), 300, np.int16)})
+
+
+def test_mcd44b_file(tmp_path):
+    """MCD44B (v2.0.0): name, grid, metadata, the Aqua_Fill layer and its attribute; find() sees both products."""
+    layers = {'Percent_Tree_Cover': np.full((N, N), 40, np.uint8), H.AQUA_FILL: np.full((N, N), 5, np.uint8)}
+    prod = datetime(2026, 11, 19, 8, 0, 0, tzinfo=timezone.utc)
+    pct = np.arange(8, dtype=np.float64)
+    path = H.write(tmp_path, 'h12v09', 2019, layers, production=prod, product='MCD44B',
+                   extraAttrs={'AquaFillPercentLand': pct})
+    assert path.name.startswith('MCD44B.A2019065.h12v09.') and H.find(tmp_path, 'h12v09', 2019) == path
+    assert np.array_equal(H.readLayer(path, H.AQUA_FILL), layers[H.AQUA_FILL])
+    s = lambda v: v.decode() if isinstance(v, bytes) else str(v)
+    with h5py.File(path, 'r') as f:
+        assert H.fieldsPath('MCD44B') + '/Aqua_Fill' in f and H.FIELDS_PATH not in f
+        assert s(f.attrs['ShortName']) == 'MCD44B' and 'Terra+Aqua' in s(f.attrs['LongName'])
+        assert np.array_equal(f.attrs['AquaFillPercentLand'], pct)
+        assert 'MCD44B_250m_GRID' in s(f['HDFEOS INFORMATION/StructMetadata.0'][()]) and 'Aqua_Fill' in \
+            s(f['HDFEOS INFORMATION/StructMetadata.0'][()])
+    assert H.fieldNames('MOD44B') == H.FIELD_NAMES and H.fieldNames('MCD44B') == H.FIELD_NAMES + ['Aqua_Fill']
+    with pytest.raises(ValueError):
+        H.granuleName('h12v09', 2019, prod, 'MYD44B')
+    with h5py.File(path, 'r') as f:
+        assert s(f.attrs['identifier_product_doi']).strip('\x00') == ''          # no MCD44B DOI yet

@@ -11,6 +11,12 @@ Same groups, fields, types, chunks, filters, attributes and root metadata as tho
   - the run-specific metadata (versions, host, inputs) are this code's own; MODAPS can override any root attribute.
 
 The layer values are those of the GeoTIFFs (VcfPredict._write), unchanged.
+
+MCD44B (v2.0.0, lead 2026-11-19): when the composites carry Aqua fill (TileComposites), the file is named MCD44B, its
+grid is MCD44B_250m_GRID, its root metadata say Terra and Aqua (PRODUCT_ATTRS) and it has an eighth layer, Aqua_Fill
+(uint8, one bit per composite period, period 1 in bit 0: the pixel-period was filled from Aqua), plus the root attribute
+AquaFillPercentLand (per period, % of land pixels filled from Aqua).  There is no MCD44B DOI yet (empty), and MODAPS will
+supply the MCD44B MCF: these names are provisional until then.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -24,7 +30,7 @@ import numpy as np
 
 from modis_vcf.model.Settings import OUTPUT_COLLECTION
 
-CODE_VERSION = '1.7.1'
+CODE_VERSION = '2.0.0'
 
 # Collection number in the file name and GranuleID: 071 by default, so this code's files are not confused with the MODAPS
 # Collection 7 MOD44B (007); VCF_OUTPUT_COLLECTION sets another (e.g. 007 for an operational MODAPS run).  VersionID and
@@ -37,6 +43,8 @@ if not (len(COLLECTION) == 3 and COLLECTION.isdigit()):
 C7_VERSION_ID = 7
 C7_DOI = '10.5067/MODIS/MOD44B.007'
 
+PRODUCTS = ('MOD44B', 'MCD44B')
+
 # Root attributes of a Collection 7 MOD44CQ input that give the tile bounds (degrees).
 BOUND_ATTRS = dict(north='geospatial_lat_max', south='geospatial_lat_min', east='geospatial_lon_max',
                    west='geospatial_lon_min')
@@ -44,6 +52,18 @@ BOUND_ATTRS = dict(north='geospatial_lat_max', south='geospatial_lat_min', east=
 GRID = 'MOD44B_250m_GRID'
 GRID_PATH = '/HDFEOS/GRIDS/' + GRID
 FIELDS_PATH = GRID_PATH + '/Data Fields'
+
+
+def gridName(product: str = 'MOD44B') -> str:
+    return product + '_250m_GRID'
+
+
+def gridPath(product: str = 'MOD44B') -> str:
+    return '/HDFEOS/GRIDS/' + gridName(product)
+
+
+def fieldsPath(product: str = 'MOD44B') -> str:
+    return gridPath(product) + '/Data Fields'
 SIZE = 4800
 EARTH_RADIUS = 6371007.181
 
@@ -67,6 +87,24 @@ FIELDS = [('Percent_Tree_Cover', np.uint8, 'Percent Tree Cover', _PCT),
           ('Cloud', np.uint8, 'Cloud Cover in Composites', _FLAGS)]
 
 FIELD_NAMES = [f[0] for f in FIELDS]
+
+AQUA_FILL = 'Aqua_Fill'
+AQUA_FIELD = (AQUA_FILL, np.uint8, 'Aqua Fill in Composites', _FLAGS)
+
+
+def fields(product: str = 'MOD44B') -> list:
+    """The product's layers: the 7 MOD44B fields, plus Aqua_Fill for MCD44B."""
+    _checkProduct(product)
+    return FIELDS + [AQUA_FIELD] if product == 'MCD44B' else list(FIELDS)
+
+
+def fieldNames(product: str = 'MOD44B') -> list:
+    return [f[0] for f in fields(product)]
+
+
+def _checkProduct(product: str) -> None:
+    if product not in PRODUCTS:
+        raise ValueError('product must be one of ' + str(PRODUCTS) + ', not ' + repr(product))
 
 LONG_NAME = 'MODIS/Terra Vegetation Continuous Fields Yearly L3 Global 250m SIN Grid'
 PLACEHOLDER = 'set Passed as default, will decide later'
@@ -120,12 +158,22 @@ FIXED_ATTRS = {
 }
 
 
+# Root attributes that differ for MCD44B (provisional until MODAPS supplies the MCD44B MCF).
+MCD_LONG_NAME = 'MODIS/Terra+Aqua Vegetation Continuous Fields Yearly L3 Global 250m SIN Grid'
+PRODUCT_ATTRS = {
+    'MOD44B': {},
+    'MCD44B': {'ShortName': 'MCD44B', 'LongName': MCD_LONG_NAME, 'ParameterName': MCD_LONG_NAME, 'platform': 'Terra, Aqua',
+               'identifier_product_doi': ''},
+}
+
+
 # ----------------------------------------------------------------------------
 # granuleName
 # ----------------------------------------------------------------------------
-def granuleName(tid: str, year: int, production: datetime) -> str:
-    """MOD44B.A<yyyy>065.<tile>.<collection>.<yyyydddhhmmss>.h5 (collection = COLLECTION, 071 by default)."""
-    return 'MOD44B.A%d065.%s.%s.%s.h5' % (year, tid, COLLECTION, production.strftime('%Y%j%H%M%S'))
+def granuleName(tid: str, year: int, production: datetime, product: str = 'MOD44B') -> str:
+    """<product>.A<yyyy>065.<tile>.<collection>.<yyyydddhhmmss>.h5 (collection = COLLECTION, 071 by default)."""
+    _checkProduct(product)
+    return '%s.A%d065.%s.%s.%s.h5' % (product, year, tid, COLLECTION, production.strftime('%Y%j%H%M%S'))
 
 
 # ----------------------------------------------------------------------------
@@ -214,14 +262,14 @@ def inputGeo(inputFile: Path) -> dict:
 # ----------------------------------------------------------------------------
 # structMetadata
 # ----------------------------------------------------------------------------
-def structMetadata(tid: str) -> str:
+def structMetadata(tid: str, product: str = 'MOD44B') -> str:
     """StructMetadata.0 as API-Trans writes it for this grid."""
 
     ulx, uly, lrx, lry = _corners(tid)
     dims = [('XDim', SIZE), ('YDim', SIZE), ('dimofone', 1)]
     types = {np.uint8: 'H5T_NATIVE_UCHAR', np.uint16: 'H5T_NATIVE_USHORT'}
     t = ['GROUP=SwathStructure', 'END_GROUP=SwathStructure', 'GROUP=GridStructure', '\tGROUP=GRID_1',
-         '\t\tGridName="%s"' % GRID, '\t\tXDim=%d' % SIZE, '\t\tYDim=%d' % SIZE,
+         '\t\tGridName="%s"' % gridName(product), '\t\tXDim=%d' % SIZE, '\t\tYDim=%d' % SIZE,
          '\t\tUpperLeftPointMtrs=(%.6f,%.6f)' % (ulx, uly), '\t\tLowerRightMtrs=(%.6f,%.6f)' % (lrx, lry),
          '\t\tGridOrigin=HE5_HDFE_GD_UL', '\t\tProjection=HE5_GCTP_SNSOID',
          '\t\tProjParams=(%.6f,0,0,0,0,0,0,0,0,0,0,0,0)' % EARTH_RADIUS, '\t\tSphereCode=-1', '\t\tGROUP=Dimension']
@@ -231,10 +279,10 @@ def structMetadata(tid: str) -> str:
               '\t\t\tEND_OBJECT=Dimension_%d' % i]
 
     t += ['\t\tEND_GROUP=Dimension', '\t\tGROUP=DataField']
-    fields = [(n, types[d], '("YDim","XDim")') for n, d, _, _ in FIELDS] + \
+    fl = [(n, types[d], '("YDim","XDim")') for n, d, _, _ in fields(product)] + \
              [('Projection', 'H5T_NATIVE_INT', '("dimofone")')]
 
-    for i, (name, typ, dl) in enumerate(fields, 1):
+    for i, (name, typ, dl) in enumerate(fl, 1):
         t += ['\t\t\tOBJECT=DataField_%d' % i, '\t\t\t\tDataFieldName="%s"' % name, '\t\t\t\tDataType=%s' % typ,
               '\t\t\t\tDimList=%s' % dl, '\t\t\t\tMaxdimList=%s' % dl, '\t\t\tEND_OBJECT=DataField_%d' % i]
 
@@ -258,7 +306,7 @@ def _setStr(obj, name: str, value: str, size: int = None, exact: bool = False) -
     """exact: no room for the terminating null, as the C code's SDsetattr(strlen) strings and API-Trans's DOI."""
 
     b = value.encode('ascii')
-    n = size or len(b) + (0 if exact else 1)
+    n = max(size or len(b) + (0 if exact else 1), 1)      # an empty string is one null byte (no zero-size string type)
 
     if name in obj.attrs:
         del obj.attrs[name]
@@ -289,19 +337,24 @@ def write(outDir: Path,
           inputs: list = (),
           geo: dict = None,
           overrides: dict = None,
-          production: datetime = None) -> Path:
+          production: datetime = None,
+          product: str = 'MOD44B',
+          extraAttrs: dict = None) -> Path:
     """
     Write the C7 file of one tile and year and return its path.  layers: {field name: 4800 x 4800 array} for the 7
     fields (values as in the GeoTIFFs; a missing SD layer is written as its fill, 0).  inputs: the input file names
     for InputDataProducts.  geo: inputGeo() of the first MOD44CQ, or None to compute it from the tile corners.
     overrides: root attributes to replace or add (for MODAPS: PGEVersion, ProcessingEnvironment, ...).
+    product: 'MOD44B' or 'MCD44B' (name, grid, PRODUCT_ATTRS, the Aqua_Fill layer).  extraAttrs: root attributes the
+    product adds (MCD44B: AquaFillPercentLand); overrides still win.
     The file is written under a temporary name and renamed when complete.
     """
 
     production = production or datetime.now(timezone.utc)
     geo = geo or _geoFromCorners(tid)
     h, v = _hv(tid)
-    name = granuleName(tid, year, production)
+    name = granuleName(tid, year, production, product)
+    gp = gridPath(product)
     outPath = Path(outDir) / name
     tmp = outPath.with_name(name + '.part')
     ulx, uly, _, _ = _corners(tid)
@@ -310,6 +363,7 @@ def write(outDir: Path,
     begin = datetime(year, 1, 1) + timedelta(days=64)
     end = datetime(year + 1, 1, 1) + timedelta(days=64)
     attrs = dict(FIXED_ATTRS)
+    attrs.update(PRODUCT_ATTRS[product])
     attrs.update({
         'DayNightFlag': geo['DayNightFlag'],
         'GRingPointLatitude': np.asarray(geo['GRingPointLatitude'], np.float64),
@@ -331,6 +385,7 @@ def write(outDir: Path,
         'geospatial_lon_max': np.float64(geo['east']),
         'geospatial_lon_min': np.float64(geo['west']),
     })
+    attrs.update(extraAttrs or {})
     attrs.update(overrides or {})
 
     try:
@@ -340,11 +395,11 @@ def write(outDir: Path,
                 _setAttr(f, k, attrs[k])
 
             f.create_group('HDFEOS/ADDITIONAL/FILE_ATTRIBUTES')
-            g = f.create_group(GRID_PATH.lstrip('/'))
-            fields = g.create_group('Data Fields')
+            g = f.create_group(gp.lstrip('/'))
+            dataFields = g.create_group('Data Fields')
             heInfo = f.create_group('HDFEOS INFORMATION')
             _setStr(heInfo, 'HDFEOSVersion', 'HDFEOS_5.1.16', size=32)
-            sm = structMetadata(tid).encode('ascii')
+            sm = structMetadata(tid, product).encode('ascii')
             sid = h5py.h5d.create(heInfo.id, b'StructMetadata.0', _strType(32000), h5py.h5s.create(h5py.h5s.SCALAR))
             sid.write(h5py.h5s.ALL, h5py.h5s.ALL, np.array(sm, dtype='S32000'), mtype=_strType(32000))
 
@@ -361,7 +416,7 @@ def write(outDir: Path,
                 _setStr(d, 'units', 'm')
                 scales[dim] = d
 
-            for fname, dtype, longName, spec in FIELDS:
+            for fname, dtype, longName, spec in fields(product):
 
                 a = layers.get(fname)
 
@@ -373,12 +428,12 @@ def write(outDir: Path,
                 if a.min() < lim.min or a.max() > lim.max:
                     raise ValueError(fname + ': values do not fit ' + np.dtype(dtype).name)
 
-                d = fields.create_dataset(fname, data=a.astype(dtype), chunks=(SIZE, SIZE), shuffle=True,
+                d = dataFields.create_dataset(fname, data=a.astype(dtype), chunks=(SIZE, SIZE), shuffle=True,
                                           compression='gzip', compression_opts=4, fillvalue=dtype(spec['fill']))
                 d.dims[0].attach_scale(scales['YDim'])
                 d.dims[1].attach_scale(scales['XDim'])
                 d.attrs.create('_FillValue', np.array([spec['fill']], dtype))
-                _setStr(d, 'coordinates', GRID_PATH + '/YDim ' + GRID_PATH + '/XDim')
+                _setStr(d, 'coordinates', gp + '/YDim ' + gp + '/XDim')
                 _setStr(d, 'grid_mapping', 'Projection')
                 _setStr(d, 'long_name', longName, exact=True)
                 _setStr(d, 'units', spec['units'], exact=True)
@@ -387,7 +442,7 @@ def write(outDir: Path,
                 for k, val in spec['extra'].items():
                     d.attrs.create(k, np.array([val], val.dtype if isinstance(val, np.generic) else dtype))
 
-            p = fields.create_dataset('Projection', data=np.array([0], np.int32))
+            p = dataFields.create_dataset('Projection', data=np.array([0], np.int32))
             p.attrs.create('earth_radius', np.array([EARTH_RADIUS]))
             p.attrs.create('false_easting', np.array([0.0]))
             p.attrs.create('false_northing', np.array([0.0]))
@@ -407,12 +462,13 @@ def write(outDir: Path,
 # find / read
 # ----------------------------------------------------------------------------
 def find(mapsDir: Path, tid: str, year: int) -> Path:
-    """The newest product file of a tile and year in mapsDir with this code's collection, else the newest 007 file
-    (folders written before the 071 naming), else None."""
+    """The newest product file (MOD44B or MCD44B) of a tile and year in mapsDir with this code's collection, else the
+    newest 007 file (folders written before the 071 naming), else None."""
 
     for c in dict.fromkeys((COLLECTION, '007')):
 
-        files = sorted(Path(mapsDir).glob('MOD44B.A%d065.%s.%s.*.h5' % (year, tid, c)))
+        files = sorted(Path(mapsDir).glob('M[OC]D44B.A%d065.%s.%s.*.h5' % (year, tid, c)),
+                       key=lambda p: p.name.split('.')[-2])
 
         if files:
             return files[-1]
@@ -422,8 +478,10 @@ def find(mapsDir: Path, tid: str, year: int) -> Path:
 
 def readLayer(path: Path, field: str) -> np.ndarray:
     """One layer (e.g. 'Percent_Tree_Cover') of a product .h5 file, as stored."""
+    product = Path(path).name.split('.')[0]
+
     with h5py.File(path, 'r') as f:
-        return f[FIELDS_PATH + '/' + field][()]
+        return f[fieldsPath(product if product in PRODUCTS else 'MOD44B') + '/' + field][()]
 
 
 def readMapLayer(mapsDir: Path, tid: str, year: int, field: str) -> np.ndarray:

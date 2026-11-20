@@ -37,6 +37,7 @@ from modis_vcf.model.BandDayFile import BandDayFile
 from modis_vcf.model.CompactForest import CompactForest
 from modis_vcf.model.Metrics import Metrics
 from modis_vcf.model import Mod44bH5
+from modis_vcf.model import TileComposites
 from modis_vcf.model.ProductTypeMod44 import ProductTypeMod44
 from modis_vcf.model.ProductTypeMod44W import ProductTypeMod44W
 from modis_vcf.model import RuleTile
@@ -107,14 +108,15 @@ class VcfPredict(object):
                  cloudFallbackTreeAgg: str = 'median',
                  barePriority: bool = True,
                  mapFormat: str = 'h5',
-                 h5Overrides: dict = None):
+                 h5Overrides: dict = None,
+                 product: str = None):
 
         # Validate the output directory.
         if outDir is None or not outDir.exists() or not outDir.is_dir():
             raise RuntimeError('A valid output directory must be provided.')
 
         self._outDir: Path = outDir
-        self._setMapFormat(mapFormat, h5Overrides)
+        self._setMapFormat(mapFormat, h5Overrides, product)
         self._modelFiles: list = [f for f in (treeCoverModelFile, nonvegModelFile, cloudFallbackTreeFile) if f is not None]
 
         # Load the models.
@@ -200,7 +202,8 @@ class VcfPredict(object):
                      logger: logging.RootLogger = None,
                      writeSd: bool = True,
                      mapFormat: str = 'h5',
-                     h5Overrides: dict = None) -> 'VcfPredict':
+                     h5Overrides: dict = None,
+                     product: str = None) -> 'VcfPredict':
         """A VcfPredict without models or metrics, for the rule tiles only (RuleTile: rows v15-v17)."""
 
         if outDir is None or not outDir.exists() or not outDir.is_dir():
@@ -208,7 +211,7 @@ class VcfPredict(object):
 
         vcfp = cls.__new__(cls)
         vcfp._outDir = outDir
-        vcfp._setMapFormat(mapFormat, h5Overrides)
+        vcfp._setMapFormat(mapFormat, h5Overrides, product)
         vcfp._modelFiles = []
         vcfp._productType = None
         vcfp._treeCoverRf = None
@@ -651,9 +654,44 @@ class VcfPredict(object):
 
         self._write(tid, year, 'Quality', np.where(okMask, quality, 0), noData=False)
         self._write(tid, year, 'Cloud', np.where(okMask, cloud, 0), noData=False)
-        self._writeH5(tid, year)
+
+        # MCD44B (composites with Aqua fill, TileComposites): the Aqua_Fill layer, one bit per period, as Quality / Cloud.
+        product = self._tileProduct(tid, year)
+        extra = None
+
+        if product == 'MCD44B':
+            bits = TileComposites.aquaFillBits(Path(self._metricsDir) / tid / str(year), tid, year)
+            extra = self._writeAquaFill(tid, year, bits, okMask)
+
+        self._writeH5(tid, year, product, extra)
 
         return pctTc, pctNonveg, pctNontreeVeg
+
+    # ------------------------------------------------------------------------
+    # product and Aqua_Fill (v2.0.0)
+    # ------------------------------------------------------------------------
+    def _tileProduct(self, tid: str, year: int) -> str:
+        """MOD44B or MCD44B from the tile's composites; an explicit product must agree with them."""
+
+        md = getattr(self, '_metricsDir', None)
+        src = TileComposites.source(Path(md) / tid / str(year)) if md else None
+        have = src['product'] if src else 'MOD44B'
+
+        if self._product is not None and self._product != have:
+            raise ValueError('%s %d: asked for %s, but its composites make %s (%s).' %
+                             (tid, year, self._product, have, Path(self._metricsDir) / tid / str(year) / TileComposites.SOURCE))
+
+        return have
+
+    def _writeAquaFill(self, tid: str, year: int, bits: np.ndarray, okMask: np.ndarray) -> dict:
+        """Write the Aqua_Fill layer (0 on water and out of projection); return the root attribute AquaFillPercentLand
+        (per period, % of land pixels filled from Aqua)."""
+
+        bits = np.where(okMask, bits, 0).astype(np.uint8)
+        self._write(tid, year, Mod44bH5.AQUA_FILL, bits, noData=False)
+        land = max(int(okMask.sum()), 1)
+        pct = [100.0 * int(((bits >> n) & 1).sum()) / land for n in range(8)]
+        return {'AquaFillPercentLand': np.array(pct, np.float64)}
 
     # ------------------------------------------------------------------------
     # runRuleTile
@@ -682,7 +720,9 @@ class VcfPredict(object):
         flags = np.where(okMask, RuleTile.ALL_PERIODS, 0)
         self._write(tid, year, 'Quality', flags, noData=False)
         self._write(tid, year, 'Cloud', flags, noData=False)
-        self._writeH5(tid, year)
+        product = self._product or 'MOD44B'
+        extra = self._writeAquaFill(tid, year, np.zeros(okMask.shape, np.uint8), okMask) if product == 'MCD44B' else None
+        self._writeH5(tid, year, product, extra)
 
         return pctTc, pctNonveg, pctNontreeVeg
 
@@ -749,10 +789,17 @@ class VcfPredict(object):
     # ------------------------------------------------------------------------
     # setMapFormat
     # ------------------------------------------------------------------------
-    def _setMapFormat(self, mapFormat: str, h5Overrides: dict = None) -> None:
+    def _setMapFormat(self, mapFormat: str, h5Overrides: dict = None, product: str = None) -> None:
 
         if mapFormat not in VcfPredict.MAP_FORMATS:
             raise ValueError('Unknown map format ' + str(mapFormat) + '; use one of ' + str(VcfPredict.MAP_FORMATS))
+
+        # The product (MOD44B or MCD44B, Mod44bH5): None = from the tile's composites (TileComposites; MOD44C roots and
+        # rule tiles: MOD44B).  When given, it must agree with the composites; rule tiles take it as given.
+        if product is not None and product not in Mod44bH5.PRODUCTS:
+            raise ValueError('Unknown product ' + str(product) + '; use one of ' + str(Mod44bH5.PRODUCTS))
+
+        self._product: str = product
 
         self._mapFormat: str = mapFormat
         self._h5Overrides: dict = dict(h5Overrides or {})
@@ -768,8 +815,10 @@ class VcfPredict(object):
         """
 
         cq, ch, geo = [], [], None
+        md = getattr(self, '_metricsDir', None)
+        daily = TileComposites.inputSummary(Path(md) / tid / str(year)) if md else []
 
-        if self._productType is not None:
+        if self._productType is not None and not daily:
 
             pt = self._productType
             days = [(year, d) for d in pt.yearOneDays] + [(year + 1, d) for d in pt.yearTwoDays]
@@ -793,26 +842,27 @@ class VcfPredict(object):
         except RuntimeError:
             self._logger.warning('C7 file: no MOD44W file name found for ' + tid + ' ' + str(year))
 
-        return cq + ch + list(self._modelFiles) + w, geo
+        return daily + cq + ch + list(self._modelFiles) + w, geo
 
     # ------------------------------------------------------------------------
     # writeH5
     # ------------------------------------------------------------------------
-    def _writeH5(self, tid: str, year: int) -> Path:
+    def _writeH5(self, tid: str, year: int, product: str = 'MOD44B', extraAttrs: dict = None) -> Path:
         """The C7 product file (Mod44bH5) from the layers _write kept for this tile and year."""
 
         if self._mapFormat not in ('h5', 'both'):
             return None
 
         layers, self._h5Layers = self._h5Layers, {}
-        missing = [f for f in Mod44bH5.FIELD_NAMES if f not in layers]
+        missing = [f for f in Mod44bH5.fieldNames(product) if f not in layers]
 
         if missing:
             self._logger.warning('C7 file ' + tid + ' ' + str(year) + ': ' + ', '.join(missing) +
                                  ' not computed, written as fill.')
 
         inputs, geo = self._h5Inputs(tid, year)
-        path = Mod44bH5.write(self._outDir, tid, year, layers, inputs, geo, self._h5Overrides)
+        path = Mod44bH5.write(self._outDir, tid, year, layers, inputs, geo, self._h5Overrides, product=product,
+                              extraAttrs=extraAttrs)
         self._logger.info('Wrote ' + str(path))
 
         return path
