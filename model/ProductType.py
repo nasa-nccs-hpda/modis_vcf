@@ -17,6 +17,11 @@ import numpy as np
 # TODO: Remove or rename variables referring to no-data values.  Every pixel
 #       must have some value for machine learning.
 # ----------------------------------------------------------------------------
+class NoMod44cInput(Exception):
+    """Raised when a run with composites from dailies tries to read a MOD44C file.  Not a RuntimeError on purpose: the
+    MOD44C path catches RuntimeError for a missing granule and substitutes an empty day, which must not happen here."""
+
+
 class ProductType(ABC):
     """An input product: its band names, input folder and file search, band layout in the files, QA mask and the days of the
     processing year (DOY 065 of the year to DOY 049 of the next).  Implemented by ProductTypeMod44 (the MOD44CH / MOD44CQ
@@ -55,12 +60,16 @@ class ProductType(ABC):
                  yearOneStartDay: int = YEAR_ONE_START_DAY,
                  yearOneEndDay: int = YEAR_ONE_END_DAY,
                  yearTwoStartDay: int = YEAR_TWO_START_DAY,
-                 yearTwoEndDay: int = YEAR_TWO_END_DAY):
+                 yearTwoEndDay: int = YEAR_TWO_END_DAY,
+                 noInput: bool = False):
 
         if not productType:
             raise ValueError('A product type must be provided.')
         
-        if not inputDir or not inputDir.exists() or not inputDir.is_dir():
+        # noInput: the day calendar only, no input files (runs whose composites come from dailies; findFile raises).
+        if noInput:
+            inputDir = None
+        elif not inputDir or not inputDir.exists() or not inputDir.is_dir():
             raise ValueError('A valid input directory must be specified, not ' + str(inputDir) + '.')
             
         self._inputDir: Path = inputDir
@@ -148,12 +157,17 @@ class ProductType(ABC):
         searched in <inputDir>/<year> or in altDir; the first match.  Raises RuntimeError when there is none."""
         # The altDir argument is a kludge until this can be redesigned.
         searchPt: ProductType = self.getProductTypeForBand(bandName)
-        globDir = altDir or searchPt._inputDir / str(year)
 
         prefix = searchPt._prefixXref[bandName]
         yNj = str(year) + str(day).zfill(3)
         pt = searchPt.productType
         mateGlob = pt + prefix + '.A' + yNj + '.' + tileId + '.*' + searchPt._fileSuffix
+
+        if altDir is None and searchPt._inputDir is None:
+            raise NoMod44cInput('Composites from dailies: ' + mateGlob + ' is not read. A composite or metric of tile ' +
+                                tileId + ' is missing from the metrics folder; rebuild the tile (its composites first).')
+
+        globDir = altDir or searchPt._inputDir / str(year)
         mateFiles = list(globDir.glob(mateGlob))
 
         if not mateFiles:

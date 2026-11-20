@@ -436,7 +436,7 @@ class YearRun(object):
 
         # Map output (VcfPredict.MAP_FORMATS): the C7 file by default; analysis runs set "mapFormat": "both".
         mf = ['--format', self.spec.get('mapFormat', 'h5')] + \
-            (['--product', 'MCD44B' if self.aquaFill else 'MOD44B'] if self.input == 'dailies' else []) + \
+            (['--product', 'MCD44B' if self.aquaFill else 'MOD44B', '--input', 'dailies'] if self.input == 'dailies' else []) + \
             [a for k, v in sorted(self.spec.get('h5Attrs', {}).items()) for a in ('--h5Attr', '%s=%s' % (k, v))]
 
         if kind == 'map' and arg in self.ruleTiles:
@@ -505,7 +505,9 @@ class YearRun(object):
             names += [n for n in cand if n not in names]
 
         Metrics.compositeWorkers = max(1, int(self.spec.get('workers', {}).get('metrics', 8)))
-        mt = Metrics(tile, self.year, ProductTypeMod44(MOD44_DIR), self.metricsRoot, self.logger)
+        # Dailies: the product type gives the period calendar only; MOD44C is never read (VCF_MOD44_DIR not needed).
+        pt = ProductTypeMod44(None, noInput=True) if self.input == 'dailies' else ProductTypeMod44(MOD44_DIR)
+        mt = Metrics(tile, self.year, pt, self.metricsRoot, self.logger)
 
         for n in names:
             mt.getMetricFromRf(n)

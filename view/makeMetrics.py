@@ -81,6 +81,12 @@ def main():
                              'production, where every run builds fresh '
                              'metrics roots.')
 
+    parser.add_argument('--input',
+                        choices=['mod44c', 'dailies'],
+                        default='mod44c',
+                        help='Where the composites in -o come from (v2.0.1). dailies (after makeComposites): MOD44C is '
+                             'never read, VCF_MOD44_DIR is not needed, and a missing composite stops the step.')
+
     parser.add_argument('--writeIntermediates',
                         action='store_true',
                         help='Also write the daily inputs to 1-Days (for '
@@ -113,7 +119,7 @@ def main():
     #
     # This can be accomplished with registration, instead of this hard coding.
     # ---
-    prodType = ProductTypeMod44(MOD44_DIR)
+    prodType = ProductTypeMod44(None, noInput=True) if args.input == 'dailies' else ProductTypeMod44(MOD44_DIR)
     
     # ---
     # Composites are built in this many processes.

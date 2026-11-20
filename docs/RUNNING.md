@@ -181,6 +181,8 @@ computes the metrics as before.
 - **Inputs:** MOD09GA, MOD09GQ and MODTBGA for the 365 days of the processing year (DOY 065 to DOY 064 of the next year).
 - **Cost:** one composite period takes about 20 minutes and 23 GB per sensor. `workers.composite` periods are built at once, so
   `memGB.metrics` must cover `workers.composite` x 23 GB.
+- **MOD44C is never read** (v2.0.1): `VCF_MOD44_DIR` is not needed. If a composite or metric input is missing from the metrics
+  folder, the step stops with `NoMod44cInput` (rebuild the tile) instead of reading MOD44C or using an empty day.
 - **Settings that do not apply:** `cloudFallbackTree` is not allowed with dailies. `lowSun` and `lowSunCheck` do not affect the
   dailies composites, which clamp low sun themselves.
 
@@ -195,7 +197,7 @@ computes the metrics as before.
 - `cleanup: after_map` also deletes the tile's Terra and Aqua composites.
 
 **Without the year driver:** `python -m modis_vcf.view.makeComposites tile -o <metrics root> -y 2019 -t h12v09 --dailiesDir <dir>
-[--aquaFill --work <dir>]`, then `makeMetrics` / `vcfPredict` on that metrics root as usual (`--help` for single periods and merges).
+[--aquaFill --work <dir>]`, then `makeMetrics --input dailies` / `vcfPredict --input dailies` on that metrics root as usual (`--help` for single periods and merges).
 
 ## The pooled bare model (a ready-made model)
 
@@ -291,7 +293,7 @@ no metrics task: they are mapped from MOD44W only (ALGORITHM.md, section 8). A m
 
 | Variable | Use | Default |
 |---|---|---|
-| `VCF_MOD44_DIR` | MOD44CH / MOD44CQ input folder (`<dir>/<year>/`). In v2.0.0 the year driver still needs it set with `"input": "dailies"` (the metrics step opens the MOD44C product type); the gates ran with it set to the MOD44C folder | none: required |
+| `VCF_MOD44_DIR` | MOD44CH / MOD44CQ input folder (`<dir>/<year>/`). Not needed with `"input": "dailies"` (since v2.0.1: MOD44C is never read there) | none: required for `"input": "mod44c"` |
 | `VCF_MOD44W_DIR` | MOD44W input folder (`<dir>/<year>/001/`) | none: required |
 | `VCF_MOD44_COLLECTION` | collection of the MOD44CH / MOD44CQ inputs: `7` or `61` | `7` |
 | `VCF_OUTPUT_COLLECTION` | collection number in the `.h5` product file name and `GranuleID` (three digits) | `071`; `007` for an operational MODAPS run |

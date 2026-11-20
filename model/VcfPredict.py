@@ -109,7 +109,8 @@ class VcfPredict(object):
                  barePriority: bool = True,
                  mapFormat: str = 'h5',
                  h5Overrides: dict = None,
-                 product: str = None):
+                 product: str = None,
+                 dailiesInput: bool = False):
 
         # Validate the output directory.
         if outDir is None or not outDir.exists() or not outDir.is_dir():
@@ -182,7 +183,9 @@ class VcfPredict(object):
         self._barePriority: bool = barePriority
 
         # Instantiate the product type for the metrics.
-        self._productType = ProductTypeMod44(mod44Dir)
+        # dailiesInput: the composites came from dailies, so MOD44C is never read (mod44Dir is not needed; a missing
+        # metric input raises ProductType.NoMod44cInput instead of being rebuilt from MOD44C).
+        self._productType = ProductTypeMod44(mod44Dir, noInput=dailiesInput)
         self._metricsDir: Path = metricsDir
         
         # Instantiate a objects for the water masks.
@@ -818,7 +821,7 @@ class VcfPredict(object):
         md = getattr(self, '_metricsDir', None)
         daily = TileComposites.inputSummary(Path(md) / tid / str(year)) if md else []
 
-        if self._productType is not None and not daily:
+        if self._productType is not None and self._productType.inputDir is not None and not daily:
 
             pt = self._productType
             days = [(year, d) for d in pt.yearOneDays] + [(year + 1, d) for d in pt.yearTwoDays]

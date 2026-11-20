@@ -149,6 +149,12 @@ def main():
                              'when Aqua filled them), MOD44B for MOD44C metrics and rule tiles. When given it must agree '
                              'with the composites; rule tiles take it as given (year runs pass it for every tile).')
 
+    parser.add_argument('--input',
+                        choices=['mod44c', 'dailies'],
+                        default='mod44c',
+                        help='Where the metrics\' composites came from (v2.0.1). dailies: MOD44C is never read, so '
+                             '--modisDir / VCF_MOD44_DIR are not needed, and a missing metric input stops the map.')
+
     parser.add_argument('--h5Attr',
                         action='append',
                         default=[],
@@ -205,7 +211,8 @@ def main():
                       barePriority=not args.noBarePriority,
                       mapFormat=args.format,
                       h5Overrides=h5Overrides,
-                      product=args.product)
+                      product=args.product,
+                      dailiesInput=args.input == 'dailies')
 
     vcfp.run(tids=tids, years=[args.y])
 

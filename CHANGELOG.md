@@ -13,6 +13,24 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
+## v2.0.1 (not tagged yet; branch `mcarrol2/v2.0.0`, 2026-11-19): dailies runs never read MOD44C
+
+**Values exact.** With `"input": "dailies"`, v2.0.0 still opened the MOD44C product type in the metrics and map
+steps, so `VCF_MOD44_DIR` had to be set to an existing folder. Worse, if a composite or metric input was missing from the metrics
+folder, the MOD44C code would have rebuilt it from MOD44C (mixing inputs), or, with no MOD44C file, used an empty day (10000) with
+only a warning, because a missing granule is a `RuntimeError` that the MOD44C path turns into an empty day.
+
+- `ProductType` / `ProductTypeMod44` take `noInput=True`: the period calendar only, no input folder; `findFile` then raises the new
+  `NoMod44cInput` (deliberately not a `RuntimeError`, so it is not swallowed).
+- The year driver uses it for dailies metrics and passes `--input dailies` to the map step; `view/vcfPredict.py` and
+  `view/makeMetrics.py` take `--input {mod44c,dailies}` (default `mod44c`, unchanged).
+- `VCF_MOD44_DIR` is no longer needed for dailies runs; it stays required for `"input": "mod44c"`.
+- Tests: `tests/test_DailiesNoMod44c.py` (5 tests). 97 passed.
+- Evidence: `FullRuns/AT_v201check_20261119` (2026-11-19, 4 / 4 PASS): h09v05 dailies with `VCF_MOD44_DIR` **unset**: composites = B2
+  byte for byte (G1b), maps = B2 maps and = the v2.0.0 gate maps by value (G4b, G4c); h09v05 `"input": "mod44c"` maps = v1.9.0 (G3).
+
+---
+
 ## v2.0.0 (tag `v2.0.0`, 2026-11-19, branch `mcarrol2/v2.0.0`): composites from C7 dailies, optional Aqua fill (MCD44B)
 
 **Input change; product values change by design.** A separate delivery from v1.9.0 (lead 2026-11-19); v1.9.0 is unchanged.
@@ -50,7 +68,7 @@ version are fitted with the recipe given here. Maintained with every code commit
   switch. The no-Aqua fallback is covered by a synthetic unit test. Unit tests: 92 passed.
 - **Docs:** README, ALGORITHM (section 4a, the dailies rules; MCD44B file), BUILD (the dailies folder) and RUNNING (cost per
   tile-year, notes for MODAPS) describe v2.0.0. The docs of `mcarrol2/dev` after v1.9.0 (below) are merged in. Known wart:
-  `VCF_MOD44_DIR` must still be set with `"input": "dailies"`.
+  `VCF_MOD44_DIR` must still be set with `"input": "dailies"` (fixed in v2.0.1).
 
 ---
 

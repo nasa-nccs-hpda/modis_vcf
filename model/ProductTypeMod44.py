@@ -33,9 +33,9 @@ class ProductTypeMod44(ProductType):
     # ------------------------------------------------------------------------
     # __init__
     # ------------------------------------------------------------------------
-    def __init__(self, inputDir: Path):
+    def __init__(self, inputDir: Path, noInput: bool = False):
 
-        if inputDir is None:
+        if inputDir is None and not noInput:
             raise ValueError('No MOD44CH / MOD44CQ input folder: set VCF_MOD44_DIR '
                              '(or pass the folder, e.g. vcfPredict.py --modisDir).')
 
@@ -44,7 +44,8 @@ class ProductTypeMod44(ProductType):
                      inputDir,
                      dayStep = ProductTypeMod44.DAY_STEP,
                      yearOneEndDay = ProductTypeMod44.YEAR_ONE_END_DAY,
-                     yearTwoEndDay = ProductTypeMod44.YEAR_TWO_END_DAY)
+                     yearTwoEndDay = ProductTypeMod44.YEAR_TWO_END_DAY,
+                     noInput = noInput)
         
         # SOLZ was 3
         self._bandXref = {ProductType.BAND1: 4, ProductType.BAND2: 5,
