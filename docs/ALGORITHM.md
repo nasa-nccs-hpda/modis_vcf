@@ -1,4 +1,4 @@
-# How the MODIS VCF product is made (modis_vcf v1.9.0)
+# How the MODIS VCF product is made (modis_vcf v2.0.0)
 
 This describes what the code computes, in the order it runs, for a reader who knows remote sensing but not this algorithm. File and
 function names point to where each step lives. How to run each step is in [RUNNING.md](RUNNING.md); the training labels are in
@@ -20,6 +20,9 @@ layers can also be written as GeoTIFFs):
 | `Quality` | uint8 | bit n set = composite period n+1 had no good input (it fell back to a mean of all inputs) |
 | `Cloud` | uint8 | bit n set = period n+1 fell back and had no clear (cloud-free) day |
 
+With Aqua fill (v2.0.0, section 4a) the file is `MCD44B.A<year>065.<tile>.071.<production time>.h5`, with an eighth layer
+`Aqua_Fill` (uint8, bit n set = period n+1 used Aqua on that pixel).
+
 In the three percent layers, water = 200, outside the projection = 250, no data = 253. In the SD, Quality and Cloud layers, water and
 outside the projection are 0. GeoTIFF names, when asked for: `<Layer>-<tile>-<year>.tif`, e.g. `Percent_Tree_Cover-h12v09-2019.tif`.
 
@@ -29,7 +32,8 @@ The three percent layers sum to exactly 100 on every land pixel.
 
 | Input | What is used | Where |
 |---|---|---|
-| **MOD44CH / MOD44CQ** (Collection 7 `.h5` since v1.8.0; Collection 6.1 `.hdf` up to v1.7.1; PGE72) | 16-day composites: reflectance bands 1-7, band 31 (brightness temperature), solar zenith, the `state` QA word | `model/ProductTypeMod44.py` |
+| **MOD09GA + MOD09GQ + MODTBGA** (Collection 7 `.h5`, daily L2G; v2.0.0, spec `"input": "dailies"`) | first layer only: bands 1-2 (GQ, 250 m), bands 3-7, state, angles (GA, 500 m / 1 km), band 31 (TBGA); with Aqua fill also MYD09GA / MYD09GQ / MYDTBGA | `model/DailiesComposite.py`, `model/Sensor.py` |
+| **MOD44CH / MOD44CQ** (Collection 7 `.h5` since v1.8.0; Collection 6.1 `.hdf` up to v1.7.1; PGE72; spec `"input": "mod44c"`) | 16-day composites: reflectance bands 1-7, band 31 (brightness temperature), solar zenith, the `state` QA word | `model/ProductTypeMod44.py` |
 | **MOD44W** (Collection 6.1) | land / water / outside-projection mask, the file for day 001 of the year | `model/ProductTypeMod44W.py` |
 | Training labels | percent tree and percent bare per pixel on 98 tiles | [TRAINING_LABELS.md](TRAINING_LABELS.md) |
 
@@ -40,6 +44,9 @@ Input folders are set in `model/Settings.py` (environment variables `VCF_MOD44_D
 
 "Year 2019" uses the 23 sixteen-day composites from **day 065 of 2019 to day 049 of 2020**: 19 in 2019 and 4 in 2020. A year can only
 be run once the next year's first four composites exist.
+
+Sections 3 and 4 describe the MOD44C path. With `"input": "dailies"` the 8 composites are built as in section 4a instead; every
+later step (metrics, models, rules) is the same for both paths, except the two MOD44C-only rules named in section 4a.
 
 ## 3. Daily inputs and QA (per 16-day composite)
 
@@ -72,6 +79,33 @@ of the next year (the last period has two inputs). For each band, pixel and peri
 
 NDVI is computed from the composites of bands 1 and 2. On six Greenland tiles (h15v02, h16v00, h16v01, h16v02, h17v00, h17v01) NDVI is
 set to 0 in any period with no input of 0 < solz < 65 (`Metrics.ZENITH_ONLY_NDVI_TILES`).
+
+## 4a. Composites from C7 dailies (v2.0.0, `"input": "dailies"`)
+
+The same 8 periods of 48 days (section 4), built directly from the 365 daily L2G files of the processing year (DOY 065 to DOY 064 of
+the next year), one sensor at a time (`model/DailiesComposite.py`; the Aqua-Terra Experiment's rules "B2"). Only the first layer of
+each daily file is used; GQ and GA must be the same overpass.
+
+- **Good day:** present and valid (bands in -100 to 16000, band 31 > 0); cloud state clear, no internal cloud, no cloud shadow, not
+  adjacent to cloud; aerosol low or average (climatology accepted only on snow days); **0 < solar zenith < 72**.
+- **Composite of good days:** the mean of the first non-empty group, in this order: snow-free with view zenith < 45, snow-free, snow
+  with view zenith < 45, snow.
+- **Fallback (no good day), least-bad days first:**
+  - F1, no cloud, shadow or high aerosol: mean of the 3 best days;
+  - F2, no cloud but shadow or high aerosol: mean of the 3 best days;
+  - F3, cloudy but NDVI >= 0 and NIR >= 0.15 (the v1.9.0 guard): mean of the 3 days with the lowest red;
+  - F4: mean of every present day, with 16000 where solar zenith >= 72 or <= 0;
+  - no present day: 16000 on the globe (polar night), 10000 off it.
+
+  "Best" means snow-free first, then the lowest view zenith. A fallback sets the period's Quality bit, and its Cloud bit when no day
+  had a clear cloud state under the sun limit.
+- **Aqua fill** (`"aquaFill": true`, `model/AquaFill.py`): Terra and Aqua are composited separately. Where Terra has no good day and
+  Aqua has one (and a valid band 6), all 8 bands of that pixel-period come from Aqua, with no offset adjustment; elsewhere the
+  pixel stays Terra. The product is then MCD44B, with an eighth layer `Aqua_Fill` (one bit per period, set where Aqua was used). If
+  there are no Aqua dailies for the year (Aqua starts on 4 July 2002), the run is Terra only (MOD44B) with a warning.
+- **Not applied with dailies:** the low-sun substitution of section 3 (the compositor clamps low sun itself), the zenith-only NDVI rule
+  on the Greenland tiles, and the cloud-fallback tree blend.
+- **Sensors are descriptions** (`model/Sensor.py`), so another sensor (for example VIIRS) can be added without changing these rules.
 
 ## 5. Metrics (the predictors)
 

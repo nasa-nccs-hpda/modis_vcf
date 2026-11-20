@@ -13,7 +13,7 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ---
 
-## v2.0.0 (not tagged; in development on branch `mcarrol2/v2.0.0`, 2026-11-19): composites from C7 dailies, optional Aqua fill (MCD44B)
+## v2.0.0 (tag `v2.0.0`, 2026-11-19, branch `mcarrol2/v2.0.0`): composites from C7 dailies, optional Aqua fill (MCD44B)
 
 **Input change; product values change by design.** A separate delivery from v1.9.0 (lead 2026-11-19); v1.9.0 is unchanged.
 
@@ -48,6 +48,9 @@ version are fitted with the recipe given here. Maintained with every code commit
   Terra composites = B2 and Aqua-fill composites + diagnostics = the Aqua fill run, byte for byte on the 7 standard tiles; maps equal
   the runs' maps; `"input": "mod44c"` = v1.9.0 byte for byte (h09v05, h12v09); each composite option reproduces its experiment
   switch. The no-Aqua fallback is covered by a synthetic unit test. Unit tests: 92 passed.
+- **Docs:** README, ALGORITHM (section 4a, the dailies rules; MCD44B file), BUILD (the dailies folder) and RUNNING (cost per
+  tile-year, notes for MODAPS) describe v2.0.0. The docs of `mcarrol2/dev` after v1.9.0 (below) are merged in. Known wart:
+  `VCF_MOD44_DIR` must still be set with `"input": "dailies"`.
 
 ---
 

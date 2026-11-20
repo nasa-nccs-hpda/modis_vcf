@@ -1,4 +1,4 @@
-# Running a year (modis_vcf v2.0.0, in development; v1.9.0 plus composites from dailies)
+# Running a year (modis_vcf v2.0.0: v1.9.0 plus composites from C7 dailies)
 
 One processing year (see [ALGORITHM.md](ALGORITHM.md), section 2: "2019" = 2019 day 065 to 2020 day 049) goes through five steps:
 
@@ -291,7 +291,7 @@ no metrics task: they are mapped from MOD44W only (ALGORITHM.md, section 8). A m
 
 | Variable | Use | Default |
 |---|---|---|
-| `VCF_MOD44_DIR` | MOD44CH / MOD44CQ input folder (`<dir>/<year>/`) | none: required |
+| `VCF_MOD44_DIR` | MOD44CH / MOD44CQ input folder (`<dir>/<year>/`). In v2.0.0 the year driver still needs it set with `"input": "dailies"` (the metrics step opens the MOD44C product type); the gates ran with it set to the MOD44C folder | none: required |
 | `VCF_MOD44W_DIR` | MOD44W input folder (`<dir>/<year>/001/`) | none: required |
 | `VCF_MOD44_COLLECTION` | collection of the MOD44CH / MOD44CQ inputs: `7` or `61` | `7` |
 | `VCF_OUTPUT_COLLECTION` | collection number in the `.h5` product file name and `GranuleID` (three digits) | `071`; `007` for an operational MODAPS run |
@@ -315,3 +315,30 @@ the zenith-only NDVI rule always applies on its Greenland tiles.
 
 The 2019 global run took about 11 h on two 24-core and three 12-core nodes. With the pooled bare model (v1.9.0) a year has 2 splits
 and 2 fits (tree and cloud-fallback tree), not 3.
+
+### Composites from C7 dailies (v2.0.0): extra cost per tile-year
+
+Measured on the Aqua-Terra Experiment runs (2019, 7 and 77 tiles, Intel nodes); global figures are scaled from them, not measured.
+
+| Item | Per tile-year, one sensor | Global (292 land tiles), one sensor-year |
+|---|---|---|
+| C7 dailies to read (MOD09GA + MOD09GQ + MODTBGA) | about 86-89 GB (v00 tiles about 4 times more) | about 25 TB |
+| Compositing (8 periods) | about 20 min and 23 GB RAM per period, so about 2.7 core-hours | about 800 core-hours |
+| Composites written | about 6 GB (0.74 GB per period, diagnostics off; diagnostics add about 7 GB) | about 1.7 TB (about 6 TB with diagnostics); deleted by `cleanup: after_map` |
+| Aqua fill merge (MCD44B only) | about 17 s and 0.6 GB per period, after both sensors are composited | small |
+
+With Aqua fill the inputs and the compositing double (both sensors). Metrics, splits, fits and maps cost the same as in the table
+above. Downloading one global sensor-year from LAADS took 1 to 3 days at the rates seen in 2026 (80-375 MB/s).
+
+## Notes for MODAPS (v2.0.0)
+
+- **Inputs:** `"input": "dailies"` needs C7 MOD09GA, MOD09GQ and MODTBGA for DOY 065 of the year to DOY 064 of the next year, and
+  MOD44W. With `"aquaFill": true` it also needs MYD09GA, MYD09GQ and MYDTBGA. MODTBGA / MYDTBGA and the C7 MOD09GA / GQ are on LAADS
+  (`allData/7`) only; they are not in CMR / Earthdata Cloud. Do not mix Collection 6.1 and Collection 7 dailies.
+- **`"input": "mod44c"`** keeps the v1.9.0 product from MOD44CH / MOD44CQ unchanged (proven byte for byte).
+- **MCD44B metadata is provisional:** LongName, platform "Terra, Aqua", grid `MCD44B_250m_GRID` and an empty DOI, until MODAPS
+  supplies the MCD44B MCF.
+- **Version:** the files write PGEVersion / LocalVersionID 2.0.0. InputDataProducts lists one entry per daily product (file count,
+  first and last file name).
+- **Missing days** on LAADS are left out of the composites; they are not failures. A year with no Aqua dailies gives MOD44B with a
+  warning even when `"aquaFill"` is on.

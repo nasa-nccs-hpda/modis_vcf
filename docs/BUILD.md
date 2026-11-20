@@ -1,4 +1,4 @@
-# Building the environment (modis_vcf v1.9.0)
+# Building the environment (modis_vcf v2.0.0)
 
 The code is pure Python. It needs no container, no GPU and no other repository.
 
@@ -42,7 +42,9 @@ export PYTHONPATH=/opt/vcf
 ## 3. Input locations
 
 Environment variables, read in `model/Settings.py`. **There are no default folders:** set `VCF_MOD44_DIR` and `VCF_MOD44W_DIR`
-for every step that reads them, or the step stops with an error naming the variable. The full list of variables is in
+for every step that reads them, or the step stops with an error naming the variable. The C7 dailies folder (v2.0.0) is not an
+environment variable: it is the year spec's `"dailiesDir"`, laid out as
+`<dailiesDir>/<PRODUCT>/<calendar year>/<PRODUCT>.A<yyyyddd>.<tile>.007.*.h5` (RUNNING.md). The full list of variables is in
 [RUNNING.md](RUNNING.md#environment-variables).
 
 | Variable | Data | Layout |
