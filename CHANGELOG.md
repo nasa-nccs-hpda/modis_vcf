@@ -15,7 +15,15 @@ version are fitted with the recipe given here. Maintained with every code commit
 
 ## Unreleased
 
-### DOI for v1.9.0 (docs only, 2026-11-13; hash filled in by the next commit)
+### Tile lists for the training manifests (docs only, 2026-11-25; hash filled in by the next commit)
+
+**No code or value change.** `docs/RUNNING.md` (step 1) named `tree_tiles.txt` / `bare_tiles.txt` without saying they are lists the
+user makes, so they read as missing files. The lists now ship as `docs/tree_tiles.txt` (63 tiles) and `docs/bare_tiles.txt` (35),
+made from the tile ids in the label archive `VCF_training_labels_7.0.1.tar.gz`; the tree list equals the tile set of the archive's
+2019 tree manifest. Step 1 now gives the bare command in full, describes the file format, says that a product year needs only the
+tree manifest, and explains `--version` (a free-text label; the example now says `v1.9.0-2021`).
+
+### DOI for v1.9.0 (docs only, 2026-11-13, `1645a62`)
 
 **No code or value change.** The v1.9.0 tag is archived on Zenodo, DOI [10.5281/zenodo.24174799](https://doi.org/10.5281/zenodo.24174799). README shows the DOI badge and a "Citing" section.
 
