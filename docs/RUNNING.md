@@ -41,13 +41,21 @@ A manifest lists every training pixel (tile-year, row, column, label) and whethe
 
 ```bash
 python -m modis_vcf.view.trainingManifest sample --labels '<labels>/pcttree/VCF_training_pcttree_{tile}.7.0.1.out' \
-    --tiles tree_tiles.txt --trainingType pcttree -y 2021 --index position -o manifest_tree_2021.parq --version v1.6.0-2021
-python -m modis_vcf.view.trainingManifest sample --labels '<labels>/pctbare/VCF_training_pctbare_{tile}.<7.0.0 or 7.0.1>.out' ...
+    --tiles docs/tree_tiles.txt --trainingType pcttree -y 2021 --index position -o manifest_tree_2021.parq --version v1.9.0-2021
+python -m modis_vcf.view.trainingManifest sample --labels '<labels>/pctbare/VCF_training_pctbare_{tile}.<7.0.0 or 7.0.1>.out' \
+    --tiles docs/bare_tiles.txt --trainingType pctbare -y 2021 -o manifest_bare_2021.parq --version v1.9.0-2021
 ```
 
+`--tiles` is a text file of tile ids (`h08v05`, ...), separated by spaces or new lines. The repository ships the lists of the label
+archive's tiles: [tree_tiles.txt](tree_tiles.txt) (63 tiles, the `pcttree/` folder; the same tiles as the archive's 2019 tree
+manifest) and [bare_tiles.txt](bare_tiles.txt) (35 tiles, the `pctbare/` folder; h11v11 and h16v02 supply the added points described
+below). Use them as they are, or make your own list for a subset of tiles. A product year needs only the tree manifest: the bare
+manifest is for rebuilding the pooled bare model or fitting a single-year bare model. `--version` is a free-text label stored in the
+manifest's metadata; it does not change the rows.
+
 `--labels` takes one pattern; for the bare set, whose files carry two version numbers, make a folder of links with one name pattern,
-or one file per tile. `tree_tiles.txt` / `bare_tiles.txt` = the tiles in the label archive (63 / 35). The tree manifest uses
-`--index position`, the bare one the default `range` (as in our runs; it only affects row ids).
+or one file per tile. The tree manifest uses `--index position`, the bare one the default `range` (as in our runs; it only affects
+row ids).
 
 > **Row order of the added points.** Sampled from the rasters, the 10,000 h16v02 ice points and the 2,560 desert points (h11v11,
 > h19v11) sit in tile order. Our runs appended them after all other rows (`--extra`, a parquet list). Same rows, same train/test parts, different order, so a bare model fitted from a fresh sample
